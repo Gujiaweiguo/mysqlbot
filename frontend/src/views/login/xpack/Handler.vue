@@ -195,10 +195,12 @@ const init = (cb?: () => void) => {
       }
     })
     .catch(() => {
-      if (!wsCache.get('oidc-error')) {
-        wsCache.set('oidc-error', 1)
-        window.location.reload()
-      }
+      // 在未启用 xpack 认证路由（返回 404）时降级到普通登录流程，避免登录页一直 loading
+      anyEnable.value = false
+      loginCategory.value = {} as LoginCategory
+      wsCache.delete('oidc-error')
+      // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+      cb ? cb() : updateLoading(false, 100)
     })
 }
 

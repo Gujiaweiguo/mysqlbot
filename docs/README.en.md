@@ -1,12 +1,12 @@
-<p align="center"><img src="https://resource-fit2cloud-com.oss-cn-hangzhou.aliyuncs.com/sqlbot/sqlbot.png" alt="SQLBot" width="300" /></p>
+<p align="center"><img src="https://resource-fit2cloud-com.oss-cn-hangzhou.aliyuncs.com/sqlbot/sqlbot.png" alt="mySQLBot" width="300" /></p>
 <h3 align="center">Intelligent Questioning System Based on Large Models and RAG</h3>
 <p align="center">
-  <a href="https://trendshift.io/repositories/14540" target="_blank"><img src="https://trendshift.io/api/badge/repositories/14540" alt="dataease%2FSQLBot | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+  <a href="https://trendshift.io/repositories/14540" target="_blank"><img src="https://trendshift.io/api/badge/repositories/14540" alt="dataease%2FmySQLBot | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/dataease/SQLBot/releases/latest"><img src="https://img.shields.io/github/v/release/dataease/SQLBot" alt="Latest release"></a>
-  <a href="https://github.com/dataease/SQLBot"><img src="https://img.shields.io/github/stars/dataease/SQLBot?color=%231890FF&style=flat-square" alt="Stars"></a>    
+  <a href="https://github.com/dataease/mySQLBot/releases/latest"><img src="https://img.shields.io/github/v/release/dataease/mySQLBot" alt="Latest release"></a>
+  <a href="https://github.com/dataease/mySQLBot"><img src="https://img.shields.io/github/stars/dataease/mySQLBot?color=%231890FF&style=flat-square" alt="Stars"></a>    
   <a href="https://hub.docker.com/r/dataease/SQLbot"><img src="https://img.shields.io/docker/pulls/dataease/sqlbot?label=downloads" alt="Download"></a><br/>
 </p>
 
@@ -16,7 +16,7 @@
 </p>
 <hr/>
 
-SQLBot is an intelligent data query system based on large language models and RAG, meticulously crafted by the DataEase open-source project team. With SQLBot, users can perform conversational data analysis (ChatBI), quickly extracting the necessary data information and visualizations, and supporting further intelligent analysis.
+mySQLBot is an intelligent data query system based on large language models and RAG, meticulously crafted by the DataEase open-source project team. With mySQLBot, users can perform conversational data analysis (ChatBI), quickly extracting the necessary data information and visualizations, and supporting further intelligent analysis.
 
 ## How It Works
 
@@ -51,16 +51,16 @@ docker run -d \
   dataease/sqlbot
 ```
 
-You can also quickly deploy SQLBot through the [1Panel app store](https://apps.fit2cloud.com/1panel).
+You can also quickly deploy mySQLBot through the [1Panel app store](https://apps.fit2cloud.com/1panel).
 
-If you are in an intranet environment, you can deploy SQLBot via the [offline installation package](https://community.fit2cloud.com/#/products/sqlbot/downloads).
+If you are in an intranet environment, you can deploy mySQLBot via the [offline installation package](https://community.fit2cloud.com/#/products/sqlbot/downloads).
 
 
 ### Access methods
 
 - Open in your browser: http://<your server IP>:8000/
 - Username: admin
-- Password: SQLBot@123456
+- Password: mySQLBot@123456
 
 
 ## UI Display
@@ -89,9 +89,9 @@ If you are in an intranet environment, you can deploy SQLBot via the [offline in
 
 This repository is licensed under the [FIT2CLOUD Open Source License](LICENSE), which is essentially GPLv3 but with some additional restrictions.
 
-You may conduct secondary development based on the SQLBot source code, but you must adhere to the following:
+You may conduct secondary development based on the mySQLBot source code, but you must adhere to the following:
 
-- You cannot replace or modify the SQLBot logo and copyright information;
+- You cannot replace or modify the mySQLBot logo and copyright information;
 
 - Derivative works resulting from secondary development must comply with the open-source obligations of GPL v3.
 

@@ -7,31 +7,127 @@ from sqlalchemy import and_, text
 from sqlbot_xpack.permissions.models.ds_rules import DsRules
 from sqlmodel import select
 
-from apps.datasource.crud.permission import get_column_permission_fields, get_row_permission_filters, is_normal_user
+from apps.datasource.crud.permission import (
+    get_column_permission_fields,
+    get_row_permission_filters,
+    is_normal_user,
+)
 from apps.datasource.embedding.table_embedding import calc_table_embedding
-from apps.datasource.utils.utils import aes_decrypt
+from apps.datasource.utils.utils import aes_decrypt, aes_encrypt
 from apps.db.constant import DB
 from apps.db.db import get_tables, get_fields, exec_sql, check_connection
 from apps.db.engine import get_engine_config, get_engine_conn
 from apps.system.schemas.auth import CacheName, CacheNamespace
 from common.core.config import settings
 from common.core.deps import SessionDep, CurrentUser, Trans
-from common.utils.embedding_threads import run_save_table_embeddings, run_save_ds_embeddings
+from common.utils.embedding_threads import (
+    run_save_table_embeddings,
+    run_save_ds_embeddings,
+)
 from common.utils.utils import SQLBotLogUtil, deepcopy_ignore_extra
 from common.core.sqlbot_cache import cache, clear_cache
 from .table import get_tables_by_ds_id
 from ..crud.field import delete_field_by_ds_id, update_field
 from ..crud.table import delete_table_by_ds_id, update_table
-from ..models.datasource import CoreDatasource, CreateDatasource, CoreTable, CoreField, ColumnSchema, TableObj, \
-    DatasourceConf, TableAndFields
+from ..models.datasource import (
+    CoreDatasource,
+    CreateDatasource,
+    CoreTable,
+    CoreField,
+    ColumnSchema,
+    TableObj,
+    DatasourceConf,
+    TableAndFields,
+)
 
 
-def get_datasource_list(session: SessionDep, user: CurrentUser, oid: Optional[int] = None) -> List[CoreDatasource]:
+DEFAULT_INTERNAL_DS_NAME = "mySQLBot Internal PostgreSQL"
+DEFAULT_INTERNAL_DS_DESCRIPTION = (
+    "Auto-created datasource for mySQLBot internal PostgreSQL database"
+)
+
+
+def _is_internal_pg_conf(conf: DatasourceConf) -> bool:
+    return (
+        conf.host == settings.POSTGRES_SERVER
+        and int(conf.port) == int(settings.POSTGRES_PORT)
+        and conf.username == settings.POSTGRES_USER
+        and conf.password == settings.POSTGRES_PASSWORD
+        and conf.database == settings.POSTGRES_DB
+        and (conf.dbSchema or "public") == "public"
+    )
+
+
+def ensure_internal_pg_datasource(
+    session, oid: int, create_by: int = 1, commit: bool = True
+) -> CoreDatasource | None:
+    ds_list = session.exec(
+        select(CoreDatasource).where(
+            and_(CoreDatasource.oid == oid, CoreDatasource.type == "pg")
+        )
+    ).all()
+    for ds in ds_list:
+        try:
+            raw_conf = json.loads(aes_decrypt(ds.configuration))
+            conf = DatasourceConf(**raw_conf)
+            if raw_conf.get("sheets") in ("", None):
+                ds.configuration = aes_encrypt(json.dumps(conf.to_dict())).decode(
+                    "utf-8"
+                )
+                session.add(ds)
+                if commit:
+                    session.commit()
+            if ds.name == DEFAULT_INTERNAL_DS_NAME or _is_internal_pg_conf(conf):
+                return None
+        except Exception:
+            continue
+
+    conf = get_engine_config()
+    conf.extraJdbc = ""
+    conf.driver = ""
+    conf.sheets = []
+    datasource = CoreDatasource(
+        name=DEFAULT_INTERNAL_DS_NAME,
+        description=DEFAULT_INTERNAL_DS_DESCRIPTION,
+        type="pg",
+        type_name=DB.get_db("pg").db_name,
+        configuration=aes_encrypt(json.dumps(conf.to_dict())).decode("utf-8"),
+        create_time=datetime.datetime.now(),
+        create_by=create_by,
+        status="Success",
+        num="0/0",
+        oid=oid,
+        table_relation=[],
+        embedding=None,
+        recommended_config=1,
+    )
+    session.add(datasource)
+    session.flush()
+    session.refresh(datasource)
+    try:
+        all_tables = get_tables(datasource)
+        datasource.num = f"0/{len(all_tables)}"
+    except Exception as ex:
+        SQLBotLogUtil.warning(
+            f"Failed to load tables for internal datasource in workspace [{oid}]: {ex}"
+        )
+    session.add(datasource)
+    if commit:
+        session.commit()
+    return datasource
+
+
+def get_datasource_list(
+    session: SessionDep, user: CurrentUser, oid: Optional[int] = None
+) -> List[CoreDatasource]:
     current_oid = user.oid if user.oid is not None else 1
     if user.isAdmin and oid:
         current_oid = oid
     return session.exec(
-        select(CoreDatasource).where(CoreDatasource.oid == current_oid).order_by(CoreDatasource.name)).all()
+        select(CoreDatasource)
+        .where(CoreDatasource.oid == current_oid)
+        .order_by(CoreDatasource.name)
+    ).all()
 
 
 def get_ds(session: SessionDep, id: int):
@@ -40,33 +136,60 @@ def get_ds(session: SessionDep, id: int):
     return datasource
 
 
-def check_status_by_id(session: SessionDep, trans: Trans, ds_id: int, is_raise: bool = False):
+def check_status_by_id(
+    session: SessionDep, trans: Trans, ds_id: int, is_raise: bool = False
+):
     ds = session.get(CoreDatasource, ds_id)
     if ds is None:
         if is_raise:
-            raise HTTPException(status_code=500, detail=trans('i18n_ds_invalid'))
+            raise HTTPException(status_code=500, detail=trans("i18n_ds_invalid"))
         return False
     return check_status(session, trans, ds, is_raise)
 
 
-def check_status(session: SessionDep, trans: Trans, ds: CoreDatasource, is_raise: bool = False):
+def check_status(
+    session: SessionDep, trans: Trans, ds: CoreDatasource, is_raise: bool = False
+):
     return check_connection(trans, ds, is_raise)
 
 
-def check_name(session: SessionDep, trans: Trans, user: CurrentUser, ds: CoreDatasource):
+def check_name(
+    session: SessionDep, trans: Trans, user: CurrentUser, ds: CoreDatasource
+):
     if ds.id is not None:
-        ds_list = session.query(CoreDatasource).filter(
-            and_(CoreDatasource.name == ds.name, CoreDatasource.id != ds.id, CoreDatasource.oid == user.oid)).all()
+        ds_list = (
+            session.query(CoreDatasource)
+            .filter(
+                and_(
+                    CoreDatasource.name == ds.name,
+                    CoreDatasource.id != ds.id,
+                    CoreDatasource.oid == user.oid,
+                )
+            )
+            .all()
+        )
         if ds_list is not None and len(ds_list) > 0:
-            raise HTTPException(status_code=500, detail=trans('i18n_ds_name_exist'))
+            raise HTTPException(status_code=500, detail=trans("i18n_ds_name_exist"))
     else:
-        ds_list = session.query(CoreDatasource).filter(
-            and_(CoreDatasource.name == ds.name, CoreDatasource.oid == user.oid)).all()
+        ds_list = (
+            session.query(CoreDatasource)
+            .filter(
+                and_(CoreDatasource.name == ds.name, CoreDatasource.oid == user.oid)
+            )
+            .all()
+        )
         if ds_list is not None and len(ds_list) > 0:
-            raise HTTPException(status_code=500, detail=trans('i18n_ds_name_exist'))
+            raise HTTPException(status_code=500, detail=trans("i18n_ds_name_exist"))
 
-@clear_cache(namespace=CacheNamespace.AUTH_INFO, cacheName=CacheName.DS_ID_LIST, keyExpression="user.oid")
-async def create_ds(session: SessionDep, trans: Trans, user: CurrentUser, create_ds: CreateDatasource):
+
+@clear_cache(
+    namespace=CacheNamespace.AUTH_INFO,
+    cacheName=CacheName.DS_ID_LIST,
+    keyExpression="user.oid",
+)
+async def create_ds(
+    session: SessionDep, trans: Trans, user: CurrentUser, create_ds: CreateDatasource
+):
     ds = CoreDatasource()
     deepcopy_ignore_extra(create_ds, ds)
     check_name(session, trans, user, ds)
@@ -101,7 +224,9 @@ def update_ds(session: SessionDep, trans: Trans, user: CurrentUser, ds: CoreData
     check_name(session, trans, user, ds)
     # status = check_status(session, trans, ds)
     ds.status = "Success"
-    record = session.exec(select(CoreDatasource).where(CoreDatasource.id == ds.id)).first()
+    record = session.exec(
+        select(CoreDatasource).where(CoreDatasource.id == ds.id)
+    ).first()
     update_data = ds.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(record, field, value)
@@ -112,8 +237,12 @@ def update_ds(session: SessionDep, trans: Trans, user: CurrentUser, ds: CoreData
     return ds
 
 
-def update_ds_recommended_config(session: SessionDep, datasource_id: int, recommended_config: int):
-    record = session.exec(select(CoreDatasource).where(CoreDatasource.id == datasource_id)).first()
+def update_ds_recommended_config(
+    session: SessionDep, datasource_id: int, recommended_config: int
+):
+    record = session.exec(
+        select(CoreDatasource).where(CoreDatasource.id == datasource_id)
+    ).first()
     record.recommended_config = recommended_config
     session.add(record)
     session.commit()
@@ -136,9 +265,7 @@ async def delete_ds(session: SessionDep, id: int):
     delete_field_by_ds_id(session, id)
     if term:
         await clear_ws_ds_cache(term.oid)
-    return {
-        "message": f"Datasource with ID {id} deleted successfully."
-    }
+    return {"message": f"Datasource with ID {id} deleted successfully."}
 
 
 def getTables(session: SessionDep, id: int):
@@ -179,7 +306,7 @@ def sync_single_fields(session: SessionDep, trans: Trans, id: int):
         t_name.append(_t.tableName)
 
     if not table.table_name in t_name:
-        raise HTTPException(status_code=500, detail=trans('i18n_table_not_exist'))
+        raise HTTPException(status_code=500, detail=trans("i18n_table_not_exist"))
 
     # sync field
     fields = getFieldsByDs(session, ds, table.table_name)
@@ -193,7 +320,9 @@ def sync_single_fields(session: SessionDep, trans: Trans, id: int):
 def sync_table(session: SessionDep, ds: CoreDatasource, tables: List[CoreTable]):
     id_list = []
     for item in tables:
-        statement = select(CoreTable).where(and_(CoreTable.ds_id == ds.id, CoreTable.table_name == item.table_name))
+        statement = select(CoreTable).where(
+            and_(CoreTable.ds_id == ds.id, CoreTable.table_name == item.table_name)
+        )
         record = session.exec(statement).first()
         # update exist table, only update table_comment
         if record is not None:
@@ -205,8 +334,13 @@ def sync_table(session: SessionDep, ds: CoreDatasource, tables: List[CoreTable])
             session.commit()
         else:
             # save new table
-            table = CoreTable(ds_id=ds.id, checked=True, table_name=item.table_name, table_comment=item.table_comment,
-                              custom_comment=item.table_comment)
+            table = CoreTable(
+                ds_id=ds.id,
+                checked=True,
+                table_name=item.table_name,
+                table_comment=item.table_comment,
+                custom_comment=item.table_comment,
+            )
             session.add(table)
             session.flush()
             session.refresh(table)
@@ -219,14 +353,20 @@ def sync_table(session: SessionDep, ds: CoreDatasource, tables: List[CoreTable])
         sync_fields(session, ds, item, fields)
 
     if len(id_list) > 0:
-        session.query(CoreTable).filter(and_(CoreTable.ds_id == ds.id, CoreTable.id.not_in(id_list))).delete(
-            synchronize_session=False)
-        session.query(CoreField).filter(and_(CoreField.ds_id == ds.id, CoreField.table_id.not_in(id_list))).delete(
-            synchronize_session=False)
+        session.query(CoreTable).filter(
+            and_(CoreTable.ds_id == ds.id, CoreTable.id.not_in(id_list))
+        ).delete(synchronize_session=False)
+        session.query(CoreField).filter(
+            and_(CoreField.ds_id == ds.id, CoreField.table_id.not_in(id_list))
+        ).delete(synchronize_session=False)
         session.commit()
     else:  # delete all tables and fields in this ds
-        session.query(CoreTable).filter(CoreTable.ds_id == ds.id).delete(synchronize_session=False)
-        session.query(CoreField).filter(CoreField.ds_id == ds.id).delete(synchronize_session=False)
+        session.query(CoreTable).filter(CoreTable.ds_id == ds.id).delete(
+            synchronize_session=False
+        )
+        session.query(CoreField).filter(CoreField.ds_id == ds.id).delete(
+            synchronize_session=False
+        )
         session.commit()
 
     # do table embedding
@@ -234,11 +374,17 @@ def sync_table(session: SessionDep, ds: CoreDatasource, tables: List[CoreTable])
     run_save_ds_embeddings([ds.id])
 
 
-def sync_fields(session: SessionDep, ds: CoreDatasource, table: CoreTable, fields: List[ColumnSchema]):
+def sync_fields(
+    session: SessionDep,
+    ds: CoreDatasource,
+    table: CoreTable,
+    fields: List[ColumnSchema],
+):
     id_list = []
     for index, item in enumerate(fields):
         statement = select(CoreField).where(
-            and_(CoreField.table_id == table.id, CoreField.field_name == item.fieldName))
+            and_(CoreField.table_id == table.id, CoreField.field_name == item.fieldName)
+        )
         record = session.exec(statement).first()
         if record is not None:
             item.id = record.id
@@ -250,9 +396,16 @@ def sync_fields(session: SessionDep, ds: CoreDatasource, table: CoreTable, field
             session.add(record)
             session.commit()
         else:
-            field = CoreField(ds_id=ds.id, table_id=table.id, checked=True, field_name=item.fieldName,
-                              field_type=item.fieldType, field_comment=item.fieldComment,
-                              custom_comment=item.fieldComment, field_index=index)
+            field = CoreField(
+                ds_id=ds.id,
+                table_id=table.id,
+                checked=True,
+                field_name=item.fieldName,
+                field_type=item.fieldType,
+                field_comment=item.fieldComment,
+                custom_comment=item.fieldComment,
+                field_index=index,
+            )
             session.add(field)
             session.flush()
             session.refresh(field)
@@ -261,8 +414,9 @@ def sync_fields(session: SessionDep, ds: CoreDatasource, table: CoreTable, field
             session.commit()
 
     if len(id_list) > 0:
-        session.query(CoreField).filter(and_(CoreField.table_id == table.id, CoreField.id.not_in(id_list))).delete(
-            synchronize_session=False)
+        session.query(CoreField).filter(
+            and_(CoreField.table_id == table.id, CoreField.id.not_in(id_list))
+        ).delete(synchronize_session=False)
         session.commit()
 
 
@@ -298,36 +452,56 @@ def preview(session: SessionDep, current_user: CurrentUser, id: int, data: Table
 
     # ignore data's fields param, query fields from database
     if not data.table.id:
-        return {"fields": [], "data": [], "sql": ''}
+        return {"fields": [], "data": [], "sql": ""}
 
-    fields = session.query(CoreField).filter(CoreField.table_id == data.table.id).order_by(
-        CoreField.field_index.asc()).all()
+    fields = (
+        session.query(CoreField)
+        .filter(CoreField.table_id == data.table.id)
+        .order_by(CoreField.field_index.asc())
+        .all()
+    )
 
     if fields is None or len(fields) == 0:
-        return {"fields": [], "data": [], "sql": ''}
+        return {"fields": [], "data": [], "sql": ""}
 
-    where = ''
+    where = ""
     f_list = [f for f in fields if f.checked]
     if is_normal_user(current_user):
         # column is checked, and, column permission for data.fields
         contain_rules = session.query(DsRules).all()
-        f_list = get_column_permission_fields(session=session, current_user=current_user, table=data.table,
-                                              fields=f_list, contain_rules=contain_rules)
+        f_list = get_column_permission_fields(
+            session=session,
+            current_user=current_user,
+            table=data.table,
+            fields=f_list,
+            contain_rules=contain_rules,
+        )
 
         # row permission tree
-        where_str = ''
-        filter_mapping = get_row_permission_filters(session=session, current_user=current_user, ds=ds, tables=None,
-                                                    single_table=data.table)
+        where_str = ""
+        filter_mapping = get_row_permission_filters(
+            session=session,
+            current_user=current_user,
+            ds=ds,
+            tables=None,
+            single_table=data.table,
+        )
         if filter_mapping:
             mapping_dict = filter_mapping[0]
-            where_str = mapping_dict.get('filter')
-        where = (' where ' + where_str) if where_str is not None and where_str != '' else ''
+            where_str = mapping_dict.get("filter")
+        where = (
+            (" where " + where_str) if where_str is not None and where_str != "" else ""
+        )
 
     fields = [f.field_name for f in f_list]
     if fields is None or len(fields) == 0:
-        return {"fields": [], "data": [], "sql": ''}
+        return {"fields": [], "data": [], "sql": ""}
 
-    conf = DatasourceConf(**json.loads(aes_decrypt(ds.configuration))) if ds.type != "excel" else get_engine_config()
+    conf = (
+        DatasourceConf(**json.loads(aes_decrypt(ds.configuration)))
+        if ds.type != "excel"
+        else get_engine_config()
+    )
     sql: str = ""
     if ds.type == "mysql" or ds.type == "doris" or ds.type == "starrocks":
         sql = f"""SELECT `{"`, `".join(fields)}` FROM `{data.table.table_name}` 
@@ -337,7 +511,12 @@ def preview(session: SessionDep, current_user: CurrentUser, id: int, data: Table
         sql = f"""SELECT TOP 100 [{"], [".join(fields)}] FROM [{conf.dbSchema}].[{data.table.table_name}]
             {where} 
             """
-    elif ds.type == "pg" or ds.type == "excel" or ds.type == "redshift" or ds.type == "kingbase":
+    elif (
+        ds.type == "pg"
+        or ds.type == "excel"
+        or ds.type == "redshift"
+        or ds.type == "kingbase"
+    ):
         sql = f"""SELECT "{'", "'.join(fields)}" FROM "{conf.dbSchema}"."{data.table.table_name}" 
             {where} 
             LIMIT 100"""
@@ -381,15 +560,21 @@ def fieldEnum(session: SessionDep, id: int):
     db = DB.get_db(ds.type)
     sql = f"""SELECT DISTINCT {db.prefix}{field.field_name}{db.suffix} FROM {db.prefix}{table.table_name}{db.suffix}"""
     res = exec_sql(ds, sql, True)
-    return [item.get(res.get('fields')[0]) for item in res.get('data')]
+    return [item.get(res.get("fields")[0]) for item in res.get("data")]
 
 
 def updateNum(session: SessionDep, ds: CoreDatasource):
-    all_tables = get_tables(ds) if ds.type != 'excel' else json.loads(aes_decrypt(ds.configuration)).get('sheets')
+    all_tables = (
+        get_tables(ds)
+        if ds.type != "excel"
+        else json.loads(aes_decrypt(ds.configuration)).get("sheets")
+    )
     selected_tables = get_tables_by_ds_id(session, ds.id)
-    num = f'{len(selected_tables)}/{len(all_tables)}'
+    num = f"{len(selected_tables)}/{len(all_tables)}"
 
-    record = session.exec(select(CoreDatasource).where(CoreDatasource.id == ds.id)).first()
+    record = session.exec(
+        select(CoreDatasource).where(CoreDatasource.id == ds.id)
+    ).first()
     update_data = ds.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(record, field, value)
@@ -398,16 +583,29 @@ def updateNum(session: SessionDep, ds: CoreDatasource):
     session.commit()
 
 
-def get_table_obj_by_ds(session: SessionDep, current_user: CurrentUser, ds: CoreDatasource) -> List[TableAndFields]:
+def get_table_obj_by_ds(
+    session: SessionDep, current_user: CurrentUser, ds: CoreDatasource
+) -> List[TableAndFields]:
     _list: List = []
     tables = session.query(CoreTable).filter(CoreTable.ds_id == ds.id).all()
-    conf = DatasourceConf(**json.loads(aes_decrypt(ds.configuration))) if ds.type != "excel" else get_engine_config()
-    schema = conf.dbSchema if conf.dbSchema is not None and conf.dbSchema != "" else conf.database
+    conf = (
+        DatasourceConf(**json.loads(aes_decrypt(ds.configuration)))
+        if ds.type != "excel"
+        else get_engine_config()
+    )
+    schema = (
+        conf.dbSchema
+        if conf.dbSchema is not None and conf.dbSchema != ""
+        else conf.database
+    )
 
     # get all field
     table_ids = [table.id for table in tables]
-    all_fields = session.query(CoreField).filter(
-        and_(CoreField.table_id.in_(table_ids), CoreField.checked == True)).all()
+    all_fields = (
+        session.query(CoreField)
+        .filter(and_(CoreField.table_id.in_(table_ids), CoreField.checked == True))
+        .all()
+    )
     # build dict
     fields_dict = {}
     for field in all_fields:
@@ -422,14 +620,25 @@ def get_table_obj_by_ds(session: SessionDep, current_user: CurrentUser, ds: Core
         fields = fields_dict.get(table.id)
 
         # do column permissions, filter fields
-        fields = get_column_permission_fields(session=session, current_user=current_user, table=table, fields=fields,
-                                              contain_rules=contain_rules)
+        fields = get_column_permission_fields(
+            session=session,
+            current_user=current_user,
+            table=table,
+            fields=fields,
+            contain_rules=contain_rules,
+        )
         _list.append(TableAndFields(schema=schema, table=table, fields=fields))
     return _list
 
 
-def get_table_schema(session: SessionDep, current_user: CurrentUser, ds: CoreDatasource, question: str,
-                     embedding: bool = True, table_list: list[str] = None) -> str:
+def get_table_schema(
+    session: SessionDep,
+    current_user: CurrentUser,
+    ds: CoreDatasource,
+    question: str,
+    embedding: bool = True,
+    table_list: list[str] = None,
+) -> str:
     schema_str = ""
     table_objs = get_table_obj_by_ds(session=session, current_user=current_user, ds=ds)
     if len(table_objs) == 0:
@@ -443,30 +652,40 @@ def get_table_schema(session: SessionDep, current_user: CurrentUser, ds: CoreDat
         if table_list is not None and obj.table.table_name not in table_list:
             continue
 
-        schema_table = ''
-        schema_table += f"# Table: {db_name}.{obj.table.table_name}" if ds.type != "mysql" and ds.type != "es" else f"# Table: {obj.table.table_name}"
-        table_comment = ''
+        schema_table = ""
+        schema_table += (
+            f"# Table: {db_name}.{obj.table.table_name}"
+            if ds.type != "mysql" and ds.type != "es"
+            else f"# Table: {obj.table.table_name}"
+        )
+        table_comment = ""
         if obj.table.custom_comment:
             table_comment = obj.table.custom_comment.strip()
-        if table_comment == '':
-            schema_table += '\n[\n'
+        if table_comment == "":
+            schema_table += "\n[\n"
         else:
             schema_table += f", {table_comment}\n[\n"
 
         if obj.fields:
             field_list = []
             for field in obj.fields:
-                field_comment = ''
+                field_comment = ""
                 if field.custom_comment:
                     field_comment = field.custom_comment.strip()
-                if field_comment == '':
+                if field_comment == "":
                     field_list.append(f"({field.field_name}:{field.field_type})")
                 else:
-                    field_list.append(f"({field.field_name}:{field.field_type}, {field_comment})")
+                    field_list.append(
+                        f"({field.field_name}:{field.field_type}, {field_comment})"
+                    )
             schema_table += ",\n".join(field_list)
-        schema_table += '\n]\n'
+        schema_table += "\n]\n"
 
-        t_obj = {"id": obj.table.id, "schema_table": schema_table, "embedding": obj.table.embedding}
+        t_obj = {
+            "id": obj.table.id,
+            "schema_table": schema_table,
+            "embedding": obj.table.embedding,
+        }
         tables.append(t_obj)
         all_tables.append(t_obj)
 
@@ -480,27 +699,35 @@ def get_table_schema(session: SessionDep, current_user: CurrentUser, ds: CoreDat
     # splice schema
     if tables:
         for s in tables:
-            schema_str += s.get('schema_table')
+            schema_str += s.get("schema_table")
 
     # field relation
     if tables and ds.table_relation:
-        relations = list(filter(lambda x: x.get('shape') == 'edge', ds.table_relation))
+        relations = list(filter(lambda x: x.get("shape") == "edge", ds.table_relation))
         if relations:
             # Complete the missing table
             # get tables in relation, remove irrelevant relation
-            embedding_table_ids = [s.get('id') for s in tables]
+            embedding_table_ids = [s.get("id") for s in tables]
             all_relations = list(
-                filter(lambda x: x.get('source').get('cell') in embedding_table_ids or x.get('target').get(
-                    'cell') in embedding_table_ids, relations))
+                filter(
+                    lambda x: x.get("source").get("cell") in embedding_table_ids
+                    or x.get("target").get("cell") in embedding_table_ids,
+                    relations,
+                )
+            )
 
             # get relation table ids, sub embedding table ids
             relation_table_ids = []
             for r in all_relations:
-                relation_table_ids.append(r.get('source').get('cell'))
-                relation_table_ids.append(r.get('target').get('cell'))
+                relation_table_ids.append(r.get("source").get("cell"))
+                relation_table_ids.append(r.get("target").get("cell"))
             relation_table_ids = list(set(relation_table_ids))
             # get table dict
-            table_records = session.query(CoreTable).filter(CoreTable.id.in_(list(map(int, relation_table_ids)))).all()
+            table_records = (
+                session.query(CoreTable)
+                .filter(CoreTable.id.in_(list(map(int, relation_table_ids))))
+                .all()
+            )
             table_dict = {}
             for ele in table_records:
                 table_dict[ele.id] = ele.table_name
@@ -508,34 +735,51 @@ def get_table_schema(session: SessionDep, current_user: CurrentUser, ds: CoreDat
             # get lost table ids
             lost_table_ids = list(set(relation_table_ids) - set(embedding_table_ids))
             # get lost table schema and splice it
-            lost_tables = list(filter(lambda x: x.get('id') in lost_table_ids, all_tables))
+            lost_tables = list(
+                filter(lambda x: x.get("id") in lost_table_ids, all_tables)
+            )
             if lost_tables:
                 for s in lost_tables:
-                    schema_str += s.get('schema_table')
+                    schema_str += s.get("schema_table")
 
             # get field dict
             relation_field_ids = []
             for relation in all_relations:
-                relation_field_ids.append(relation.get('source').get('port'))
-                relation_field_ids.append(relation.get('target').get('port'))
+                relation_field_ids.append(relation.get("source").get("port"))
+                relation_field_ids.append(relation.get("target").get("port"))
             relation_field_ids = list(set(relation_field_ids))
-            field_records = session.query(CoreField).filter(CoreField.id.in_(list(map(int, relation_field_ids)))).all()
+            field_records = (
+                session.query(CoreField)
+                .filter(CoreField.id.in_(list(map(int, relation_field_ids))))
+                .all()
+            )
             field_dict = {}
             for ele in field_records:
                 field_dict[ele.id] = ele.field_name
 
             if all_relations:
-                schema_str += '【Foreign keys】\n'
+                schema_str += "【Foreign keys】\n"
                 for ele in all_relations:
                     schema_str += f"{table_dict.get(int(ele.get('source').get('cell')))}.{field_dict.get(int(ele.get('source').get('port')))}={table_dict.get(int(ele.get('target').get('cell')))}.{field_dict.get(int(ele.get('target').get('port')))}\n"
 
     return schema_str
 
-@cache(namespace=CacheNamespace.AUTH_INFO, cacheName=CacheName.DS_ID_LIST, keyExpression="oid")
+
+@cache(
+    namespace=CacheNamespace.AUTH_INFO,
+    cacheName=CacheName.DS_ID_LIST,
+    keyExpression="oid",
+)
 async def get_ws_ds(session, oid) -> list:
     stmt = select(CoreDatasource.id).distinct().where(CoreDatasource.oid == oid)
     db_list = session.exec(stmt).all()
     return db_list
-@clear_cache(namespace=CacheNamespace.AUTH_INFO, cacheName=CacheName.DS_ID_LIST, keyExpression="oid")
+
+
+@clear_cache(
+    namespace=CacheNamespace.AUTH_INFO,
+    cacheName=CacheName.DS_ID_LIST,
+    keyExpression="oid",
+)
 async def clear_ws_ds_cache(oid):
     SQLBotLogUtil.info(f"ds cache for ws [{oid}] has been cleaned")

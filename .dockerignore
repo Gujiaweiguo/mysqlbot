@@ -10,3 +10,6 @@ backend/.gitignore
 backend/README.md
 backend/scripts
 backend/.DS_Store
+
+# Runtime data mounts (not needed in image build context)
+data/

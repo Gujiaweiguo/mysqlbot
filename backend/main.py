@@ -15,19 +15,26 @@ from starlette.middleware.cors import CORSMiddleware
 
 from alembic import command
 from apps.api import api_router
+from apps.datasource.crud.datasource import ensure_internal_pg_datasource
 from apps.swagger.i18n import PLACEHOLDER_PREFIX, tags_metadata, i18n_list
 from apps.swagger.i18n import get_translation, DEFAULT_LANG
+from apps.system.models.system_model import WorkspaceModel
 from apps.system.crud.aimodel_manage import async_model_info
 from apps.system.crud.assistant import init_dynamic_cors
 from apps.system.middleware.auth import TokenMiddleware
 from apps.system.schemas.permission import RequestContextMiddleware
 from common.audit.schemas.request_context import RequestContextMiddlewareCommon
 from common.core.config import settings
+from common.core.db import engine
 from common.core.response_middleware import ResponseMiddleware, exception_handler
 from common.core.sqlbot_cache import init_sqlbot_cache
-from common.utils.embedding_threads import fill_empty_terminology_embeddings, fill_empty_data_training_embeddings, \
-    fill_empty_table_and_ds_embeddings
+from common.utils.embedding_threads import (
+    fill_empty_terminology_embeddings,
+    fill_empty_data_training_embeddings,
+    fill_empty_table_and_ds_embeddings,
+)
 from common.utils.utils import SQLBotLogUtil
+from sqlmodel import Session, select
 
 
 def run_migrations():
@@ -47,6 +54,18 @@ def init_table_and_ds_embedding():
     fill_empty_table_and_ds_embeddings()
 
 
+def init_default_internal_datasource():
+    with Session(engine) as session:
+        workspace_ids = session.exec(select(WorkspaceModel.id)).all()
+        if not workspace_ids:
+            workspace_ids = [1]
+        for workspace_id in workspace_ids:
+            ensure_internal_pg_datasource(
+                session=session, oid=int(workspace_id), create_by=1, commit=False
+            )
+        session.commit()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     run_migrations()
@@ -54,6 +73,7 @@ async def lifespan(app: FastAPI):
     init_dynamic_cors(app)
     init_terminology_embedding_data()
     init_data_training_embedding_data()
+    init_default_internal_datasource()
     init_table_and_ds_embedding()
     SQLBotLogUtil.info("✅ SQLBot 初始化完成")
     await sqlbot_xpack.core.clean_xpack_cache()
@@ -74,28 +94,30 @@ app = FastAPI(
     generate_unique_id_function=custom_generate_unique_id,
     lifespan=lifespan,
     docs_url=None,
-    redoc_url=None
+    redoc_url=None,
 )
 
 # cache docs for different text
 _openapi_cache: Dict[str, Dict[str, Any]] = {}
 
+
 # replace placeholder
-def replace_placeholders_in_schema(schema: Dict[str, Any], trans: Dict[str, str]) -> None:
+def replace_placeholders_in_schema(
+    schema: Dict[str, Any], trans: Dict[str, str]
+) -> None:
     """
     search OpenAPI schema，replace PLACEHOLDER_xxx to text。
     """
     if isinstance(schema, dict):
         for key, value in schema.items():
             if isinstance(value, str) and value.startswith(PLACEHOLDER_PREFIX):
-                placeholder_key = value[len(PLACEHOLDER_PREFIX):]
+                placeholder_key = value[len(PLACEHOLDER_PREFIX) :]
                 schema[key] = trans.get(placeholder_key, value)
             else:
                 replace_placeholders_in_schema(value, trans)
     elif isinstance(schema, list):
         for item in schema:
             replace_placeholders_in_schema(item, trans)
-
 
 
 # OpenAPI build
@@ -121,19 +143,16 @@ def generate_openapi_for_lang(lang: str) -> Dict[str, Any]:
     for tag in tags_metadata:
         desc = tag["description"]
         if desc.startswith(PLACEHOLDER_PREFIX):
-            key = desc[len(PLACEHOLDER_PREFIX):]
+            key = desc[len(PLACEHOLDER_PREFIX) :]
             desc = trans.get(key, desc)
-        localized_tags.append({
-            "name": tag["name"],
-            "description": desc
-        })
+        localized_tags.append({"name": tag["name"], "description": desc})
 
     # 1. create OpenAPI
     openapi_schema = get_openapi(
         title="SQLBot API Document" if lang == "en" else "SQLBot API 文档",
         version="1.0.0",
         routes=app.routes,
-        tags=localized_tags
+        tags=localized_tags,
     )
 
     # openapi version
@@ -150,7 +169,6 @@ def generate_openapi_for_lang(lang: str) -> Dict[str, Any]:
     return openapi_schema
 
 
-
 # custom /openapi.json and /docs
 @app.get("/openapi.json", include_in_schema=False)
 async def custom_openapi(request: Request):
@@ -163,6 +181,7 @@ async def custom_openapi(request: Request):
 async def custom_swagger_ui(request: Request):
     lang = get_language_from_request(request)
     from fastapi.openapi.docs import get_swagger_ui_html
+
     return get_swagger_ui_html(
         openapi_url=f"/openapi.json?lang={lang}",
         title="SQLBot API Docs",
@@ -184,7 +203,13 @@ mcp = FastApiMCP(
     description="SQLBot MCP Server",
     describe_all_responses=True,
     describe_full_response_schema=True,
-    include_operations=["mcp_datasource_list", "get_model_list", "mcp_question", "mcp_start", "mcp_assistant"]
+    include_operations=[
+        "mcp_datasource_list",
+        "get_model_list",
+        "mcp_question",
+        "mcp_start",
+        "mcp_assistant",
+    ],
 )
 
 mcp.mount(mcp_app)
@@ -206,7 +231,9 @@ app.add_middleware(RequestContextMiddlewareCommon)
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # Register exception handlers
-app.add_exception_handler(StarletteHTTPException, exception_handler.http_exception_handler)
+app.add_exception_handler(
+    StarletteHTTPException, exception_handler.http_exception_handler
+)
 app.add_exception_handler(Exception, exception_handler.global_exception_handler)
 
 mcp.setup_server()

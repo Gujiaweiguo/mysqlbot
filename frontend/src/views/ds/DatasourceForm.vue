@@ -43,12 +43,14 @@ const excelUploadSuccess = ref(false)
 const tableListLoading = ref(false)
 const tableListLoadingV1 = ref(false)
 const checkLoading = ref(false)
+const schemaLoading = ref(false)
 const dialogTitle = ref('')
 const getUploadURL = import.meta.env.VITE_API_BASE_URL + '/datasource/uploadExcel'
 const saveLoading = ref<boolean>(false)
 const uploadLoading = ref(false)
 const { t } = useI18n()
 const schemaList = ref<any>([])
+const schemaSelectRef = ref<any>()
 
 const rules = reactive<FormRules>({
   name: [
@@ -361,12 +363,30 @@ const check = () => {
     }
   })
 }
-const getSchema = debounce(() => {
+const getSchema = debounce(async () => {
+  schemaLoading.value = true
   schemaList.value = []
   const requestObj = buildConf()
-  datasourceApi.getSchema(requestObj).then((res: any) => {
-    schemaList.value = (res || []).map((item: any) => ({ label: item, value: item }))
-  })
+  try {
+    const res: any[] = await datasourceApi.getSchema(requestObj)
+    const list = (res || []).map((item: any) => ({ label: item, value: item }))
+    schemaList.value = list
+
+    if (list.length === 0) {
+      ElMessage.warning(t('qa.no_data'))
+      return
+    }
+
+    const schemaValues = list.map((item) => item.value)
+    if (!schemaValues.includes(form.value.dbSchema)) {
+      form.value.dbSchema = schemaValues[0]
+    }
+
+    await nextTick()
+    schemaSelectRef.value?.toggleMenu?.()
+  } finally {
+    schemaLoading.value = false
+  }
 }, 300)
 
 onBeforeUnmount(() => (saveLoading.value = false))
@@ -519,7 +539,7 @@ defineExpose({
 
 <template>
   <div
-    v-loading="uploadLoading || saveLoading || checkLoading"
+    v-loading="uploadLoading || saveLoading || checkLoading || schemaLoading"
     class="model-form"
     :class="(!isCreate || activeStep === 2) && 'edit-form'"
   >
@@ -698,7 +718,7 @@ defineExpose({
           <el-form-item v-if="haveSchema.includes(form.type)" class="schema-label" prop="dbSchema">
             <template #label>
               <span class="name">Schema<i class="required" /></span>
-              <el-button text size="small" @click="getSchema">
+              <el-button text size="small" :loading="schemaLoading" @click="getSchema">
                 <template #icon>
                   <Icon name="icon_add_outlined">
                     <Plus class="svg-icon" />
@@ -708,6 +728,7 @@ defineExpose({
               </el-button>
             </template>
             <el-select
+              ref="schemaSelectRef"
               v-model="form.dbSchema"
               filterable
               :placeholder="$t('datasource.please_enter') + $t('common.empty') + 'Schema'"

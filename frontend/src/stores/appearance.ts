@@ -60,7 +60,7 @@ export const useAppearanceStore = defineStore('appearanceStore', {
       login: '',
       slogan: '',
       web: '',
-      name: 'SQLBot',
+      name: 'mySQLBot',
       foot: 'false',
       footContent: '',
       loaded: false,
@@ -256,7 +256,7 @@ export const useAppearanceStore = defineStore('appearanceStore', {
       const obj = LicenseGenerator.getLicense()
       if (obj?.status !== 'valid') {
         setCurrentColor('#1CBA90')
-        document.title = 'SQLBot'
+        document.title = 'mySQLBot'
         setLinkIcon()
         return
       }
@@ -301,8 +301,8 @@ export const useAppearanceStore = defineStore('appearanceStore', {
         document.title = this.name
         setTitle(this.name)
       } else {
-        document.title = 'SQLBot'
-        setTitle('SQLBot')
+        document.title = 'mySQLBot'
+        setTitle('mySQLBot')
       }
       setLinkIcon(this.web)
     },

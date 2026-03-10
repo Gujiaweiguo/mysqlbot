@@ -76,7 +76,7 @@
                   <div class="tips-page">
                     {{
                       t('system.screen_customization_supported', {
-                        msg: loginForm.name || 'SQLBot',
+                        msg: loginForm.name || 'mySQLBot',
                       })
                     }}
                   </div>
@@ -204,7 +204,7 @@
                   <div class="tips-page">
                     {{
                       t('system.screen_customization_settings', {
-                        msg: loginForm.name || 'SQLBot',
+                        msg: loginForm.name || 'mySQLBot',
                       })
                     }}
                   </div>
@@ -346,7 +346,7 @@ const changedItemArray = ref<ConfigItem[]>([])
 
 const loginFormRef = ref<FormInstance>()
 const defaultLoginForm = reactive<LoginForm>({
-  name: 'SQLBot',
+  name: 'mySQLBot',
   slogan: t('common.intelligent_questioning_platform'),
   foot: 'false',
   showSlogan: '0',
@@ -377,7 +377,7 @@ const defaultTopForm = {
   help: 'https://dataease.cn/sqlbot/v1/',
   showDoc: '0',
   showAbout: '0',
-  pc_welcome: '你好，我是 SQLBot ',
+  pc_welcome: '你好，我是 mySQLBot ',
   pc_welcome_desc: `我可以查询数据、生成图表、检测数据异常、预测数据等赶快开启智能问数吧～`,
 }
 
