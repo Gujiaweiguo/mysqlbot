@@ -1,18 +1,26 @@
-import base64
+import time
+import uuid
+from typing import Any
 
-from orjson import orjson
-from sqlalchemy import select, and_, text
+import orjson
+from sqlalchemy import and_, text
+from sqlmodel import col
 
 from apps.chat.curd.chat import get_chart_data_ds
-from apps.dashboard.models.dashboard_model import CoreDashboard, CreateDashboard, QueryDashboard, DashboardBaseResponse
-from common.core.deps import SessionDep, CurrentUser
-import uuid
-import time
+from apps.dashboard.models.dashboard_model import (
+    CoreDashboard,
+    CreateDashboard,
+    DashboardBaseResponse,
+    QueryDashboard,
+)
+from common.core.deps import CurrentUser, SessionDep
 
-from common.utils.tree_utils import build_tree_generic
 
-
-def list_resource(session: SessionDep, dashboard: QueryDashboard, current_user: CurrentUser):
+def list_resource(
+    session: SessionDep,
+    dashboard: QueryDashboard,
+    current_user: CurrentUser,
+) -> list[DashboardBaseResponse]:
     sql = "SELECT id, name, type, node_type, pid, create_time FROM core_dashboard"
     filters = []
     params = {}
@@ -29,12 +37,21 @@ def list_resource(session: SessionDep, dashboard: QueryDashboard, current_user: 
         sql += " WHERE " + " AND ".join(filters)
     sql += " ORDER BY create_time DESC"
     result = session.execute(text(sql), params)
-    nodes = [DashboardBaseResponse(**row) for row in result.mappings()]
-    tree = build_tree_generic(nodes, root_pid="root")
+    nodes = [DashboardBaseResponse(**dict(row)) for row in result.mappings()]
+    node_dict = {node.id: node for node in nodes if node.id is not None}
+    tree: list[DashboardBaseResponse] = []
+    for node in nodes:
+        if node.pid == "root":
+            tree.append(node)
+        elif node.pid in node_dict and node.pid is not None:
+            node_dict[node.pid].children.append(node)
     return tree
 
 
-def load_resource(session: SessionDep, dashboard: QueryDashboard):
+def load_resource(
+    session: SessionDep,
+    dashboard: QueryDashboard,
+) -> dict[str, Any]:
     sql = text("""
                SELECT cd.*,
                       creator.name AS create_name,
@@ -46,30 +63,57 @@ def load_resource(session: SessionDep, dashboard: QueryDashboard):
                WHERE cd.id = :dashboard_id
                """)
     result = session.execute(sql, {"dashboard_id": dashboard.id}).mappings().first()
+    if result is None:
+        return {}
 
     result_dict = dict(result)
-    canvas_view_obj = orjson.loads(result_dict['canvas_view_info'])
+    canvas_view_obj: dict[str, Any] = {}
+    canvas_view_info = result_dict.get("canvas_view_info")
+    if isinstance(canvas_view_info, str):
+        try:
+            parsed = orjson.loads(canvas_view_info)
+            if isinstance(parsed, dict):
+                canvas_view_obj = parsed
+        except Exception:
+            pass
     for item in canvas_view_obj.values():
-        if all(key in item for key in ['datasource', 'sql']) and item['datasource'] is not None:
-            data_result = get_chart_data_ds(session, item['datasource'], item['sql'])
-            item['data']['data'] = data_result['data']
-            item['status'] = data_result['status']
-            item['message'] = data_result['message']
-    result_dict['canvas_view_info'] = orjson.dumps(canvas_view_obj)
+        if (
+            isinstance(item, dict)
+            and all(key in item for key in ["datasource", "sql"])
+            and isinstance(item.get("datasource"), int)
+            and isinstance(item.get("sql"), str)
+        ):
+            datasource_id = item["datasource"]
+            sql_text = item["sql"]
+            data_result = get_chart_data_ds(session, datasource_id, sql_text)
+            item_data = item.get("data")
+            if not isinstance(item_data, dict):
+                item_data = {}
+                item["data"] = item_data
+            item_data["data"] = data_result.get("data", [])
+            item["status"] = data_result.get("status")
+            item["message"] = data_result.get("message")
+    result_dict["canvas_view_info"] = orjson.dumps(canvas_view_obj).decode()
     return result_dict
 
 
-def get_create_base_info(user: CurrentUser, dashboard: CreateDashboard):
+def get_create_base_info(
+    user: CurrentUser, dashboard: CreateDashboard
+) -> CoreDashboard:
     new_id = uuid.uuid4().hex
     record = CoreDashboard(**dashboard.model_dump())
-    record.workspace_id = user.oid
+    record.workspace_id = str(user.oid if user.oid is not None else 1)
     record.id = new_id
-    record.create_by = user.id
+    record.create_by = str(user.id)
     record.create_time = int(time.time())
     return record
 
 
-def create_resource(session: SessionDep, user: CurrentUser, dashboard: CreateDashboard):
+def create_resource(
+    session: SessionDep,
+    user: CurrentUser,
+    dashboard: CreateDashboard,
+) -> CoreDashboard:
     record = get_create_base_info(user, dashboard)
     session.add(record)
     session.flush()
@@ -78,17 +122,27 @@ def create_resource(session: SessionDep, user: CurrentUser, dashboard: CreateDas
     return record
 
 
-def update_resource(session: SessionDep, user: CurrentUser, dashboard: QueryDashboard):
-    record = session.query(CoreDashboard).filter(CoreDashboard.id == dashboard.id).first()
+def update_resource(
+    session: SessionDep,
+    user: CurrentUser,
+    dashboard: QueryDashboard,
+) -> CoreDashboard:
+    record = session.get(CoreDashboard, dashboard.id)
+    if record is None:
+        raise ValueError(f"Resource with id {dashboard.id} does not exist")
     record.name = dashboard.name
-    record.update_by = user.id
+    record.update_by = str(user.id)
     record.update_time = int(time.time())
     session.add(record)
     session.commit()
     return record
 
 
-def create_canvas(session: SessionDep, user: CurrentUser, dashboard: CreateDashboard):
+def create_canvas(
+    session: SessionDep,
+    user: CurrentUser,
+    dashboard: CreateDashboard,
+) -> CoreDashboard:
     record = get_create_base_info(user, dashboard)
     record.node_type = dashboard.node_type
     record.component_data = dashboard.component_data
@@ -101,10 +155,16 @@ def create_canvas(session: SessionDep, user: CurrentUser, dashboard: CreateDashb
     return record
 
 
-def update_canvas(session: SessionDep, user: CurrentUser, dashboard: CreateDashboard):
-    record = session.query(CoreDashboard).filter(CoreDashboard.id == dashboard.id).first()
+def update_canvas(
+    session: SessionDep,
+    user: CurrentUser,
+    dashboard: CreateDashboard,
+) -> CoreDashboard:
+    record = session.get(CoreDashboard, dashboard.id)
+    if record is None:
+        raise ValueError(f"Resource with id {dashboard.id} does not exist")
     record.name = dashboard.name
-    record.update_by = user.id
+    record.update_by = str(user.id)
     record.update_time = int(time.time())
     record.component_data = dashboard.component_data
     record.canvas_style_data = dashboard.canvas_style_data
@@ -114,44 +174,52 @@ def update_canvas(session: SessionDep, user: CurrentUser, dashboard: CreateDashb
     return record
 
 
-def validate_name(session: SessionDep,user: CurrentUser,  dashboard: QueryDashboard) -> bool:
+def validate_name(
+    session: SessionDep,
+    user: CurrentUser,
+    dashboard: QueryDashboard,
+) -> bool:
     if not dashboard.opt:
         raise ValueError("opt is required")
     oid = str(user.oid if user.oid is not None else 1)
     uid = str(user.id)
 
-
-    if dashboard.opt in ('newLeaf', 'newFolder'):
+    if dashboard.opt in ("newLeaf", "newFolder"):
         query = session.query(CoreDashboard).filter(
             and_(
-                CoreDashboard.workspace_id == oid,
-                CoreDashboard.create_by == uid,
-                CoreDashboard.name == dashboard.name
+                col(CoreDashboard.workspace_id) == oid,
+                col(CoreDashboard.create_by) == uid,
+                col(CoreDashboard.name) == dashboard.name,
             )
         )
-    elif dashboard.opt in ('updateLeaf', 'updateFolder', 'rename'):
+    elif dashboard.opt in ("updateLeaf", "updateFolder", "rename"):
         if not dashboard.id:
             raise ValueError("id is required for update operation")
         query = session.query(CoreDashboard).filter(
             and_(
-                CoreDashboard.workspace_id == oid,
-                CoreDashboard.create_by == uid,
-                CoreDashboard.name == dashboard.name,
-                CoreDashboard.id != dashboard.id
+                col(CoreDashboard.workspace_id) == oid,
+                col(CoreDashboard.create_by) == uid,
+                col(CoreDashboard.name) == dashboard.name,
+                col(CoreDashboard.id) != dashboard.id,
             )
         )
     else:
         raise ValueError(f"Invalid opt value: {dashboard.opt}")
-    return not session.query(query.exists()).scalar()
+    return not bool(session.query(query.exists()).scalar())
 
 
-def delete_resource(session: SessionDep, current_user: CurrentUser, resource_id: str):
-    coreDashboard = session.get(CoreDashboard, resource_id)
-    if not coreDashboard:
+def delete_resource(
+    session: SessionDep,
+    current_user: CurrentUser,
+    resource_id: str,
+) -> bool:
+    core_dashboard = session.get(CoreDashboard, resource_id)
+    if not core_dashboard:
         raise ValueError(f"Resource with id {resource_id} does not exist")
-    if coreDashboard.create_by != str(current_user.id):
-        raise ValueError(f"Resource with id {resource_id} not owned by the current user")
-    sql = text("DELETE FROM core_dashboard WHERE id = :resource_id")
-    result = session.execute(sql, {"resource_id": resource_id})
+    if core_dashboard.create_by != str(current_user.id):
+        raise ValueError(
+            f"Resource with id {resource_id} not owned by the current user"
+        )
+    session.delete(core_dashboard)
     session.commit()
-    return result.rowcount > 0
+    return True

@@ -1,17 +1,18 @@
-from typing import List, Optional, Dict, TypeVar, Protocol, Any
-from pydantic import BaseModel
+from typing import Any, Protocol, TypeVar
 
 
 class ITreeNode(Protocol):
-    id: Optional[str]
-    pid: Optional[str]
-    children: List['ITreeNode']
+    id: str | None
+    pid: str | None
+    children: list["ITreeNode"]
 
-T = TypeVar('T', bound=ITreeNode)
 
-def build_tree_generic(nodes: List[T], root_pid: Any = None) -> List[T]:
-    node_dict: Dict[str, T] = {node.id: node for node in nodes if node.id is not None}
-    tree: List[T] = []
+T = TypeVar("T", bound=ITreeNode)
+
+
+def build_tree_generic(nodes: list[T], root_pid: Any = None) -> list[T]:
+    node_dict: dict[str, T] = {node.id: node for node in nodes if node.id is not None}
+    tree: list[T] = []
 
     for node in nodes:
         if node.pid == root_pid:

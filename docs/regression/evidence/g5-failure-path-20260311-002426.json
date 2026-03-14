@@ -1,0 +1,38 @@
+{
+  "report_id": "g5-failure-path-20260311-002427",
+  "created_at": "2026-03-11T00:24:27.416314",
+  "base_url": "http://127.0.0.1:8000",
+  "mock_provider_base": "http://127.0.0.1:46291",
+  "overall_passed": false,
+  "cases": [
+    {
+      "case_id": "g5-429-rate-limit",
+      "scenario": "provider datasource endpoint returns HTTP 429",
+      "passed": false,
+      "controlled_error": true,
+      "frontend_can_continue": false,
+      "mock_rate_limit_hits": 0,
+      "response_status": 500,
+      "response_duration_ms": 19,
+      "error_message": "1 validation error for BaseUserDTO\nname\n  Field required [type=missing, input_value={'id': -1, 'account': 'sq...'', 'language': 'zh-CN'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing",
+      "recovery_status": 500,
+      "recovery_duration_ms": 15,
+      "recovery_success": false
+    },
+    {
+      "case_id": "g5-transient-recovery",
+      "scenario": "provider transient 503 first call, then recovery on next attempt",
+      "passed": false,
+      "first_attempt_failed": true,
+      "first_attempt_status": 500,
+      "first_attempt_duration_ms": 15,
+      "first_error_message": "1 validation error for BaseUserDTO\nname\n  Field required [type=missing, input_value={'id': -1, 'account': 'sq...'', 'language': 'zh-CN'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing",
+      "second_attempt_status": 500,
+      "second_attempt_duration_ms": 15,
+      "second_attempt_success": false,
+      "mock_transient_hits": 0,
+      "observed_retry_count": 0,
+      "final_status": "controlled_failure"
+    }
+  ]
+}

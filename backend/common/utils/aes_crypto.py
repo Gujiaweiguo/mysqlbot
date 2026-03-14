@@ -1,16 +1,41 @@
-from typing import Optional
+import importlib
+from typing import Any, cast
+
 from common.core.config import settings
-from sqlbot_xpack.aes_utils import SecureEncryption
 
-simple_aes_iv_text = 'sqlbot_em_aes_iv'
-def sqlbot_aes_encrypt(text: str, key: Optional[str] = None) -> str:
-    return SecureEncryption.encrypt_to_single_string(text, key or settings.SECRET_KEY)
+_aes_utils = importlib.import_module("sqlbot_xpack.aes_utils")
+_secure_encryption = cast(Any, _aes_utils.SecureEncryption)
 
-def sqlbot_aes_decrypt(text: str, key: Optional[str] = None) -> str:
-    return SecureEncryption.decrypt_from_single_string(text, key or settings.SECRET_KEY)
+simple_aes_iv_text = "sqlbot_em_aes_iv"
 
-def simple_aes_encrypt(text: str, key: Optional[str] = None, ivtext: Optional[str] = None) -> str:
-    return SecureEncryption.simple_aes_encrypt(text, key or settings.SECRET_KEY[:32], ivtext or simple_aes_iv_text)
 
-def simple_aes_decrypt(text: str, key: Optional[str] = None, ivtext: Optional[str] = None) -> str:
-    return SecureEncryption.simple_aes_decrypt(text, key or settings.SECRET_KEY[:32], ivtext or simple_aes_iv_text)
+def sqlbot_aes_encrypt(text: str, key: str | None = None) -> str:
+    encrypted = _secure_encryption.encrypt_to_single_string(
+        text, key or settings.SECRET_KEY
+    )
+    return cast(str, encrypted)
+
+
+def sqlbot_aes_decrypt(text: str, key: str | None = None) -> str:
+    decrypted = _secure_encryption.decrypt_from_single_string(
+        text, key or settings.SECRET_KEY
+    )
+    return cast(str, decrypted)
+
+
+def simple_aes_encrypt(
+    text: str, key: str | None = None, ivtext: str | None = None
+) -> str:
+    encrypted = _secure_encryption.simple_aes_encrypt(
+        text, key or settings.SECRET_KEY[:32], ivtext or simple_aes_iv_text
+    )
+    return cast(str, encrypted)
+
+
+def simple_aes_decrypt(
+    text: str, key: str | None = None, ivtext: str | None = None
+) -> str:
+    decrypted = _secure_encryption.simple_aes_decrypt(
+        text, key or settings.SECRET_KEY[:32], ivtext or simple_aes_iv_text
+    )
+    return cast(str, decrypted)

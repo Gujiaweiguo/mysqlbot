@@ -1,14 +1,15 @@
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 
 from fastapi import Request
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.responses import Response
 
 
 class RequestContext:
     _current_request: ContextVar[Request] = ContextVar("_current_request")
 
     @classmethod
-    def set_request(cls, request: Request):
+    def set_request(cls, request: Request) -> Token[Request]:
         return cls._current_request.set(request)
 
     @classmethod
@@ -22,12 +23,16 @@ class RequestContext:
             )
 
     @classmethod
-    def reset(cls, token):
+    def reset(cls, token: Token[Request]) -> None:
         cls._current_request.reset(token)
 
 
 class RequestContextMiddlewareCommon(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: RequestResponseEndpoint,
+    ) -> Response:
         # 设置请求上下文
         token = RequestContext.set_request(request)
         try:

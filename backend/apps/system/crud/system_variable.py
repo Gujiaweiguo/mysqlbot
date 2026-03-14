@@ -1,28 +1,35 @@
-# Author: Junjun
-# Date: 2026/1/26
 import datetime
+from typing import Any
 
-from typing import List
 from fastapi import HTTPException
-from sqlalchemy import and_
-from sqlmodel import select
+from sqlmodel import col, select
+from sqlmodel import delete as sql_delete
 
 from apps.system.models.system_variable_model import SystemVariable
-from common.core.deps import SessionDep, CurrentUser, Trans
+from common.core.deps import CurrentUser, SessionDep, Trans
 from common.core.pagination import Paginator
 from common.core.schemas import PaginationParams
 
 
-def save(session: SessionDep, user: CurrentUser, trans: Trans, variable: SystemVariable):
+def save(
+    session: SessionDep,
+    user: CurrentUser,
+    trans: Trans,
+    variable: SystemVariable,
+) -> bool:
     checkName(session, trans, variable)
-    variable.type = 'custom'
+    variable.type = "custom"
     if variable.id is None:
         variable.create_time = datetime.datetime.now()
         variable.create_by = user.id
         session.add(variable)
         session.commit()
     else:
-        record = session.query(SystemVariable).filter(SystemVariable.id == variable.id).first()
+        record = session.exec(
+            select(SystemVariable).where(col(SystemVariable.id) == variable.id)
+        ).first()
+        if record is None:
+            raise HTTPException(status_code=404, detail=trans("i18n_not_exist"))
         update_data = variable.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(record, field, value)
@@ -31,68 +38,101 @@ def save(session: SessionDep, user: CurrentUser, trans: Trans, variable: SystemV
     return True
 
 
-def delete(session: SessionDep, ids: List[int]):
-    session.query(SystemVariable).filter(SystemVariable.id.in_(ids)).delete()
+def delete(session: SessionDep, ids: list[int]) -> None:
+    if not ids:
+        return
+    stmt = sql_delete(SystemVariable).where(col(SystemVariable.id).in_(ids))
+    session.exec(stmt)
+    session.commit()
 
 
-def list_all(session: SessionDep, trans: Trans, variable: SystemVariable):
-    if variable.name is None:
-        records = session.query(SystemVariable).order_by(SystemVariable.type.desc()).all()
+def list_all(
+    session: SessionDep,
+    trans: Trans,
+    variable: SystemVariable | None = None,
+) -> list[SystemVariable]:
+    if variable is None or variable.name is None:
+        stmt = select(SystemVariable).order_by(col(SystemVariable.type).desc())
     else:
-        records = session.query(SystemVariable).filter(
-            and_(SystemVariable.name.like(f'%{variable.name}%'), SystemVariable.type != 'system')).order_by(
-            SystemVariable.type.desc()).all()
+        stmt = (
+            select(SystemVariable)
+            .where(
+                col(SystemVariable.name).like(f"%{variable.name}%"),
+                col(SystemVariable.type) != "system",
+            )
+            .order_by(col(SystemVariable.type).desc())
+        )
 
-    res = []
+    records = session.exec(stmt).all()
+
+    res: list[SystemVariable] = []
     for r in records:
-        data = SystemVariable(**r.__dict__)
-        if data.type == 'system':
+        data = SystemVariable.model_validate(r)
+        if data.type == "system":
             data.name = trans(data.name)
         res.append(data)
     return res
 
 
-async def list_page(session: SessionDep, trans: Trans, pageNum: int, pageSize: int, variable: SystemVariable):
+async def list_page(
+    session: SessionDep,
+    trans: Trans,
+    pageNum: int,
+    pageSize: int,
+    variable: SystemVariable | None = None,
+) -> dict[str, Any]:
     pagination = PaginationParams(page=pageNum, size=pageSize)
     paginator = Paginator(session)
-    filters = {}
+    filters: dict[str, Any] = {}
 
-    if variable.name is None:
-        stmt = select(SystemVariable).order_by(SystemVariable.type.desc())
+    if variable is None or variable.name is None:
+        stmt = select(SystemVariable).order_by(col(SystemVariable.type).desc())
     else:
-        stmt = select(SystemVariable).where(
-            and_(SystemVariable.name.like(f'%{variable.name}%'), SystemVariable.type != 'system')).order_by(
-            SystemVariable.type.desc())
+        stmt = (
+            select(SystemVariable)
+            .where(
+                col(SystemVariable.name).like(f"%{variable.name}%"),
+                col(SystemVariable.type) != "system",
+            )
+            .order_by(col(SystemVariable.type).desc())
+        )
 
     variable_page = await paginator.get_paginated_response(
-        stmt=stmt,
-        pagination=pagination,
-        **filters)
+        stmt=stmt, pagination=pagination, **filters
+    )
 
-    res = []
+    res: list[SystemVariable] = []
     for r in variable_page.items:
-        data = SystemVariable(**r)
-        if data.type == 'system':
+        if isinstance(r, dict):
+            data = SystemVariable.model_validate(r)
+        else:
+            data = SystemVariable.model_validate(r.model_dump())
+        if data.type == "system":
             data.name = trans(data.name)
         res.append(data)
 
-    return {"items": res, "page": variable_page.page, "size": variable_page.size, "total": variable_page.total,
-            "total_pages": variable_page.total_pages}
+    return {
+        "items": res,
+        "page": variable_page.page,
+        "size": variable_page.size,
+        "total": variable_page.total,
+        "total_pages": variable_page.total_pages,
+    }
 
 
-def checkName(session: SessionDep, trans: Trans, variable: SystemVariable):
+def checkName(session: SessionDep, trans: Trans, variable: SystemVariable) -> None:
     if variable.id is None:
-        records = session.query(SystemVariable).filter(SystemVariable.name == variable.name).all()
-        if records and len(records) > 0:
-            raise HTTPException(status_code=500, detail=trans('i18n_variable.name_exist'))
+        stmt = select(SystemVariable).where(col(SystemVariable.name) == variable.name)
     else:
-        records = session.query(SystemVariable).filter(
-            and_(SystemVariable.name == variable.name, SystemVariable.id != variable.id)).all()
-        if records and len(records) > 0:
-            raise HTTPException(status_code=500, detail=trans('i18n_variable.name_exist'))
+        stmt = select(SystemVariable).where(
+            col(SystemVariable.name) == variable.name,
+            col(SystemVariable.id) != variable.id,
+        )
+    records = session.exec(stmt).all()
+    if records:
+        raise HTTPException(status_code=500, detail=trans("i18n_variable.name_exist"))
 
 
-def checkValue(session: SessionDep, trans: Trans, values:List):
+def checkValue(session: SessionDep, trans: Trans, values: list[Any]) -> None:
     # values: [{"variableId":1,"variableValues":["a","b"]}]
-
     pass

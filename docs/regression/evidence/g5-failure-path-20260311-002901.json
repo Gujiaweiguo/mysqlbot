@@ -1,0 +1,38 @@
+{
+  "report_id": "g5-failure-path-20260311-002902",
+  "created_at": "2026-03-11T00:29:02.739758",
+  "base_url": "http://127.0.0.1:8000",
+  "mock_provider_base": "http://127.0.0.1:36197",
+  "overall_passed": false,
+  "cases": [
+    {
+      "case_id": "g5-429-rate-limit",
+      "scenario": "provider datasource endpoint returns HTTP 429",
+      "passed": false,
+      "controlled_error": true,
+      "frontend_can_continue": false,
+      "mock_rate_limit_hits": 0,
+      "response_status": 500,
+      "response_duration_ms": 609,
+      "error_message": "{\"message\":\"HTTPConnectionPool(host='127.0.0.1', port=36197): Max retries exceeded with url: /rate-limit/ds (Caused by NewConnectionError(\\\"HTTPConnection(host='127.0.0.1', port=36197): Failed to establish a new connection: [Errno 111] Connection refused\\\"))\",\"traceback\":\"Traceback (most recent call last):\\n  File \\\"/opt/sqlbot/app/.venv/lib/python3.11/site-packages/urllib3/connection.py\\\", line 204, in _new_conn\\n    sock = connection.create_connection(\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\nConnectionRefusedError: [Errno 111] Connection refused\\n\\nThe above exception was the direct cause of the following exception:\\n\\nTraceback (most recent call last):\\n  File \\\"/opt/sqlbot/app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py\\\", line 787, in urlopen\\n    response = self._make_request(\\n               ^^^^^^^^^^^^^^^^^^^\\nurllib3.exceptions.NewConnectionError: HTTPConnection(host='127.0.0.1', port=36197): Failed to establish a new connection: [Errno 111] Connection refused\\n\\nThe above exception was the direct cause of the following exception:\\n\\nTraceback (most recent call last):\\n  File \\\"/opt/sqlbot/app/.venv/lib/python3.11/site-packages/requests/adapters.py\\\", line 644, in send\\n    resp = conn.urlopen(\\n           ^^^^^^^^^^^^^\\nurllib3.exceptions.MaxRetryError: HTTPConnectionPool(host='127.0.0.1', port=36197): Max retries exceeded with url: /rate-limit/ds (Caused by NewConnectionError(\\\"HTTPConnection(host='127.0.0.1', port=36197): Failed to establish a new connection: [Errno 111] Connection refused\\\"))\\n\\nDuring handling of the above exception, another exception occurred:\\n\\nTraceback (most recent call last):\\n  File \\\"/opt/sqlbot/app/apps/chat/task/llm.py\\\", line 1105, in run_task\\n    for chunk in ds_res:\\nrequests.exceptions.ConnectionError: HTTPConnectionPool(host='127.0.0.1', port=36197): Max retries exceeded with url: /rate-limit/ds (Caused by NewConnectionError(\\\"HTTPConnection(host='127.0.0.1', port=36197): Failed to establish a new connection: [Errno 111] Connection refused\\\"))\\n\"}",
+      "recovery_status": 500,
+      "recovery_duration_ms": 129,
+      "recovery_success": false
+    },
+    {
+      "case_id": "g5-transient-recovery",
+      "scenario": "provider transient 503 first call, then recovery on next attempt",
+      "passed": false,
+      "first_attempt_failed": true,
+      "first_attempt_status": 500,
+      "first_attempt_duration_ms": 119,
+      "first_error_message": "{\"message\":\"HTTPConnectionPool(host='127.0.0.1', port=36197): Max retries exceeded with url: /transient/ds (Caused by NewConnectionError(\\\"HTTPConnection(host='127.0.0.1', port=36197): Failed to establish a new connection: [Errno 111] Connection refused\\\"))\",\"traceback\":\"Traceback (most recent call last):\\n  File \\\"/opt/sqlbot/app/.venv/lib/python3.11/site-packages/urllib3/connection.py\\\", line 204, in _new_conn\\n    sock = connection.create_connection(\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\nConnectionRefusedError: [Errno 111] Connection refused\\n\\nThe above exception was the direct cause of the following exception:\\n\\nTraceback (most recent call last):\\n  File \\\"/opt/sqlbot/app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py\\\", line 787, in urlopen\\n    response = self._make_request(\\n               ^^^^^^^^^^^^^^^^^^^\\nurllib3.exceptions.NewConnectionError: HTTPConnection(host='127.0.0.1', port=36197): Failed to establish a new connection: [Errno 111] Connection refused\\n\\nThe above exception was the direct cause of the following exception:\\n\\nTraceback (most recent call last):\\n  File \\\"/opt/sqlbot/app/.venv/lib/python3.11/site-packages/requests/adapters.py\\\", line 644, in send\\n    resp = conn.urlopen(\\n           ^^^^^^^^^^^^^\\nurllib3.exceptions.MaxRetryError: HTTPConnectionPool(host='127.0.0.1', port=36197): Max retries exceeded with url: /transient/ds (Caused by NewConnectionError(\\\"HTTPConnection(host='127.0.0.1', port=36197): Failed to establish a new connection: [Errno 111] Connection refused\\\"))\\n\\nDuring handling of the above exception, another exception occurred:\\n\\nTraceback (most recent call last):\\n  File \\\"/opt/sqlbot/app/apps/chat/task/llm.py\\\", line 1105, in run_task\\n    for chunk in ds_res:\\nrequests.exceptions.ConnectionError: HTTPConnectionPool(host='127.0.0.1', port=36197): Max retries exceeded with url: /transient/ds (Caused by NewConnectionError(\\\"HTTPConnection(host='127.0.0.1', port=36197): Failed to establish a new connection: [Errno 111] Connection refused\\\"))\\n\"}",
+      "second_attempt_status": 500,
+      "second_attempt_duration_ms": 123,
+      "second_attempt_success": false,
+      "mock_transient_hits": 0,
+      "observed_retry_count": 0,
+      "final_status": "controlled_failure"
+    }
+  ]
+}

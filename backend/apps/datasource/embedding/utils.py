@@ -3,11 +3,11 @@
 import math
 
 
-def cosine_similarity(vec_a, vec_b):
+def cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
     if len(vec_a) != len(vec_b):
         raise ValueError("The vector dimension must be the same")
 
-    dot_product = sum(a * b for a, b in zip(vec_a, vec_b))
+    dot_product = sum(a * b for a, b in zip(vec_a, vec_b, strict=False))
 
     norm_a = math.sqrt(sum(a * a for a in vec_a))
     norm_b = math.sqrt(sum(b * b for b in vec_b))

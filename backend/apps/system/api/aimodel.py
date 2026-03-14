@@ -1,30 +1,41 @@
 import json
-from typing import List, Union
+from collections.abc import AsyncIterator
+from typing import Any, cast
 
+from fastapi import APIRouter, Path, Query
 from fastapi.responses import StreamingResponse
+from sqlmodel import col, func, select, update
+
 from apps.ai_model.model_factory import LLMConfig, LLMFactory
 from apps.swagger.i18n import PLACEHOLDER_PREFIX
-from apps.system.schemas.ai_model_schema import AiModelConfigItem, AiModelCreator, AiModelEditor, AiModelGridItem
-from fastapi import APIRouter, Path, Query
-from sqlmodel import func, select, update
-
 from apps.system.models.system_model import AiModelDetail
+from apps.system.schemas.ai_model_schema import (
+    AiModelConfigItem,
+    AiModelCreator,
+    AiModelEditor,
+    AiModelGridItem,
+)
 from apps.system.schemas.permission import SqlbotPermission, require_permissions
+from common.audit.models.log_model import OperationModules, OperationType
+from common.audit.schemas.logger_decorator import LogConfig, system_log
 from common.core.deps import SessionDep, Trans
 from common.utils.crypto import sqlbot_decrypt
 from common.utils.time import get_timestamp
 from common.utils.utils import SQLBotLogUtil, prepare_model_arg
 
 router = APIRouter(tags=["system_model"], prefix="/system/aimodel")
-from common.audit.models.log_model import OperationType, OperationModules
-from common.audit.schemas.logger_decorator import LogConfig, system_log
+
 
 @router.post("/status", include_in_schema=False)
-@require_permissions(permission=SqlbotPermission(role=['admin'])) 
-async def check_llm(info: AiModelCreator, trans: Trans):
-    async def generate():
+@require_permissions(permission=SqlbotPermission(role=["admin"]))
+async def check_llm(info: AiModelCreator, trans: Trans) -> StreamingResponse:
+    async def generate() -> AsyncIterator[str]:
         try:
-            additional_params = {item.key: prepare_model_arg(item.val) for item in info.config_list if item.key and item.val}
+            additional_params = {
+                item.key: prepare_model_arg(item.val)
+                for item in info.config_list
+                if item.key and item.val
+            }
             config = LLMConfig(
                 model_type="openai" if info.protocol == 1 else "vllm",
                 model_name=info.base_model,
@@ -34,31 +45,45 @@ async def check_llm(info: AiModelCreator, trans: Trans):
             )
             llm_instance = LLMFactory.create_llm(config)
             async for chunk in llm_instance.llm.astream("1+1=?"):
-                SQLBotLogUtil.info(chunk)
+                SQLBotLogUtil.info(str(chunk))
                 if chunk and isinstance(chunk, str):
                     yield json.dumps({"content": chunk}) + "\n"
-                if chunk and isinstance(chunk, dict) and chunk.content:
-                    yield json.dumps({"content": chunk.content}) + "\n"
-        
+                if chunk and isinstance(chunk, dict):
+                    content = chunk.get("content")
+                    if content:
+                        yield json.dumps({"content": content}) + "\n"
+
         except Exception as e:
             SQLBotLogUtil.error(f"Error checking LLM: {e}")
-            error_msg = trans('i18n_llm.validate_error', msg=str(e))
+            error_msg = trans("i18n_llm.validate_error", msg=str(e))
             yield json.dumps({"error": error_msg}) + "\n"
-    
+
     return StreamingResponse(generate(), media_type="application/x-ndjson")
 
+
 @router.get("/default", include_in_schema=False)
-async def check_default(session: SessionDep, trans: Trans):
+async def check_default(session: SessionDep, trans: Trans) -> None:
     db_model = session.exec(
-        select(AiModelDetail).where(AiModelDetail.default_model == True)
+        select(AiModelDetail).where(col(AiModelDetail.default_model))
     ).first()
     if not db_model:
-        raise Exception(trans('i18n_llm.miss_default'))
-    
-@router.put("/default/{id}", summary=f"{PLACEHOLDER_PREFIX}system_model_default", description=f"{PLACEHOLDER_PREFIX}system_model_default")
-@require_permissions(permission=SqlbotPermission(role=['admin']))
-@system_log(LogConfig(operation_type=OperationType.UPDATE, module=OperationModules.AI_MODEL, resource_id_expr="id"))
-async def set_default(session: SessionDep, id: int = Path(description="ID")):
+        raise Exception(trans("i18n_llm.miss_default"))
+
+
+@router.put(
+    "/default/{id}",
+    summary=f"{PLACEHOLDER_PREFIX}system_model_default",
+    description=f"{PLACEHOLDER_PREFIX}system_model_default",
+)
+@require_permissions(permission=SqlbotPermission(role=["admin"]))
+@system_log(
+    LogConfig(
+        operation_type=OperationType.UPDATE,
+        module=OperationModules.AI_MODEL,
+        resource_id_expr="id",
+    )
+)
+async def set_default(session: SessionDep, id: int = Path(description="ID")) -> None:
     db_model = session.get(AiModelDetail, id)
     if not db_model:
         raise ValueError(f"AiModelDetail with id {id} not found")
@@ -66,9 +91,7 @@ async def set_default(session: SessionDep, id: int = Path(description="ID")):
         return
 
     try:
-        session.exec(
-            update(AiModelDetail).values(default_model=False)
-        )
+        session.exec(update(AiModelDetail).values(default_model=False))
         db_model.default_model = True
         session.add(db_model)
         session.commit()
@@ -76,36 +99,55 @@ async def set_default(session: SessionDep, id: int = Path(description="ID")):
         session.rollback()
         raise e
 
-@router.get("", response_model=list[AiModelGridItem], summary=f"{PLACEHOLDER_PREFIX}system_model_grid", description=f"{PLACEHOLDER_PREFIX}system_model_grid")
-@require_permissions(permission=SqlbotPermission(role=['admin'])) 
-async def query(
-        session: SessionDep,
-        keyword: Union[str, None] = Query(default=None, max_length=255, description=f"{PLACEHOLDER_PREFIX}keyword")
-):
-    statement = select(AiModelDetail.id, 
-                       AiModelDetail.name, 
-                       AiModelDetail.model_type, 
-                       AiModelDetail.base_model, 
-                       AiModelDetail.supplier,
-                       AiModelDetail.protocol, 
-                       AiModelDetail.default_model)
-    if keyword is not None:
-        statement = statement.where(AiModelDetail.name.like(f"%{keyword}%"))
-    statement = statement.order_by(AiModelDetail.default_model.desc(), AiModelDetail.name, AiModelDetail.create_time)
-    items = session.exec(statement).all()
-    return items
 
-@router.get("/{id}", response_model=AiModelEditor, summary=f"{PLACEHOLDER_PREFIX}system_model_query", description=f"{PLACEHOLDER_PREFIX}system_model_query")
-@require_permissions(permission=SqlbotPermission(role=['admin'])) 
+@router.get(
+    "",
+    response_model=list[AiModelGridItem],
+    summary=f"{PLACEHOLDER_PREFIX}system_model_grid",
+    description=f"{PLACEHOLDER_PREFIX}system_model_grid",
+)
+@require_permissions(permission=SqlbotPermission(role=["admin"]))
+async def query(
+    session: SessionDep,
+    keyword: str | None = Query(
+        default=None, max_length=255, description=f"{PLACEHOLDER_PREFIX}keyword"
+    ),
+) -> list[Any]:
+    model_table = cast(Any, AiModelDetail).__table__.c
+    statement = session.query(
+        model_table.id,
+        model_table.name,
+        model_table.model_type,
+        model_table.base_model,
+        model_table.supplier,
+        model_table.protocol,
+        model_table.default_model,
+    )
+    if keyword is not None:
+        statement = statement.filter(model_table.name.like(f"%{keyword}%"))
+    statement = statement.order_by(
+        model_table.default_model.desc(),
+        model_table.name,
+        model_table.create_time,
+    )
+    return list(statement.all())
+
+
+@router.get(
+    "/{id}",
+    response_model=AiModelEditor,
+    summary=f"{PLACEHOLDER_PREFIX}system_model_query",
+    description=f"{PLACEHOLDER_PREFIX}system_model_query",
+)
+@require_permissions(permission=SqlbotPermission(role=["admin"]))
 async def get_model_by_id(
-        session: SessionDep,
-        id: int = Path(description="ID")
-):
+    session: SessionDep, id: int = Path(description="ID")
+) -> AiModelEditor:
     db_model = session.get(AiModelDetail, id)
     if not db_model:
         raise ValueError(f"AiModelDetail with id {id} not found")
 
-    config_list: List[AiModelConfigItem] = []
+    config_list: list[AiModelConfigItem] = []
     if db_model.config:
         try:
             raw = json.loads(db_model.config)
@@ -124,55 +166,84 @@ async def get_model_by_id(
     data["config_list"] = config_list
     return AiModelEditor(**data)
 
-@router.post("", summary=f"{PLACEHOLDER_PREFIX}system_model_create", description=f"{PLACEHOLDER_PREFIX}system_model_create")
-@require_permissions(permission=SqlbotPermission(role=['admin']))
-@system_log(LogConfig(operation_type=OperationType.CREATE, module=OperationModules.AI_MODEL, result_id_expr="id"))
-async def add_model(
-        session: SessionDep,
-        creator: AiModelCreator
-):
+
+@router.post(
+    "",
+    summary=f"{PLACEHOLDER_PREFIX}system_model_create",
+    description=f"{PLACEHOLDER_PREFIX}system_model_create",
+)
+@require_permissions(permission=SqlbotPermission(role=["admin"]))
+@system_log(
+    LogConfig(
+        operation_type=OperationType.CREATE,
+        module=OperationModules.AI_MODEL,
+        result_id_expr="id",
+    )
+)
+async def add_model(session: SessionDep, creator: AiModelCreator) -> AiModelDetail:
     data = creator.model_dump(exclude_unset=True)
-    data["config"] = json.dumps([item.model_dump(exclude_unset=True) for item in creator.config_list])
+    data["config"] = json.dumps(
+        [item.model_dump(exclude_unset=True) for item in creator.config_list]
+    )
     data.pop("config_list", None)
     detail = AiModelDetail.model_validate(data)
     detail.create_time = get_timestamp()
-    count = session.exec(select(func.count(AiModelDetail.id))).one()
+    count = session.exec(select(func.count(col(AiModelDetail.id)))).one()
     if count == 0:
         detail.default_model = True
     session.add(detail)
     session.commit()
     return detail
 
-@router.put("", summary=f"{PLACEHOLDER_PREFIX}system_model_update", description=f"{PLACEHOLDER_PREFIX}system_model_update")
-@require_permissions(permission=SqlbotPermission(role=['admin']))
-@system_log(LogConfig(operation_type=OperationType.UPDATE, module=OperationModules.AI_MODEL, resource_id_expr="editor.id"))
-async def update_model(
-        session: SessionDep,
-        editor: AiModelEditor
-):
+
+@router.put(
+    "",
+    summary=f"{PLACEHOLDER_PREFIX}system_model_update",
+    description=f"{PLACEHOLDER_PREFIX}system_model_update",
+)
+@require_permissions(permission=SqlbotPermission(role=["admin"]))
+@system_log(
+    LogConfig(
+        operation_type=OperationType.UPDATE,
+        module=OperationModules.AI_MODEL,
+        resource_id_expr="editor.id",
+    )
+)
+async def update_model(session: SessionDep, editor: AiModelEditor) -> None:
     id = int(editor.id)
     data = editor.model_dump(exclude_unset=True)
-    data["config"] = json.dumps([item.model_dump(exclude_unset=True) for item in editor.config_list])
+    data["config"] = json.dumps(
+        [item.model_dump(exclude_unset=True) for item in editor.config_list]
+    )
     data.pop("config_list", None)
     db_model = session.get(AiModelDetail, id)
-    #update_data = AiModelDetail.model_validate(data)
+    if db_model is None:
+        raise ValueError(f"AiModelDetail with id {id} not found")
     db_model.sqlmodel_update(data)
     session.add(db_model)
     session.commit()
 
-@router.delete("/{id}", summary=f"{PLACEHOLDER_PREFIX}system_model_del", description=f"{PLACEHOLDER_PREFIX}system_model_del")
-@require_permissions(permission=SqlbotPermission(role=['admin']))
-@system_log(LogConfig(operation_type=OperationType.DELETE, module=OperationModules.AI_MODEL, resource_id_expr="id"))
+
+@router.delete(
+    "/{id}",
+    summary=f"{PLACEHOLDER_PREFIX}system_model_del",
+    description=f"{PLACEHOLDER_PREFIX}system_model_del",
+)
+@require_permissions(permission=SqlbotPermission(role=["admin"]))
+@system_log(
+    LogConfig(
+        operation_type=OperationType.DELETE,
+        module=OperationModules.AI_MODEL,
+        resource_id_expr="id",
+    )
+)
 async def delete_model(
-        session: SessionDep,
-        trans: Trans,
-        id: int = Path(description="ID")
-):
+    session: SessionDep, trans: Trans, id: int = Path(description="ID")
+) -> None:
     item = session.get(AiModelDetail, id)
+    if item is None:
+        raise ValueError(f"AiModelDetail with id {id} not found")
     if item.default_model:
-        raise Exception(trans('i18n_llm.delete_default_error', key = item.name))
+        raise Exception(trans("i18n_llm.delete_default_error", key=item.name))
     session.delete(item)
     session.commit()
-    
-
-    

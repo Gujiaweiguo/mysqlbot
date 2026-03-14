@@ -1,0 +1,96 @@
+{
+  "report_id": "g4-happy-path-20260311-001437",
+  "created_at": "2026-03-11T00:14:37.043820",
+  "base_url": "http://127.0.0.1:8000",
+  "schema": "demo_sales",
+  "datasource_id": 1,
+  "chat_id": 6,
+  "overall_passed": true,
+  "cases": [
+    {
+      "case_id": "g4-aggregation",
+      "question": "最近订单总金额是多少？",
+      "expectation": "SQL executes and returns a single aggregate result",
+      "passed": true,
+      "new_record_count": 1,
+      "has_sql": true,
+      "has_data": false,
+      "event_count": 1516,
+      "event_types": [
+        "brief",
+        "chart",
+        "chart-result",
+        "finish",
+        "id",
+        "info",
+        "question",
+        "sql",
+        "sql-data",
+        "sql-result"
+      ],
+      "errors": [],
+      "sample_sql": "SELECT SUM(\"o\".\"order_amount\") AS \"total_amount\"\nFROM \"demo_sales\".\"orders\" \"o\"\nLIMIT 1000",
+      "sample_data": null,
+      "sse_sql_fragments": [
+        "SELECT",
+        "SELECT SUM(\"o\".\"order_amount\") AS \"total_amount\"\nFROM \"demo_sales\".\"orders\" \"o\"\nLIMIT 1000"
+      ]
+    },
+    {
+      "case_id": "g4-group-stat",
+      "question": "每个客户的订单金额汇总，按金额降序",
+      "expectation": "Grouped rows are returned and sorted by amount descending",
+      "passed": true,
+      "new_record_count": 1,
+      "has_sql": true,
+      "has_data": false,
+      "event_count": 1960,
+      "event_types": [
+        "chart",
+        "chart-result",
+        "finish",
+        "id",
+        "info",
+        "question",
+        "sql",
+        "sql-data",
+        "sql-result"
+      ],
+      "errors": [],
+      "sample_sql": "SELECT \"c\".\"customer_name\" AS \"customer_name\",\n       ROUND(SUM(\"o\".\"order_amount\"), 2) AS \"total_amount\"\nFROM \"demo_sales\".\"customers\" \"c\"\nJOIN \"demo_sales\".\"orders\" \"o\" ON \"c\".\"customer_id\" = \"o\".\"customer_id\"\nGROUP BY \"c\".\"customer_name\"\nORDER BY \"total_amount\" DESC\nLIMIT 1000",
+      "sample_data": null,
+      "sse_sql_fragments": [
+        "SELECT",
+        "SELECT \"c\".\"customer_name\" AS \"customer_name\",\n       ROUND(SUM(\"o\".\"order_amount\"), 2) AS \"total_amount\"\nFROM \"demo_sales\".\"customers\" \"c\"\nJOIN \"demo_sales\".\"orders\" \"o\" ON \"c\".\"customer_id\" = \"o\".\"customer_id\"\nGROUP BY \"c\".\"customer_name\"\nORDER BY \"total_amount\" DESC\nLIMIT 1000"
+      ]
+    },
+    {
+      "case_id": "g4-status-dist",
+      "question": "订单状态分别有多少条？",
+      "expectation": "Status dimension count rows are returned",
+      "passed": true,
+      "new_record_count": 1,
+      "has_sql": true,
+      "has_data": false,
+      "event_count": 1884,
+      "event_types": [
+        "chart",
+        "chart-result",
+        "finish",
+        "id",
+        "info",
+        "question",
+        "sql",
+        "sql-data",
+        "sql-result"
+      ],
+      "errors": [],
+      "sample_sql": "SELECT \"o\".\"order_status\" AS \"order_status\",\n       COUNT(\"o\".\"order_id\") AS \"count\"\nFROM \"demo_sales\".\"orders\" \"o\"\nGROUP BY \"o\".\"order_status\"\nORDER BY \"count\" DESC\nLIMIT 1000",
+      "sample_data": null,
+      "sse_sql_fragments": [
+        "SELECT",
+        "SELECT \"o\".\"order_status\" AS \"order_status\",\n       COUNT(\"o\".\"order_id\") AS \"count\"\nFROM \"demo_sales\".\"orders\" \"o\"\nGROUP BY \"o\".\"order_status\"\nORDER BY \"count\" DESC\nLIMIT 1000"
+      ]
+    }
+  ]
+}

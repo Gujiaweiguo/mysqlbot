@@ -14,7 +14,7 @@ path = settings.EXCEL_PATH
 
 
 @router.post("/download-fail-info", summary=f"{PLACEHOLDER_PREFIX}download-fail-info")
-async def download_excel(req: FileRequest):
+async def download_excel(req: FileRequest) -> FileResponse:
     """
     根据文件路径下载 Excel 文件
     """
@@ -26,7 +26,7 @@ async def download_excel(req: FileRequest):
         raise HTTPException(404, "File Not Exists")
 
     # 检查文件是否是 Excel 文件
-    if not filename.endswith('_error.xlsx'):
+    if not filename.endswith("_error.xlsx"):
         raise HTTPException(400, "Only support _error.xlsx")
 
     # 获取文件名
@@ -36,5 +36,5 @@ async def download_excel(req: FileRequest):
     return FileResponse(
         path=file_path,
         filename=filename,
-        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )

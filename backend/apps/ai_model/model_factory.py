@@ -1,51 +1,60 @@
-from functools import lru_cache
 import json
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any, Type
+from functools import lru_cache
+from typing import Any, cast
 
 from langchain.chat_models.base import BaseChatModel
-from pydantic import BaseModel
-from sqlmodel import Session, select
+from langchain_community.llms import VLLMOpenAI
+from langchain_openai import AzureChatOpenAI
+from pydantic import BaseModel, SecretStr
+from sqlmodel import Session, col, select
+from typing_extensions import override
 
 from apps.ai_model.openai.llm import BaseChatOpenAI
 from apps.system.models.system_model import AiModelDetail
 from common.core.db import engine
 from common.utils.crypto import sqlbot_decrypt
 from common.utils.utils import prepare_model_arg
-from langchain_community.llms import VLLMOpenAI
-from langchain_openai import AzureChatOpenAI
+
 # from langchain_community.llms import Tongyi, VLLM
+
 
 class LLMConfig(BaseModel):
     """Base configuration class for large language models"""
-    model_id: Optional[int] = None
+
+    model_id: int | None = None
     model_type: str  # Model type: openai/tongyi/vllm etc.
     model_name: str  # Specific model name
-    api_key: Optional[str] = None
-    api_base_url: Optional[str] = None
-    additional_params: Dict[str, Any] = {}
-    class Config:
-        frozen = True
+    api_key: str | None = None
+    api_base_url: str | None = None
+    additional_params: dict[str, Any] = {}
 
-    def __hash__(self):
-        if hasattr(self, 'additional_params') and isinstance(self.additional_params, dict):
-            hashable_params = frozenset((k, tuple(v) if isinstance(v, (list, dict)) else v) 
-                            for k, v in self.additional_params.items())
-        else:
-            hashable_params = None
-        
-        return hash((
-            self.model_id,
-            self.model_type,
-            self.model_name,
-            self.api_key,
-            self.api_base_url,
-            hashable_params
-        ))
+    class Config:
+        frozen: bool = True
+
+    @override
+    def __hash__(self) -> int:
+        hashable_params = json.dumps(
+            self.additional_params, sort_keys=True, default=str
+        )
+
+        return hash(
+            (
+                self.model_id,
+                self.model_type,
+                self.model_name,
+                self.api_key,
+                self.api_base_url,
+                hashable_params,
+            )
+        )
 
 
 class BaseLLM(ABC):
     """Abstract base class for large language models"""
+
+    config: LLMConfig
+    _llm: BaseChatModel
 
     def __init__(self, config: LLMConfig):
         self.config = config
@@ -61,51 +70,60 @@ class BaseLLM(ABC):
         """Return the langchain LLM instance"""
         return self._llm
 
+
 class OpenAIvLLM(BaseLLM):
-    def _init_llm(self) -> VLLMOpenAI:
-        return VLLMOpenAI(
-            openai_api_key=self.config.api_key or 'Empty',
+    @override
+    def _init_llm(self) -> BaseChatModel:
+        llm = VLLMOpenAI(
+            openai_api_key=self.config.api_key or "Empty",
             openai_api_base=self.config.api_base_url,
             model_name=self.config.model_name,
             streaming=True,
             **self.config.additional_params,
         )
+        return cast(BaseChatModel, llm)
+
 
 class OpenAIAzureLLM(BaseLLM):
+    @override
     def _init_llm(self) -> AzureChatOpenAI:
-        api_version = self.config.additional_params.get("api_version")
-        deployment_name = self.config.additional_params.get("deployment_name")
-        if api_version:
-            self.config.additional_params.pop("api_version")
-        if deployment_name:
-            self.config.additional_params.pop("deployment_name")
+        params = dict(self.config.additional_params)
+        api_version_raw = params.pop("api_version", None)
+        deployment_name_raw = params.pop("deployment_name", None)
+        api_version = api_version_raw if isinstance(api_version_raw, str) else None
+        deployment_name = (
+            deployment_name_raw if isinstance(deployment_name_raw, str) else None
+        )
         return AzureChatOpenAI(
             azure_endpoint=self.config.api_base_url,
-            api_key=self.config.api_key or 'Empty',
-            model_name=self.config.model_name,
+            api_key=SecretStr(self.config.api_key) if self.config.api_key else None,
+            model=self.config.model_name,
             api_version=api_version,
-            deployment_name=deployment_name,
+            azure_deployment=deployment_name,
             streaming=True,
-            **self.config.additional_params,
+            **params,
         )
+
+
 class OpenAILLM(BaseLLM):
+    @override
     def _init_llm(self) -> BaseChatModel:
         return BaseChatOpenAI(
             model=self.config.model_name,
-            api_key=self.config.api_key or 'Empty',
+            api_key=SecretStr(self.config.api_key) if self.config.api_key else None,
             base_url=self.config.api_base_url,
             stream_usage=True,
             **self.config.additional_params,
         )
 
     def generate(self, prompt: str) -> str:
-        return self.llm.invoke(prompt)
+        return str(self.llm.invoke(prompt).content)
 
 
 class LLMFactory:
     """Large Language Model Factory Class"""
 
-    _llm_types: Dict[str, Type[BaseLLM]] = {
+    _llm_types: dict[str, type[BaseLLM]] = {
         "openai": OpenAILLM,
         "tongyi": OpenAILLM,
         "vllm": OpenAIvLLM,
@@ -121,7 +139,7 @@ class LLMFactory:
         return llm_class(config)
 
     @classmethod
-    def register_llm(cls, model_type: str, llm_class: Type[BaseLLM]):
+    def register_llm(cls, model_type: str, llm_class: type[BaseLLM]) -> None:
         """Register new model type"""
         cls._llm_types[model_type] = llm_class
 
@@ -141,23 +159,31 @@ class LLMFactory:
 async def get_default_config() -> LLMConfig:
     with Session(engine) as session:
         db_model = session.exec(
-            select(AiModelDetail).where(AiModelDetail.default_model == True)
+            select(AiModelDetail).where(col(AiModelDetail.default_model).is_(True))
         ).first()
         if not db_model:
             raise Exception("The system default model has not been set")
 
-        additional_params = {}
+        additional_params: dict[str, Any] = {}
         if db_model.config:
             try:
-                config_raw = json.loads(db_model.config)
-                additional_params = {item["key"]: prepare_model_arg(item.get('val')) for item in config_raw if "key" in item and "val" in item}
+                config_parsed = cast(object, json.loads(db_model.config))
+                config_raw = (
+                    cast(list[dict[str, object]], config_parsed)
+                    if isinstance(config_parsed, list)
+                    else []
+                )
+                additional_params = {
+                    str(item["key"]): prepare_model_arg(item.get("val"))
+                    for item in config_raw
+                    if "key" in item and "val" in item
+                }
             except Exception:
                 pass
         if not db_model.api_domain.startswith("http"):
             db_model.api_domain = await sqlbot_decrypt(db_model.api_domain)
             if db_model.api_key:
                 db_model.api_key = await sqlbot_decrypt(db_model.api_key)
-            
 
         # 构造 LLMConfig
         return LLMConfig(

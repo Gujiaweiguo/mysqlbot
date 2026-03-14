@@ -1,67 +1,88 @@
-import time
 import functools
-import json
 import inspect
-from typing import Callable, Any, Optional, Dict, Union, List
-from fastapi import Request, HTTPException
-from datetime import datetime
-from pydantic import BaseModel
-from sqlmodel import Session, select
+import json
+import re
+import time
 import traceback
-from sqlbot_xpack.audit.curd.audit import build_resource_union_query
-from common.audit.models.log_model import OperationType, OperationStatus, SystemLog, SystemLogsResource
-from common.audit.schemas.request_context import RequestContext
-from apps.system.crud.user import get_user_by_account
-from apps.system.schemas.system_schema import UserInfoDTO, BaseUserDTO
-from sqlalchemy import and_, select
+from collections.abc import Awaitable, Callable
+from datetime import datetime
+from typing import Literal, cast
 
+from fastapi import HTTPException, Request
+from pydantic import BaseModel
+from sqlalchemy import and_
+from sqlmodel import Session
+from sqlmodel import select as sqlmodel_select
+
+from apps.system.crud.user import get_user_by_account
+from apps.system.schemas.system_schema import UserInfoDTO
+from common.audit.models.log_model import (
+    OperationStatus,
+    OperationType,
+    SystemLog,
+    SystemLogsResource,
+)
+from common.audit.schemas.log_utils import build_resource_union_query
+from common.audit.schemas.request_context import RequestContext
 from common.core.db import engine
 
 
-def get_resource_name_by_id_and_module(session, resource_id: Any, module: str) -> List[Dict[str, str]]:
+def get_resource_name_by_id_and_module(
+    session: Session, resource_id: object | list[object] | None, module: str
+) -> list[dict[str, str]]:
     resource_union_query = build_resource_union_query()
     resource_alias = resource_union_query.alias("resource")
 
-    # 统一处理为列表
-    if not isinstance(resource_id, list):
-        resource_id = [resource_id]
+    if resource_id is None:
+        return []
 
-    if not resource_id:
+    resource_ids: list[object]
+    if isinstance(resource_id, list):
+        resource_ids = cast(list[object], resource_id)
+    else:
+        resource_ids = [resource_id]
+
+    if not resource_ids:
         return []
 
     # 构建查询，使用 IN 条件
-    query = select(
-        resource_alias.c.id,
-        resource_alias.c.name,
-        resource_alias.c.module
+    query = sqlmodel_select(
+        resource_alias.c.id, resource_alias.c.name, resource_alias.c.module
     ).where(
         and_(
-            resource_alias.c.id.in_([str(id_) for id_ in resource_id]),
-            resource_alias.c.module == module
+            resource_alias.c.id.in_([str(id_) for id_ in resource_ids]),
+            resource_alias.c.module == module,
         )
     )
 
-    results = session.execute(query).fetchall()
+    results = cast(
+        list[tuple[str | None, str | None, str | None]],
+        session.exec(query).all(),
+    )
 
-    return [{
-        'resource_id': str(row.id),
-        'resource_name': row.name or '',
-        'module': row.module or ''
-    } for row in results]
+    return [
+        {
+            "resource_id": row[0] or "",
+            "resource_name": row[1] or "",
+            "module": row[2] or "",
+        }
+        for row in results
+    ]
+
 
 class LogConfig(BaseModel):
     operation_type: OperationType
-    operation_detail: str = None
-    module: Optional[str] = None
+    operation_detail: str | None = None
+    module: str | None = None
 
     # Extract the expression of resource ID from the parameters
-    resource_id_expr: Optional[str] = None
+    resource_id_expr: str | None = None
 
     # Extract the expression for resource ID from the returned result
-    result_id_expr: Optional[str] = None
+    result_id_expr: str | None = None
 
     # Extract the expression for resource name or other info from the returned result
-    remark_expr: Optional[str] = None
+    remark_expr: str | None = None
 
     # Is it only recorded upon success
     save_on_success_only: bool = False
@@ -79,38 +100,42 @@ class LogConfig(BaseModel):
 class SystemLogger:
     @staticmethod
     async def create_log(
-            session: Session,
-            operation_type: OperationType,
-            operation_detail: str,
-            user: Optional[UserInfoDTO] = None,
-            status: OperationStatus = OperationStatus.SUCCESS,
-            ip_address: Optional[str] = None,
-            user_agent: Optional[str] = None,
-            execution_time: int = 0,
-            error_message: Optional[str] = None,
-            module: Optional[str] = None,
-            resource_id: Any = None,
-            request_method: Optional[str] = None,
-            request_path: Optional[str] = None,
-            remark: Optional[str] = None
-    ):
+        session: Session,
+        operation_type: OperationType,
+        operation_detail: str,
+        user: UserInfoDTO | None = None,
+        status: OperationStatus = OperationStatus.SUCCESS,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+        execution_time: int = 0,
+        error_message: str | None = None,
+        module: str | None = None,
+        resource_id: object | None = None,
+        request_method: str | None = None,
+        request_path: str | None = None,
+        remark: str | None = None,
+    ) -> SystemLog | None:
         try:
+            resource_id_str: str | None = None
+            if resource_id is not None:
+                resource_id_str = str(resource_id)
+
             log = SystemLog(
                 operation_type=operation_type,
                 operation_detail=operation_detail,
                 user_id=user.id if user else None,
-                user_name=user.username if user else None,
+                user_name=user.account if user else None,
                 operation_status=status,
                 ip_address=ip_address,
                 user_agent=user_agent,
                 execution_time=execution_time,
                 error_message=error_message,
                 module=module,
-                resource_id=resource_id,
+                resource_id=resource_id_str,
                 request_method=request_method,
                 request_path=request_path,
-                created_at=datetime.now(),
-                remark=remark
+                create_time=datetime.now(),
+                remark=remark,
             )
             session.add(log)
             session.commit()
@@ -121,7 +146,7 @@ class SystemLogger:
             return None
 
     @staticmethod
-    def get_client_info(request: Request) -> Dict[str, Optional[str]]:
+    def get_client_info(request: Request) -> dict[str, str | None]:
         """Obtain client information"""
         ip_address = None
         user_agent = None
@@ -137,13 +162,10 @@ class SystemLogger:
             # Get User Agent
             user_agent = request.headers.get("user-agent")
 
-        return {
-            "ip_address": ip_address,
-            "user_agent": user_agent
-        }
+        return {"ip_address": ip_address, "user_agent": user_agent}
 
     @staticmethod
-    def extract_value_from_object(expression: str, obj: Any):
+    def extract_value_from_object(expression: str, obj: object) -> object | None:
         """
         Extract values from objects based on expressions
         support:
@@ -154,65 +176,71 @@ class SystemLogger:
         if not expression or obj is None:
             return None
 
-        if expression == 'result_self':
+        if expression == "result_self":
             return obj
 
         try:
             # Handling point separated attribute access
-            parts = expression.split('.')
-            current = obj
+            parts = expression.split(".")
+            current: object | None = obj
 
             for part in parts:
                 if not current:
                     return None
 
                 # Handle dictionary key access, such as data ['id ']
-                if '[' in part and ']' in part:
-                    import re
-                    # Extract key names, such as data ['id '] ->key='id'
+                if "[" in part and "]" in part:
                     match = re.search(r"\[['\"]?([^\]'\"\]]+)['\"]?\]", part)
                     if match:
                         key = match.group(1)
                         # Get Object Part
-                        obj_part = part.split('[')[0]
-                        if hasattr(current, obj_part):
-                            current = getattr(current, obj_part)
-                        elif isinstance(current, dict) and obj_part in current:
-                            current = current[obj_part]
+                        obj_part = part.split("[")[0]
+                        if isinstance(current, dict):
+                            current_dict = cast(dict[str, object], current)
+                            current = current_dict.get(obj_part)
                         else:
+                            current = cast(
+                                object | None, getattr(current, obj_part, None)
+                            )
+                        if current is None:
                             return None
 
                         # Get key value
-                        if isinstance(current, dict) and key in current:
-                            current = current[key]
-                        elif hasattr(current, key):
-                            current = getattr(current, key)
-                        elif isinstance(current, list) and key.isdigit():
+                        if isinstance(current, dict):
+                            current_dict = cast(dict[str, object], current)
+                            current = current_dict.get(key)
+                        elif isinstance(current, (list, tuple)) and key.isdigit():
+                            current_seq = cast(
+                                list[object] | tuple[object, ...], current
+                            )
                             index = int(key)
-                            if 0 <= index < len(current):
-                                current = current[index]
+                            if 0 <= index < len(current_seq):
+                                current = current_seq[index]
                             else:
                                 return None
                         else:
+                            current = cast(object | None, getattr(current, key, None))
+                        if current is None:
                             return None
                     else:
                         return None
 
                 # Process list indexes, such as items.0.id
                 elif part.isdigit() and isinstance(current, (list, tuple)):
+                    current_seq = cast(list[object] | tuple[object, ...], current)
                     index = int(part)
-                    if 0 <= index < len(current):
-                        current = current[index]
+                    if 0 <= index < len(current_seq):
+                        current = current_seq[index]
                     else:
                         return None
 
-                # Normal attribute access
+                    # Normal attribute access
                 else:
-                    if hasattr(current, part):
-                        current = getattr(current, part)
-                    elif isinstance(current, dict) and part in current:
-                        current = current[part]
+                    if isinstance(current, dict):
+                        current = cast(object | None, current.get(part))
                     else:
+                        current = cast(object | None, getattr(current, part, None))
+                    if current is None:
                         return None
 
             return current if current is not None else None
@@ -222,10 +250,10 @@ class SystemLogger:
 
     @staticmethod
     def extract_resource_id(
-            expression: Optional[str],
-            source: Any,
-            source_type: str = "args"  # args, kwargs, result
-    ):
+        expression: str | None,
+        source: object,
+        source_type: Literal["args", "kwargs", "result"] = "args",
+    ) -> object | None:
         """Extract resource IDs from different sources"""
         if not expression:
             return None
@@ -237,13 +265,19 @@ class SystemLogger:
 
             elif source_type == "args":
                 # Extract from function parameters
-                if isinstance(source, tuple) and len(source) > 0:
+                if isinstance(source, tuple):
+                    source_tuple = cast(tuple[object, ...], source)
+                    if not source_tuple:
+                        return None
                     # The first element is the function itself
-                    func_args = source[0] if isinstance(source[0], tuple) else source
+                    func_args = (
+                        cast(tuple[object, ...], source_tuple[0])
+                        if isinstance(source_tuple[0], tuple)
+                        else source_tuple
+                    )
 
                     # Processing args [index] expression
                     if expression.startswith("args["):
-                        import re
                         pattern = r"args\[(\d+)\]"
                         match = re.match(pattern, expression)
                         if match:
@@ -255,24 +289,30 @@ class SystemLogger:
                     # Process attribute expressions
                     return SystemLogger.extract_value_from_object(expression, func_args)
                 elif isinstance(source, dict):
-                        # Simple parameter name
-                        if expression in source:
-                            value = source[expression]
-                            return value if value is not None else None
+                    source_dict = cast(dict[str, object], source)
+                    # Simple parameter name
+                    if expression in source_dict:
+                        value = source_dict[expression]
+                        return value if value is not None else None
 
-                        # complex expression
-                        return SystemLogger.extract_value_from_object(expression, source)
+                    # complex expression
+                    return SystemLogger.extract_value_from_object(
+                        expression, source_dict
+                    )
 
             elif source_type == "kwargs":
                 # Extract from keyword parameters
                 if isinstance(source, dict):
+                    source_dict = cast(dict[str, object], source)
                     # Simple parameter name
-                    if expression in source:
-                        value = source[expression]
+                    if expression in source_dict:
+                        value = source_dict[expression]
                         return value if value is not None else None
 
                     # complex expression
-                    return SystemLogger.extract_value_from_object(expression, source)
+                    return SystemLogger.extract_value_from_object(
+                        expression, source_dict
+                    )
 
             return None
 
@@ -281,10 +321,8 @@ class SystemLogger:
 
     @staticmethod
     def extract_from_function_params(
-            expression: Optional[str],
-            func_args: any,
-            func_kwargs: dict
-    ):
+        expression: str | None, func_args: object, func_kwargs: dict[str, object]
+    ) -> object | None:
         """Extract values from function parameters"""
         if not expression:
             return None
@@ -301,46 +339,49 @@ class SystemLogger:
 
         # Attempt to encapsulate parameters as objects for extraction
         try:
-            if func_args:
+            if isinstance(func_args, tuple) and func_args:
+                func_args_tuple = cast(tuple[object, ...], func_args)
                 # Create a dictionary containing all parameters
-                params_dict = {}
+                params_dict: dict[str, object] = {}
 
                 # Add location parameters
-                for i, arg in enumerate(func_args):
+                for i, arg in enumerate(func_args_tuple):
                     params_dict[f"arg_{i}"] = arg
 
                 # Add keyword parameters
                 params_dict.update(func_kwargs)
 
                 # Attempt to extract from the dictionary
-                return SystemLogger.extract_resource_id(expression, params_dict, "kwargs")
-        except:
+                return SystemLogger.extract_resource_id(
+                    expression, params_dict, "kwargs"
+                )
+        except Exception:
             pass
 
         return None
 
     @staticmethod
-    def get_current_user(request: Optional[Request]):
+    def get_current_user(request: Request | None) -> UserInfoDTO | None:
         """Retrieve current user information from the request"""
         if not request:
             return None
         try:
-            current_user = getattr(request.state, 'current_user', None)
+            current_user = getattr(request.state, "current_user", None)
             if current_user:
-                return current_user
-        except:
+                return cast(UserInfoDTO, current_user)
+        except Exception:
             pass
 
         return None
 
     @staticmethod
-    def extract_request_params(request: Optional[Request]):
+    def extract_request_params(request: Request | None) -> str | None:
         """Extract request parameters"""
         if not request:
             return None
 
         try:
-            params = {}
+            params: dict[str, object] = {}
 
             # query parameters
             if request.query_params:
@@ -351,7 +392,7 @@ class SystemLogger:
                 params["path"] = dict(request.path_params)
 
             # Head information (sensitive information not recorded)
-            headers = {}
+            headers: dict[str, str] = {}
             for key, value in request.headers.items():
                 if key.lower() not in ["authorization", "cookie", "set-cookie"]:
                     headers[key] = value
@@ -363,7 +404,7 @@ class SystemLogger:
             content_length = request.headers.get("content-length")
             params["body_info"] = {
                 "content_type": content_type,
-                "content_length": content_length
+                "content_length": content_length or "",
             }
 
             return json.dumps(params, ensure_ascii=False, default=str)
@@ -373,40 +414,43 @@ class SystemLogger:
 
     @classmethod
     async def create_log_record(
-            cls,
-            config: LogConfig,
-            status: OperationStatus,
-            execution_time: int,
-            error_message: Optional[str] = None,
-            resource_id: Any = None,
-            resource_name: Optional[str] = None,
-            request: Optional[Request] = None,
-            remark: Optional[str] = None,
-            oid: int = -1,
-            opt_type_ref : OperationType = None,
-            resource_info_list : Optional[List] = None,
-    ) -> Optional[SystemLog]:
+        cls,
+        config: LogConfig,
+        status: OperationStatus,
+        execution_time: int,
+        error_message: str | None = None,
+        resource_id: object | list[object] | None = None,
+        resource_name: str | None = None,
+        request: Request | None = None,
+        remark: str | None = None,
+        oid: int = -1,
+        opt_type_ref: OperationType | None = None,
+        resource_info_list: list[dict[str, str]] | None = None,
+    ) -> SystemLog | None:
         """Create log records"""
         try:
             # Obtain user information
             user_info = cls.get_current_user(request)
             user_id = user_info.id if user_info else -1
-            user_name = user_info.name if user_info else '-1'
+            user_name = user_info.name if user_info else "-1"
             if config.operation_type == OperationType.LOGIN:
-                user_id = resource_id
-                user_name = resource_name
+                user_id = int(resource_id) if isinstance(resource_id, int) else -1
+                user_name = resource_name or "-1"
 
             # Obtain client information
-            client_info = cls.get_client_info(request)
+            client_info = (
+                cls.get_client_info(request)
+                if request is not None
+                else {"ip_address": None, "user_agent": None}
+            )
             # Get request parameters
-            request_params = None
             if config.extract_params:
-                request_params = cls.extract_request_params(request)
+                _ = cls.extract_request_params(request)
 
             # Create log object
             log = SystemLog(
                 operation_type=opt_type_ref if opt_type_ref else config.operation_type,
-                operation_detail=config.operation_detail,
+                operation_detail=config.operation_detail or "",
                 user_id=user_id,
                 user_name=user_name,
                 oid=user_info.oid if user_info else oid,
@@ -419,11 +463,9 @@ class SystemLogger:
                 resource_id=str(resource_id),
                 request_method=request.method if request else None,
                 request_path=request.url.path if request else None,
-                request_params=request_params,
                 create_time=datetime.now(),
-                remark=remark
+                remark=remark,
             )
-
 
             with Session(engine) as session:
                 session.add(log)
@@ -431,40 +473,47 @@ class SystemLogger:
                 session.refresh(log)
                 # 统一处理不同类型的 resource_id_info
                 if isinstance(resource_id, list):
-                    resource_ids = [str(rid) for rid in resource_id]
+                    resource_id_list = cast(list[object], resource_id)
+                    resource_ids = [str(rid) for rid in resource_id_list]
                 else:
                     resource_ids = [str(resource_id)]
                 # 批量添加 SystemLogsResource
-                resource_entries = []
+                resource_entries: list[SystemLogsResource] = []
                 for resource_id_details in resource_ids:
                     resource_entry = SystemLogsResource(
                         resource_id=resource_id_details,
                         log_id=log.id,
-                        module=config.module
+                        module=config.module,
                     )
                     resource_entries.append(resource_entry)
                 if resource_entries:
                     session.bulk_save_objects(resource_entries)
                     session.commit()
 
-                if config.operation_type == OperationType.DELETE and resource_info_list is not None:
-                    # 批量更新 SystemLogsResource 表的 resource_name
+                if (
+                    config.operation_type == OperationType.DELETE
+                    and resource_info_list is not None
+                ):
                     for resource_info in resource_info_list:
-                        session.query(SystemLogsResource).filter(
-                            SystemLogsResource.resource_id == resource_info['resource_id'],
-                            SystemLogsResource.module == resource_info['module'],
-                        ).update({
-                            SystemLogsResource.resource_name: resource_info['resource_name']
-                        }, synchronize_session='fetch')
+                        rows = session.exec(
+                            sqlmodel_select(SystemLogsResource).filter_by(
+                                resource_id=resource_info["resource_id"],
+                                module=resource_info["module"],
+                            )
+                        ).all()
+                        for row in rows:
+                            row.resource_name = resource_info["resource_name"]
                     session.commit()
                 return log
 
-        except Exception as e:
+        except Exception:
             print(f"[SystemLogger] Failed to create log: {str(traceback.format_exc())}")
             return None
 
 
-def system_log(config: Union[LogConfig, Dict]):
+def system_log(
+    config: LogConfig | dict[str, object],
+) -> Callable[[Callable[..., object]], Callable[..., object]]:
     """
     System log annotation decorator, supports extracting resource IDs from returned results
 
@@ -478,18 +527,18 @@ def system_log(config: Union[LogConfig, Dict]):
     """
     # If a dictionary is passed in, convert it to a LogConfig object
     if isinstance(config, dict):
-        config = LogConfig(**config)
+        config = LogConfig.model_validate(config)
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., object]) -> Callable[..., object]:
         @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
+        async def async_wrapper(*args: object, **kwargs: object) -> object:
             start_time = time.time()
             status = OperationStatus.SUCCESS
             error_message = None
             request = None
             resource_id = None
             resource_name = None
-            remark = None
+            remark: str | None = None
             oid = -1
             opt_type_ref = None
             resource_info_list = None
@@ -501,32 +550,36 @@ def system_log(config: Union[LogConfig, Dict]):
                 func_signature = inspect.signature(func)
                 bound_args = func_signature.bind(*args, **kwargs)
                 bound_args.apply_defaults()
-                unified_kwargs = dict(bound_args.arguments)
+                unified_kwargs = cast(dict[str, object], dict(bound_args.arguments))
+                func_kwargs = kwargs
 
                 # Step 1: Attempt to extract the resource ID from the parameters
                 if config.resource_id_expr:
                     resource_id = SystemLogger.extract_from_function_params(
-                        config.resource_id_expr,
-                        unified_kwargs,
-                        kwargs
+                        config.resource_id_expr, unified_kwargs, func_kwargs
                     )
                 if config.remark_expr:
-                    remark = SystemLogger.extract_from_function_params(
-                        config.remark_expr,
-                        unified_kwargs,
-                        kwargs
+                    remark_value = SystemLogger.extract_from_function_params(
+                        config.remark_expr, unified_kwargs, func_kwargs
                     )
+                    if remark_value is not None:
+                        remark = str(remark_value)
 
                 if config.operation_type == OperationType.LOGIN:
                     input_account_dec = SystemLogger.extract_from_function_params(
                         "form_data.username",
                         args,
-                        kwargs
+                        func_kwargs,
                     )
                     from common.utils.crypto import sqlbot_decrypt
+
+                    if not isinstance(input_account_dec, str):
+                        input_account_dec = ""
                     input_account = await sqlbot_decrypt(input_account_dec)
                     with Session(engine) as session:
-                        userInfo = get_user_by_account(session=session, account=input_account)
+                        userInfo = get_user_by_account(
+                            session=session, account=input_account
+                        )
                         if userInfo is not None:
                             resource_id = userInfo.id
                             resource_name = userInfo.name
@@ -537,20 +590,26 @@ def system_log(config: Union[LogConfig, Dict]):
                             resource_name = input_account
                 if config.operation_type == OperationType.DELETE:
                     with Session(engine) as session:
-                        resource_info_list = get_resource_name_by_id_and_module(session, resource_id, config.module)
+                        module = config.module or ""
+                        resource_info_list = get_resource_name_by_id_and_module(
+                            session, resource_id, module
+                        )
 
                 if config.operation_type == OperationType.CREATE_OR_UPDATE:
-                    opt_type_ref = OperationType.UPDATE if resource_id is not None else OperationType.CREATE
+                    opt_type_ref = (
+                        OperationType.UPDATE
+                        if resource_id is not None
+                        else OperationType.CREATE
+                    )
                 else:
                     opt_type_ref = config.operation_type
                 # Execute the original function
-                result = await func(*args, **kwargs)
+                async_func = cast(Callable[..., Awaitable[object]], func)
+                result = await async_func(*args, **kwargs)
                 # Step 2: If the resource ID is configured to be extracted from the results and has not been extracted before
                 if config.result_id_expr and not resource_id and result:
                     resource_id = SystemLogger.extract_resource_id(
-                        config.result_id_expr,
-                        result,
-                        "result"
+                        config.result_id_expr, result, "result"
                     )
                 return result
 
@@ -570,31 +629,31 @@ def system_log(config: Union[LogConfig, Dict]):
 
             finally:
                 # If configured to only record on success and the current status is failure, skip
-                if config.save_on_success_only and status == OperationStatus.FAILED:
-                    return
-
-                # Calculate execution time
-                execution_time = int((time.time() - start_time) * 1000)
-                # Asynchronous creation of log records
-                try:
-                    await SystemLogger.create_log_record(
-                        config=config,
-                        status=status,
-                        execution_time=execution_time,
-                        error_message=error_message,
-                        resource_id=resource_id,
-                        resource_name=resource_name,
-                        remark=remark,
-                        request=request,
-                        oid=oid,
-                        opt_type_ref=opt_type_ref,
-                        resource_info_list=resource_info_list
-                    )
-                except Exception as log_error:
-                    print(f"[SystemLogger] Log creation failed: {log_error}")
+                if not (
+                    config.save_on_success_only and status == OperationStatus.FAILED
+                ):
+                    # Calculate execution time
+                    execution_time = int((time.time() - start_time) * 1000)
+                    # Asynchronous creation of log records
+                    try:
+                        _ = await SystemLogger.create_log_record(
+                            config=config,
+                            status=status,
+                            execution_time=execution_time,
+                            error_message=error_message,
+                            resource_id=resource_id,
+                            resource_name=resource_name,
+                            remark=remark,
+                            request=request,
+                            oid=oid,
+                            opt_type_ref=opt_type_ref,
+                            resource_info_list=resource_info_list,
+                        )
+                    except Exception as log_error:
+                        print(f"[SystemLogger] Log creation failed: {log_error}")
 
         @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs):
+        def sync_wrapper(*args: object, **kwargs: object) -> object:
             start_time = time.time()
             status = OperationStatus.SUCCESS
             error_message = None
@@ -610,20 +669,22 @@ def system_log(config: Union[LogConfig, Dict]):
                 func_signature = inspect.signature(func)
                 bound_args = func_signature.bind(*args, **kwargs)
                 bound_args.apply_defaults()
-                unified_kwargs = dict(bound_args.arguments)
+                unified_kwargs = cast(dict[str, object], dict(bound_args.arguments))
+                func_kwargs = kwargs
 
                 # Extract resource ID from parameters
                 if config.resource_id_expr:
                     resource_id = SystemLogger.extract_from_function_params(
-                        config.resource_id_expr,
-                        unified_kwargs,
-                        kwargs
+                        config.resource_id_expr, unified_kwargs, func_kwargs
                     )
 
                 # Obtain client information
                 if config.operation_type == OperationType.DELETE:
                     with Session(engine) as session:
-                        resource_info_list = get_resource_name_by_id_and_module(session, resource_id, config.module)
+                        module = config.module or ""
+                        resource_info_list = get_resource_name_by_id_and_module(
+                            session, resource_id, module
+                        )
 
                 # Execute the original function
                 result = func(*args, **kwargs)
@@ -631,9 +692,7 @@ def system_log(config: Union[LogConfig, Dict]):
                 # Extract resource ID from the results
                 if config.result_id_expr and not resource_id and result:
                     resource_id = SystemLogger.extract_resource_id(
-                        config.result_id_expr,
-                        result,
-                        "result"
+                        config.result_id_expr, result, "result"
                     )
 
                 return result
@@ -651,41 +710,42 @@ def system_log(config: Union[LogConfig, Dict]):
                 raise e
 
             finally:
-                if config.save_on_success_only and status == OperationStatus.FAILED:
-                    return
+                if not (
+                    config.save_on_success_only and status == OperationStatus.FAILED
+                ):
+                    execution_time = int((time.time() - start_time) * 1000)
 
-                execution_time = int((time.time() - start_time) * 1000)
+                    # In the synchronous version, we still create logs asynchronously
+                    import asyncio
 
-                # In the synchronous version, we still create logs asynchronously
-                import asyncio
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        loop.create_task(
-                            SystemLogger.create_log_record(
-                                config=config,
-                                status=status,
-                                execution_time=execution_time,
-                                error_message=error_message,
-                                resource_id=resource_id,
-                                resource_name=resource_name,
-                                request=request,
-                                resource_info_list=resource_info_list
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            _ = loop.create_task(
+                                SystemLogger.create_log_record(
+                                    config=config,
+                                    status=status,
+                                    execution_time=execution_time,
+                                    error_message=error_message,
+                                    resource_id=resource_id,
+                                    resource_name=resource_name,
+                                    request=request,
+                                    resource_info_list=resource_info_list,
+                                )
                             )
-                        )
-                    else:
-                        asyncio.run(
-                            SystemLogger.create_log_record(
-                                config=config,
-                                status=status,
-                                execution_time=execution_time,
-                                error_message=error_message,
-                                resource_id=resource_id,
-                                request=request
+                        else:
+                            _ = asyncio.run(
+                                SystemLogger.create_log_record(
+                                    config=config,
+                                    status=status,
+                                    execution_time=execution_time,
+                                    error_message=error_message,
+                                    resource_id=resource_id,
+                                    request=request,
+                                )
                             )
-                        )
-                except Exception as log_error:
-                    print(f"[SystemLogger] Log creation failed: {log_error}")
+                    except Exception as log_error:
+                        print(f"[SystemLogger] Log creation failed: {log_error}")
 
         # Return appropriate wrapper based on function type
         if inspect.iscoroutinefunction(func):

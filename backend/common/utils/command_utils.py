@@ -1,10 +1,11 @@
 import re
-from typing import Optional, Tuple
 
 from apps.chat.models.chat_model import QuickCommand
 
 
-def parse_quick_command(input_str: str) -> Tuple[Optional[QuickCommand], str, Optional[int], Optional[str]]:
+def parse_quick_command(
+    input_str: str,
+) -> tuple[QuickCommand | None, str, int | None, str | None]:
     """
     解析字符串中的快速命令
 
@@ -25,7 +26,7 @@ def parse_quick_command(input_str: str) -> Tuple[Optional[QuickCommand], str, Op
     found_commands = []
     for cmd_value in command_values:
         # 使用正则表达式查找独立的命令（前后是单词边界或空格）
-        pattern = r'(?<!\S)' + re.escape(cmd_value) + r'(?!\S)'
+        pattern = r"(?<!\S)" + re.escape(cmd_value) + r"(?!\S)"
         if re.search(pattern, input_str):
             found_commands.append(cmd_value)
 
@@ -35,18 +36,23 @@ def parse_quick_command(input_str: str) -> Tuple[Optional[QuickCommand], str, Op
 
     # 2. 检查是否包含多个命令
     if len(found_commands) > 1:
-        return None, input_str, None, f"错误: 字符串中包含多个命令: {', '.join(found_commands)}"
+        return (
+            None,
+            input_str,
+            None,
+            f"错误: 字符串中包含多个命令: {', '.join(found_commands)}",
+        )
 
     # 此时只有一个命令
     command_str = found_commands[0]
 
     # 3. 构建完整匹配模式，匹配命令及其后的可选数字
     # 模式: 命令 + 可选的空格 + 可选的数字
-    full_pattern = r'(?<!\S)(' + re.escape(command_str) + r')(?:\s+(\d+))?(?!\S)'
+    full_pattern = r"(?<!\S)(" + re.escape(command_str) + r")(?:\s+(\d+))?(?!\S)"
     match = re.search(full_pattern, input_str)
 
     if not match:
-        return None, input_str, None, f"错误: 命令格式不正确"
+        return None, input_str, None, "错误: 命令格式不正确"
 
     command_part = match.group(1)
     number_part = match.group(2)
@@ -60,17 +66,22 @@ def parse_quick_command(input_str: str) -> Tuple[Optional[QuickCommand], str, Op
         # 检查命令后面是否有非空格字符
         remaining_text = input_str[command_end_pos:].strip()
         if remaining_text:
-            return None, input_str, None, f"错误: 命令不在字符串末尾，命令后还有内容: '{remaining_text}'"
+            return (
+                None,
+                input_str,
+                None,
+                f"错误: 命令不在字符串末尾，命令后还有内容: '{remaining_text}'",
+            )
 
     # 5. 检查命令前面是否有内容，但中间没有空格
     # 找到命令前面的部分
-    before_command = input_str[:match.start()]
+    before_command = input_str[: match.start()]
 
     # 如果命令前面有内容，检查是否有空格分隔
-    if before_command and not before_command.endswith(' '):
+    if before_command and not before_command.endswith(" "):
         # 检查命令是否在字符串开头
         if match.start() > 0:
-            return None, input_str, None, f"错误: 命令与前面的文本没有用空格分隔"
+            return None, input_str, None, "错误: 命令与前面的文本没有用空格分隔"
 
     # 6. 获取命令枚举
     command = None
@@ -84,7 +95,7 @@ def parse_quick_command(input_str: str) -> Tuple[Optional[QuickCommand], str, Op
 
     # 7. 提取去除命令和数字后的文本
     # 获取命令前的文本
-    text_before_command = input_str[:match.start()].rstrip()
+    text_before_command = input_str[: match.start()].rstrip()
 
     # 8. 处理数字参数
     record_id = None
@@ -95,5 +106,3 @@ def parse_quick_command(input_str: str) -> Tuple[Optional[QuickCommand], str, Op
             return None, input_str, None, f"错误: 数字参数格式不正确: {number_part}"
 
     return command, text_before_command, record_id, None
-
-

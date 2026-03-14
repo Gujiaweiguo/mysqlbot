@@ -1,11 +1,12 @@
+from sqlmodel import Session, select
 
 from apps.system.models.system_model import AiModelDetail
 from common.core.db import engine
-from sqlmodel import Session, select
 from common.utils.crypto import sqlbot_encrypt
 from common.utils.utils import SQLBotLogUtil
 
-async def async_model_info():
+
+async def async_model_info() -> None:
     with Session(engine) as session:
         model_list = session.exec(select(AiModelDetail)).all()
         any_model_change = False
@@ -27,7 +28,4 @@ async def async_model_info():
                     session.add(model)
         if any_model_change:
             session.commit()
-            SQLBotLogUtil.info("✅ 异步加密已有模型的密钥和地址完成")           
-            
-            
-        
+            SQLBotLogUtil.info("✅ 异步加密已有模型的密钥和地址完成")

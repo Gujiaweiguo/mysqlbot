@@ -1,5 +1,5 @@
 import re
-from typing import Optional,List
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -32,18 +32,16 @@ class BaseUser(BaseModel):
 
 
 class BaseUserDTO(BaseUser, BaseCreatorDTO):
-    language: str = Field(pattern=r"^(zh-CN|en|ko-KR)$", default="zh-CN", description="用户语言")
+    language: str = Field(
+        pattern=r"^(zh-CN|en|ko-KR)$", default="zh-CN", description="用户语言"
+    )
     password: str
     status: int = 1
     origin: int = 0
     name: str
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "account": self.account,
-            "oid": self.oid
-        }
+    def to_dict(self) -> dict[str, int | str]:
+        return {"id": self.id, "account": self.account, "oid": self.oid}
 
     @field_validator("language")
     def validate_language(cls, lang: str) -> str:
@@ -53,12 +51,18 @@ class BaseUserDTO(BaseUser, BaseCreatorDTO):
 
 
 class UserCreator(BaseUser):
-    name: str = Field(min_length=1, max_length=100, description=f"{PLACEHOLDER_PREFIX}user_name")
-    email: str = Field(min_length=1, max_length=100, description=f"{PLACEHOLDER_PREFIX}user_email")
+    name: str = Field(
+        min_length=1, max_length=100, description=f"{PLACEHOLDER_PREFIX}user_name"
+    )
+    email: str = Field(
+        min_length=1, max_length=100, description=f"{PLACEHOLDER_PREFIX}user_email"
+    )
     status: int = Field(default=1, description=f"{PLACEHOLDER_PREFIX}status")
-    origin: Optional[int] = Field(default=0, description=f"{PLACEHOLDER_PREFIX}origin")
-    oid_list: Optional[list[int]] = Field(default=None, description=f"{PLACEHOLDER_PREFIX}oid")
-    system_variables: Optional[List] = Field(default=None)
+    origin: int | None = Field(default=0, description=f"{PLACEHOLDER_PREFIX}origin")
+    oid_list: list[int] | None = Field(
+        default=None, description=f"{PLACEHOLDER_PREFIX}oid"
+    )
+    system_variables: list[Any] | None = Field(default=None)
 
     """ @field_validator("email")
     def validate_email(cls, lang: str) -> str:
@@ -73,7 +77,7 @@ class UserEditor(UserCreator, BaseCreatorDTO):
 
 class UserGrid(UserEditor):
     create_time: int = Field(description=f"{PLACEHOLDER_PREFIX}create_time")
-    language: str = Field(default="zh-CN" ,description=f"{PLACEHOLDER_PREFIX}language") 
+    language: str = Field(default="zh-CN", description=f"{PLACEHOLDER_PREFIX}language")
     # space_name: Optional[str] = None
     # origin: str = ''
 
@@ -85,11 +89,11 @@ class PwdEditor(BaseModel):
 
 class UserWsBase(BaseModel):
     uid_list: list[int] = Field(description=f"{PLACEHOLDER_PREFIX}uid")
-    oid: Optional[int] = Field(default=None, description=f"{PLACEHOLDER_PREFIX}oid")
+    oid: int | None = Field(default=None, description=f"{PLACEHOLDER_PREFIX}oid")
 
 
 class UserWsDTO(UserWsBase):
-    weight: Optional[int] = Field(default=0, description=f"{PLACEHOLDER_PREFIX}weight")
+    weight: int | None = Field(default=0, description=f"{PLACEHOLDER_PREFIX}weight")
 
 
 class UserWsEditor(BaseModel):
@@ -107,10 +111,16 @@ class UserInfoDTO(UserEditor):
 class AssistantBase(BaseModel):
     name: str = Field(description=f"{PLACEHOLDER_PREFIX}model_name")
     domain: str = Field(description=f"{PLACEHOLDER_PREFIX}assistant_domain")
-    type: int = Field(default=0, description=f"{PLACEHOLDER_PREFIX}assistant_type")  # 0普通小助手 1高级 4页面嵌入
-    configuration: Optional[str] = Field(default=None, description=f"{PLACEHOLDER_PREFIX}assistant_configuration")
-    description: Optional[str] = Field(default=None, description=f"{PLACEHOLDER_PREFIX}assistant_description")
-    oid: Optional[int] = Field(default=1, description=f"{PLACEHOLDER_PREFIX}oid")
+    type: int = Field(
+        default=0, description=f"{PLACEHOLDER_PREFIX}assistant_type"
+    )  # 0普通小助手 1高级 4页面嵌入
+    configuration: str | None = Field(
+        default=None, description=f"{PLACEHOLDER_PREFIX}assistant_configuration"
+    )
+    description: str | None = Field(
+        default=None, description=f"{PLACEHOLDER_PREFIX}assistant_description"
+    )
+    oid: int | None = Field(default=1, description=f"{PLACEHOLDER_PREFIX}oid")
 
 
 class AssistantDTO(AssistantBase, BaseCreatorDTO):
@@ -118,32 +128,32 @@ class AssistantDTO(AssistantBase, BaseCreatorDTO):
 
 
 class AssistantHeader(AssistantDTO):
-    unique: Optional[str] = None
-    certificate: Optional[str] = None
+    unique: str | None = None
+    certificate: str | None = None
     online: bool = False
-    request_origin: Optional[str] = None
+    request_origin: str | None = None
 
 
 class AssistantValidator(BaseModel):
     valid: bool = False
     id_match: bool = False
     domain_match: bool = False
-    token: Optional[str] = None
+    token: str | None = None
 
     def __init__(
-            self,
-            valid: bool = False,
-            id_match: bool = False,
-            domain_match: bool = False,
-            token: Optional[str] = None,
-            **kwargs
-    ):
+        self,
+        valid: bool = False,
+        id_match: bool = False,
+        domain_match: bool = False,
+        token: str | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(
             valid=valid,
             id_match=id_match,
             domain_match=domain_match,
             token=token,
-            **kwargs
+            **kwargs,
         )
 
 
@@ -161,63 +171,65 @@ class UserWsOption(UserWs):
 
 
 class AssistantFieldSchema(BaseModel):
-    id: Optional[int] = None
-    name: Optional[str] = None
-    type: Optional[str] = None
-    comment: Optional[str] = None
+    id: int | None = None
+    name: str | None = None
+    type: str | None = None
+    comment: str | None = None
 
 
 class AssistantTableSchema(BaseModel):
-    id: Optional[int] = None
-    name: Optional[str] = None
-    comment: Optional[str] = None
-    rule: Optional[str] = None
-    sql: Optional[str] = None
-    fields: Optional[list[AssistantFieldSchema]] = None
+    id: int | None = None
+    name: str | None = None
+    comment: str | None = None
+    rule: str | None = None
+    sql: str | None = None
+    fields: list[AssistantFieldSchema] | None = None
 
 
 class AssistantOutDsBase(BaseModel):
-    id: Optional[int] = None
+    id: int | None = None
     name: str
-    type: Optional[str] = None
-    type_name: Optional[str] = None
-    comment: Optional[str] = None
-    description: Optional[str] = None
-    configuration: Optional[str] = None
+    type: str | None = None
+    type_name: str | None = None
+    comment: str | None = None
+    description: str | None = None
+    configuration: str | None = None
 
 
 class AssistantOutDsSchema(AssistantOutDsBase):
-    host: Optional[str] = None
-    port: Optional[int] = None
-    dataBase: Optional[str] = None
-    user: Optional[str] = None
-    password: Optional[str] = None
-    db_schema: Optional[str] = None
-    extraParams: Optional[str] = None
-    mode: Optional[str] = None
-    tables: Optional[list[AssistantTableSchema]] = None
+    host: str | None = None
+    port: int | None = None
+    dataBase: str | None = None
+    user: str | None = None
+    password: str | None = None
+    db_schema: str | None = None
+    extraParams: str | None = None
+    mode: str | None = None
+    tables: list[AssistantTableSchema] | None = None
 
 
 class AssistantUiSchema(BaseCreatorDTO):
-    theme: Optional[str] = None
-    header_font_color: Optional[str] = None
-    logo: Optional[str] = None
-    float_icon: Optional[str] = None
-    float_icon_drag: Optional[bool] = False
-    x_type: Optional[str] = 'right'
-    x_val: Optional[int] = 0
-    y_type: Optional[str] = 'bottom'
-    y_val: Optional[int] = 33
-    name: Optional[str] = None
-    welcome: Optional[str] = None
-    welcome_desc: Optional[str] = None
+    theme: str | None = None
+    header_font_color: str | None = None
+    logo: str | None = None
+    float_icon: str | None = None
+    float_icon_drag: bool | None = False
+    x_type: str | None = "right"
+    x_val: int | None = 0
+    y_type: str | None = "bottom"
+    y_val: int | None = 33
+    name: str | None = None
+    welcome: str | None = None
+    welcome_desc: str | None = None
+
 
 class ApikeyStatus(BaseModel):
     id: int = Field(description=f"{PLACEHOLDER_PREFIX}id")
     status: bool = Field(description=f"{PLACEHOLDER_PREFIX}status")
 
+
 class ApikeyGridItem(BaseCreatorDTO):
-    access_key: str = Field(description=f"Access Key")
-    secret_key: str = Field(description=f"Secret Key")
+    access_key: str = Field(description="Access Key")
+    secret_key: str = Field(description="Secret Key")
     status: bool = Field(description=f"{PLACEHOLDER_PREFIX}status")
     create_time: int = Field(description=f"{PLACEHOLDER_PREFIX}create_time")

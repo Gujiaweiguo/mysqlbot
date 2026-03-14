@@ -3,15 +3,15 @@
 
 import json
 from base64 import b64encode
+from urllib.request import Request, urlopen
 
-import requests
 from elasticsearch import Elasticsearch
 
 from apps.datasource.models.datasource import DatasourceConf
 from common.error import SingleMessageError
 
 
-def get_es_auth(conf: DatasourceConf):
+def get_es_auth(conf: DatasourceConf) -> dict[str, str]:
     username = f"{conf.username}"
     password = f"{conf.password}"
 
@@ -20,58 +20,80 @@ def get_es_auth(conf: DatasourceConf):
 
     return {
         "Content-Type": "application/json",
-        "Authorization": f"Basic {encoded_credentials}"
+        "Authorization": f"Basic {encoded_credentials}",
     }
 
 
-def get_es_connect(conf: DatasourceConf):
+def get_es_connect(conf: DatasourceConf) -> Elasticsearch:
     es_client = Elasticsearch(
         [conf.host],  # ES address
         basic_auth=(conf.username, conf.password),
         verify_certs=False,
         compatibility_mode=True,
-        headers=get_es_auth(conf)
+        headers=get_es_auth(conf),
     )
     return es_client
 
 
 # get tables
-def get_es_index(conf: DatasourceConf):
+def get_es_index(conf: DatasourceConf) -> list[tuple[str, str]]:
     es_client = get_es_connect(conf)
     indices = es_client.cat.indices(format="json")
-    res = []
+    res: list[tuple[str, str]] = []
     if indices is not None:
         for idx in indices:
-            index_name = idx.get('index')
-            desc = ''
+            if not isinstance(idx, dict):
+                continue
+            index_name = idx.get("index")
+            if not isinstance(index_name, str):
+                continue
+            desc = ""
             # get mapping
             mapping = es_client.indices.get_mapping(index=index_name)
-            mappings = mapping.get(index_name).get("mappings")
-            if mappings.get('_meta'):
-                desc = mappings.get('_meta').get('description')
+            mapping_item = mapping.get(index_name)
+            if isinstance(mapping_item, dict):
+                mappings = mapping_item.get("mappings")
+                if isinstance(mappings, dict):
+                    meta = mappings.get("_meta")
+                    if isinstance(meta, dict):
+                        meta_desc = meta.get("description")
+                        if isinstance(meta_desc, str):
+                            desc = meta_desc
             res.append((index_name, desc))
     return res
 
 
 # get fields
-def get_es_fields(conf: DatasourceConf, table_name: str):
+def get_es_fields(conf: DatasourceConf, table_name: str) -> list[tuple[str, str, str]]:
     es_client = get_es_connect(conf)
     index_name = table_name
     mapping = es_client.indices.get_mapping(index=index_name)
-    properties = mapping.get(index_name).get("mappings").get("properties")
-    res = []
+    mapping_item = mapping.get(index_name)
+    properties: dict[str, object] | None = None
+    if isinstance(mapping_item, dict):
+        mappings = mapping_item.get("mappings")
+        if isinstance(mappings, dict):
+            raw_properties = mappings.get("properties")
+            if isinstance(raw_properties, dict):
+                properties = raw_properties
+    res: list[tuple[str, str, str]] = []
     if properties is not None:
         for field, config in properties.items():
+            if not isinstance(config, dict):
+                continue
             field_type = config.get("type")
-            desc = ''
-            if config.get("_meta"):
-                desc = config.get("_meta").get('description')
+            desc = ""
+            meta = config.get("_meta")
+            if isinstance(meta, dict):
+                meta_desc = meta.get("description")
+                if isinstance(meta_desc, str):
+                    desc = meta_desc
 
-            if field_type:
+            if isinstance(field_type, str) and field_type:
                 res.append((field, field_type, desc))
             else:
                 # object、nested...
-                res.append((field, ','.join(list(config.keys())), desc))
+                res.append((field, ",".join(list(config.keys())), desc))
     return res
 
 
@@ -103,30 +125,33 @@ def get_es_fields(conf: DatasourceConf, table_name: str):
 #     return res, fields
 
 
-def get_es_data_by_http(conf: DatasourceConf, sql: str):
+def get_es_data_by_http(
+    conf: DatasourceConf, sql: str
+) -> tuple[list[list[object]], list[dict[str, object]]]:
     url = conf.host
-    while url.endswith('/'):
+    while url.endswith("/"):
         url = url[:-1]
 
-    host = f'{url}/_sql?format=json'
+    host = f"{url}/_sql?format=json"
 
-    # Security improvement: Enable SSL certificate verification
-    # Note: In production, always set verify=True or provide path to CA bundle
-    # If using self-signed certificates, provide the cert path: verify='/path/to/cert.pem'
-    verify_ssl = True if not url.startswith('https://localhost') else False
-    
-    response = requests.post(
-        host, 
-        data=json.dumps({"query": sql}), 
-        headers=get_es_auth(conf), 
-        verify=verify_ssl,
-        timeout=30  # Add timeout to prevent hanging
+    request = Request(
+        url=host,
+        data=json.dumps({"query": sql}).encode("utf-8"),
+        headers=get_es_auth(conf),
+        method="POST",
     )
+    request.add_header("Content-Type", "application/json")
 
-    # print(response.json())
-    res = response.json()
-    if res.get('error'):
+    with urlopen(request, timeout=30) as response:
+        body = response.read().decode("utf-8")
+
+    res = json.loads(body)
+    if res.get("error"):
         raise SingleMessageError(json.dumps(res))
-    fields = res.get('columns')
-    result = res.get('rows')
+    fields = res.get("columns")
+    result = res.get("rows")
+    if not isinstance(fields, list):
+        fields = []
+    if not isinstance(result, list):
+        result = []
     return result, fields

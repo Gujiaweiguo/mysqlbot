@@ -1,10 +1,10 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Any
 
 from pydantic import BaseModel, field_validator
-from sqlalchemy import Column, Text, BigInteger, DateTime, Identity
+from sqlalchemy import BigInteger, Column, DateTime, Identity, Text
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlmodel import SQLModel, Field
+from sqlmodel import Field, SQLModel
 
 
 class CoreDatasource(SQLModel, table=True):
@@ -26,7 +26,7 @@ class CoreDatasource(SQLModel, table=True):
     status: str = Field(max_length=64, nullable=True)
     num: str = Field(max_length=256, nullable=True)
     oid: int = Field(sa_column=Column(BigInteger()))
-    table_relation: List = Field(sa_column=Column(JSONB, nullable=True))
+    table_relation: list[Any] = Field(sa_column=Column(JSONB, nullable=True))
     embedding: str = Field(sa_column=Column(Text, nullable=True))
     recommended_config: int = Field(sa_column=Column(BigInteger()))
 
@@ -82,48 +82,53 @@ class CoreField(SQLModel, table=True):
 
 # datasource create obj
 class CreateDatasource(BaseModel):
-    id: int = None
+    id: int | None = None
     name: str = ""
     description: str = ""
     type: str = ""
     configuration: str = ""
-    create_time: Optional[datetime] = None
+    create_time: datetime | None = None
     create_by: int = 0
     status: str = ""
     num: str = ""
     oid: int = 1
-    tables: List[CoreTable] = []
+    tables: list[CoreTable] = []
     recommended_config: int = 1
 
 
 class RecommendedProblemResponse:
-    def __init__(self, datasource_id, recommended_config, questions):
+    def __init__(
+        self,
+        datasource_id: int | None,
+        recommended_config: int | None,
+        questions: str | None,
+    ) -> None:
         self.datasource_id = datasource_id
         self.recommended_config = recommended_config
         self.questions = questions
 
-    datasource_id: int = None
-    recommended_config: int = None
-    questions: str = None
+    datasource_id: int | None = None
+    recommended_config: int | None = None
+    questions: str | None = None
 
 
 class RecommendedProblemBase(BaseModel):
-    datasource_id: int = None
-    recommended_config: int = None
-    problemInfo: List[DsRecommendedProblem] = []
+    datasource_id: int | None = None
+    recommended_config: int | None = None
+    problemInfo: list[DsRecommendedProblem] = []
 
 
 class RecommendedProblemBaseChat:
-    def __init__(self, content):
+    def __init__(self, content: list[str]) -> None:
         self.content = content
 
-    content: List[str] = []
+    content: list[str] = []
 
 
 # edit local saved table and fields
 class TableObj(BaseModel):
-    table: CoreTable = None
-    fields: List[CoreField] = []
+    table: CoreTable | None = None
+    fields: list[CoreField] = []
 
 
 # datasource config info
@@ -137,19 +142,19 @@ class DatasourceConf(BaseModel):
     extraJdbc: str = ""
     dbSchema: str = ""
     filename: str = ""
-    sheets: List = []
+    sheets: list[Any] = []
     mode: str = ""
     timeout: int = 30
     lowVersion: bool = False
 
     @field_validator("sheets", mode="before")
     @classmethod
-    def normalize_sheets(cls, value):
+    def normalize_sheets(cls, value: Any) -> list[Any] | Any:
         if value is None or value == "":
             return []
         return value
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         return {
             "host": self.host,
             "port": self.port,
@@ -168,14 +173,14 @@ class DatasourceConf(BaseModel):
 
 
 class TableSchema:
-    def __init__(self, attr1, attr2):
+    def __init__(self, attr1: str, attr2: str | bytes | None) -> None:
         self.tableName = attr1
         self.tableComment = (
             attr2 if attr2 is None or isinstance(attr2, str) else attr2.decode("utf-8")
         )
 
     tableName: str
-    tableComment: str
+    tableComment: str | None
 
 
 class TableSchemaResponse(BaseModel):
@@ -184,7 +189,7 @@ class TableSchemaResponse(BaseModel):
 
 
 class ColumnSchema:
-    def __init__(self, attr1, attr2, attr3):
+    def __init__(self, attr1: str, attr2: str, attr3: str | bytes | None) -> None:
         self.fieldName = attr1
         self.fieldType = attr2
         self.fieldComment = (
@@ -193,7 +198,7 @@ class ColumnSchema:
 
     fieldName: str
     fieldType: str
-    fieldComment: str
+    fieldComment: str | None
 
 
 class ColumnSchemaResponse(BaseModel):
@@ -203,14 +208,14 @@ class ColumnSchemaResponse(BaseModel):
 
 
 class TableAndFields:
-    def __init__(self, schema, table, fields):
+    def __init__(self, schema: str, table: CoreTable, fields: list[CoreField]) -> None:
         self.schema = schema
         self.table = table
         self.fields = fields
 
     schema: str
     table: CoreTable
-    fields: List[CoreField]
+    fields: list[CoreField]
 
 
 class FieldObj(BaseModel):
@@ -218,6 +223,6 @@ class FieldObj(BaseModel):
 
 
 class PreviewResponse(BaseModel):
-    fields: List | None = []
-    data: List | None = []
+    fields: list[Any] | None = []
+    data: list[Any] | None = []
     sql: str | None = ""

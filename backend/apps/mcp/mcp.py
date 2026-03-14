@@ -2,29 +2,36 @@
 # Date: 2025/7/1
 import json
 from datetime import timedelta
-from typing import Optional
+from typing import Any
 
 import jwt
-from fastapi import HTTPException, status, APIRouter
+from fastapi import APIRouter, HTTPException, status
+
 # from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
 from pydantic import ValidationError
 from sqlmodel import select
 
-from apps.chat.api.chat import create_chat, question_answer_inner
-from apps.chat.models.chat_model import ChatMcp, CreateChat, ChatStart, McpQuestion, McpAssistant, ChatQuestion, \
-    ChatFinishStep
+from apps.chat.api.chat import question_answer_inner
+from apps.chat.curd.chat import create_chat
+from apps.chat.models.chat_model import (
+    ChatFinishStep,
+    ChatMcp,
+    ChatQuestion,
+    ChatStart,
+    CreateChat,
+    McpAssistant,
+    McpQuestion,
+)
 from apps.datasource.crud.datasource import get_datasource_list
-from apps.system.crud.user import authenticate
-from apps.system.crud.user import get_db_user
+from apps.system.crud.assistant import get_assistant_user
+from apps.system.crud.user import authenticate, get_db_user
 from apps.system.models.system_model import UserWsModel
-from apps.system.models.user import UserModel
-from apps.system.schemas.system_schema import BaseUserDTO, AssistantHeader
-from apps.system.schemas.system_schema import UserInfoDTO
+from apps.system.schemas.system_schema import AssistantHeader, UserInfoDTO
 from common.core import security
 from common.core.config import settings
 from common.core.deps import SessionDep
-from common.core.schemas import TokenPayload, XOAuth2PasswordBearer, Token
+from common.core.schemas import Token, TokenPayload, XOAuth2PasswordBearer
 from common.core.security import create_access_token
 
 reusable_oauth2 = XOAuth2PasswordBearer(
@@ -49,7 +56,7 @@ router = APIRouter(tags=["mcp"], prefix="/mcp")
 #     ))
 
 
-def get_user(session: SessionDep, token: str):
+def get_user(session: SessionDep, token: str) -> UserInfoDTO:
     try:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[security.ALGORITHM]
@@ -62,14 +69,26 @@ def get_user(session: SessionDep, token: str):
         )
     # session_user = await get_user_info(session=session, user_id=token_data.id)
 
-    db_user: UserModel = get_db_user(session=session, user_id=token_data.id)
+    token_user_id = token_data.id
+    if token_user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Could not validate credentials",
+        )
+
+    db_user = get_db_user(session=session, user_id=token_user_id)
+    if db_user is None:
+        raise HTTPException(status_code=404, detail="User not found")
     session_user = UserInfoDTO.model_validate(db_user.model_dump())
-    session_user.isAdmin = session_user.id == 1 and session_user.account == 'admin'
-    session_user.language = 'zh-CN'
+    session_user.isAdmin = session_user.id == 1 and session_user.account == "admin"
+    session_user.language = "zh-CN"
     if session_user.isAdmin:
         session_user = session_user
-    ws_model: UserWsModel = session.exec(
-        select(UserWsModel).where(UserWsModel.uid == session_user.id, UserWsModel.oid == session_user.oid)).first()
+    ws_model = session.exec(
+        select(UserWsModel).where(
+            UserWsModel.uid == session_user.id, UserWsModel.oid == session_user.oid
+        )
+    ).first()
     session_user.weight = ws_model.weight if ws_model else -1
 
     session_user = UserInfoDTO.model_validate(session_user)
@@ -82,16 +101,16 @@ def get_user(session: SessionDep, token: str):
 
 
 @router.post("/mcp_ds_list", operation_id="mcp_datasource_list")
-async def datasource_list(session: SessionDep, token: str):
+async def datasource_list(session: SessionDep, token: str) -> list[dict[str, Any]]:
     session_user = get_user(session, token)
     ds_list = get_datasource_list(session=session, user=session_user)
-    result = []
+    result: list[dict[str, Any]] = []
     for item in ds_list:
-        dic = item.__dict__
-        dic.pop('embedding', None)
-        dic.pop('table_relation', None)
-        dic.pop('recommended_config', None)
-        dic.pop('configuration', None)
+        dic = dict(item.model_dump())
+        dic.pop("embedding", None)
+        dic.pop("table_relation", None)
+        dic.pop("recommended_config", None)
+        dic.pop("configuration", None)
         result.append(dic)
     return result
 
@@ -104,26 +123,32 @@ async def datasource_list(session: SessionDep, token: str):
 
 
 @router.post("/mcp_start", operation_id="mcp_start")
-async def mcp_start(session: SessionDep, chat: ChatStart):
-    user: BaseUserDTO = authenticate(session=session, account=chat.username, password=chat.password)
+async def mcp_start(session: SessionDep, chat: ChatStart) -> dict[str, Any]:
+    user = authenticate(session=session, account=chat.username, password=chat.password)
     if not user:
         raise HTTPException(status_code=400, detail="Incorrect account or password")
 
     if not user.oid or user.oid == 0:
-        raise HTTPException(status_code=400, detail="No associated workspace, Please contact the administrator")
+        raise HTTPException(
+            status_code=400,
+            detail="No associated workspace, Please contact the administrator",
+        )
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    user_dict = user.to_dict()
-    t = Token(access_token=create_access_token(
-        user_dict, expires_delta=access_token_expires
-    ))
-    c = create_chat(session, user, CreateChat(origin=1), False)
+    user_dict = {"id": user.id, "account": user.account, "oid": user.oid}
+    t = Token(
+        access_token=create_access_token(user_dict, expires_delta=access_token_expires)
+    )
+    session_user = get_user(session, t.access_token)
+    c = create_chat(session, session_user, CreateChat(origin=1), False)
+    if c.id is None:
+        raise HTTPException(status_code=500, detail="Failed to create MCP chat")
     return {"access_token": t.access_token, "chat_id": c.id}
 
 
 @router.post("/mcp_question", operation_id="mcp_question")
-async def mcp_question(session: SessionDep, chat: McpQuestion):
+async def mcp_question(session: SessionDep, chat: McpQuestion) -> Any:
     session_user = get_user(session, chat.token)
-    ds_id: Optional[int] = None
+    ds_id: int | None = None
     if chat.datasource_id:
         if isinstance(chat.datasource_id, str):
             if chat.datasource_id.strip() == "":
@@ -138,33 +163,61 @@ async def mcp_question(session: SessionDep, chat: McpQuestion):
         else:
             raise HTTPException(status_code=400, detail="Invalid datasource ID")
 
-    mcp_chat = ChatMcp(token=chat.token, chat_id=chat.chat_id, question=chat.question, datasource_id=ds_id)
+    mcp_chat = ChatMcp(
+        token=chat.token,
+        chat_id=chat.chat_id,
+        question=chat.question,
+        datasource_id=ds_id,
+    )
 
-    return await question_answer_inner(session=session, current_user=session_user, request_question=mcp_chat,
-                                       in_chat=False, stream=chat.stream)
+    return await question_answer_inner(
+        session=session,
+        current_user=session_user,
+        request_question=mcp_chat,
+        in_chat=False,
+        stream=chat.stream if chat.stream is not None else True,
+    )
 
 
 @router.post("/mcp_assistant", operation_id="mcp_assistant")
-async def mcp_assistant(session: SessionDep, chat: McpAssistant):
-    session_user = BaseUserDTO(**{
-        "id": -1, "account": 'sqlbot-mcp-assistant', "oid": 1, "assistant_id": -1, "password": '', "language": "zh-CN"
-    })
+async def mcp_assistant(session: SessionDep, chat: McpAssistant) -> Any:
+    session_user = get_assistant_user(id=-1)
     # session_user: UserModel = get_db_user(session=session, user_id=1)
     # session_user.oid = 1
     c = create_chat(session, session_user, CreateChat(origin=1), False)
+    if c.id is None:
+        raise HTTPException(
+            status_code=500, detail="Failed to create assistant MCP chat"
+        )
 
     # build assistant param
     configuration = {"endpoint": chat.url}
     # authorization = [{"key": "x-de-token",
     #                 "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1aWQiOjEsIm9pZCI6MSwiZXhwIjoxNzU4NTEyMDA2fQ.3NR-pgnADLdXZtI3dXX5-LuxfGYRvYD9kkr2de7KRP0",
     #                 "target": "header"}]
-    mcp_assistant_header = AssistantHeader(id=1, name='mcp_assist', domain='', type=1,
-                                           configuration=json.dumps(configuration),
-                                           certificate=chat.authorization)
+    mcp_assistant_header = AssistantHeader(
+        id=1,
+        name="mcp_assist",
+        domain="",
+        type=1,
+        configuration=json.dumps(configuration),
+        certificate=chat.authorization,
+    )
 
     # assistant question
-    mcp_chat = ChatQuestion(chat_id=c.id, question=chat.question)
+    chat_id = c.id
+    if chat_id is None:
+        raise HTTPException(
+            status_code=500, detail="Failed to create assistant MCP chat"
+        )
+    mcp_chat = ChatQuestion(chat_id=chat_id, question=chat.question)
     # ask
-    return await question_answer_inner(session=session, current_user=session_user, request_question=mcp_chat,
-                                       current_assistant=mcp_assistant_header,
-                                       in_chat=False, stream=chat.stream, finish_step=ChatFinishStep.QUERY_DATA)
+    return await question_answer_inner(
+        session=session,
+        current_user=session_user,
+        request_question=mcp_chat,
+        current_assistant=mcp_assistant_header,
+        in_chat=False,
+        stream=chat.stream if chat.stream is not None else True,
+        finish_step=ChatFinishStep.QUERY_DATA,
+    )

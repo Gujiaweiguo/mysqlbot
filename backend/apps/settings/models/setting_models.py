@@ -1,4 +1,4 @@
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field
 
 from common.core.models import SnowflakeBase
 
@@ -9,4 +9,3 @@ class term_model(SnowflakeBase, table=True):
     definition: str = Field(max_length=255)
     domain: str = Field(max_length=255)
     create_time: int = Field(default=0)
-   

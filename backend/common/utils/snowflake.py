@@ -1,7 +1,9 @@
-import time
 import threading
+import time
+
+
 class SnowflakeGenerator:
-    def __init__(self, worker_id=0, datacenter_id=0):
+    def __init__(self, worker_id: int = 0, datacenter_id: int = 0) -> None:
         self.worker_id = worker_id
         self.datacenter_id = datacenter_id
         self.sequence = 0
@@ -16,24 +18,30 @@ class SnowflakeGenerator:
 
         self.worker_id_shift = self.sequence_bits
         self.datacenter_id_shift = self.sequence_bits + self.worker_id_bits
-        self.timestamp_left_shift = self.sequence_bits + self.worker_id_bits + self.datacenter_id_bits
+        self.timestamp_left_shift = (
+            self.sequence_bits + self.worker_id_bits + self.datacenter_id_bits
+        )
         self.sequence_mask = -1 ^ (-1 << self.sequence_bits)
 
         if self.worker_id > self.max_worker_id or self.worker_id < 0:
-            raise ValueError(f"worker ID can't be greater than {self.max_worker_id} or less than 0")
+            raise ValueError(
+                f"worker ID can't be greater than {self.max_worker_id} or less than 0"
+            )
         if self.datacenter_id > self.max_datacenter_id or self.datacenter_id < 0:
-            raise ValueError(f"datacenter ID can't be greater than {self.max_datacenter_id} or less than 0")
+            raise ValueError(
+                f"datacenter ID can't be greater than {self.max_datacenter_id} or less than 0"
+            )
 
-    def _current_time(self):
+    def _current_time(self) -> int:
         return int(time.time() * 1000)
 
-    def _wait_next_millis(self, last_timestamp):
+    def _wait_next_millis(self, last_timestamp: int) -> int:
         timestamp = self._current_time()
         while timestamp <= last_timestamp:
             timestamp = self._current_time()
         return timestamp
 
-    def generate_id(self):
+    def generate_id(self) -> int:
         with self.lock:
             timestamp = self._current_time()
 
@@ -49,9 +57,12 @@ class SnowflakeGenerator:
 
             self.last_timestamp = timestamp
 
-            return ((timestamp << self.timestamp_left_shift) |
-                    (self.datacenter_id << self.datacenter_id_shift) |
-                    (self.worker_id << self.worker_id_shift) |
-                    self.sequence)
+            return (
+                (timestamp << self.timestamp_left_shift)
+                | (self.datacenter_id << self.datacenter_id_shift)
+                | (self.worker_id << self.worker_id_shift)
+                | self.sequence
+            )
+
 
 snowflake = SnowflakeGenerator(worker_id=1)

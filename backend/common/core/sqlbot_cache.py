@@ -1,23 +1,25 @@
 import re
-from fastapi_cache import FastAPICache
+from collections.abc import Callable
 from functools import partial, wraps
-from typing import Optional, Any, Dict, Tuple
 from inspect import signature
+from typing import Any
+
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.inmemory import InMemoryBackend
+from fastapi_cache.decorator import cache as original_cache
+
 from common.core.config import settings
 from common.utils.utils import SQLBotLogUtil
-from fastapi_cache.backends.inmemory import InMemoryBackend
-
-from fastapi_cache.decorator import cache as original_cache
 
 
 def custom_key_builder(
     func: Any,
     namespace: str = "",
     *,
-    args: Tuple[Any, ...] = (),
-    kwargs: Dict[str, Any],
+    args: tuple[Any, ...] = (),
+    kwargs: dict[str, Any],
     cacheName: str,
-    keyExpression: Optional[str] = None,
+    keyExpression: str | None = None,
 ) -> str | list[str]:
     try:
         base_key = f"{namespace}:{cacheName}:"
@@ -60,16 +62,16 @@ def cache(
     namespace: str = "",
     *,
     cacheName: str,  # 必须提供cacheName
-    keyExpression: Optional[str] = None,
-):
-    def decorator(func):
+    keyExpression: str | None = None,
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         # 预先生成key builder
         used_key_builder = partial(
             custom_key_builder, cacheName=cacheName, keyExpression=keyExpression
         )
 
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             if (
                 not settings.CACHE_TYPE
                 or settings.CACHE_TYPE.lower() == "none"
@@ -84,10 +86,15 @@ def cache(
                 kwargs=kwargs,
             )
 
+            def cache_key_builder(*_: Any, **__: Any) -> str:
+                if isinstance(cache_key, list):
+                    return ",".join(str(item) for item in cache_key)
+                return str(cache_key)
+
             return await original_cache(
                 expire=expire,
                 namespace=str(namespace) if namespace else "",
-                key_builder=lambda *_, **__: cache_key,
+                key_builder=cache_key_builder,
             )(func)(*args, **kwargs)
 
         return wrapper
@@ -99,11 +106,11 @@ def clear_cache(
     namespace: str = "",
     *,
     cacheName: str,
-    keyExpression: Optional[str] = None,
-):
-    def decorator(func):
+    keyExpression: str | None = None,
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             if (
                 not settings.CACHE_TYPE
                 or settings.CACHE_TYPE.lower() == "none"
@@ -123,8 +130,11 @@ def clear_cache(
             for temp_cache_key in key_list:
                 if await backend.get(temp_cache_key):
                     if settings.CACHE_TYPE.lower() == "redis":
-                        redis = backend.redis
-                        await redis.delete(temp_cache_key)
+                        redis_client = getattr(backend, "redis", None)
+                        if redis_client is not None:
+                            await redis_client.delete(temp_cache_key)
+                        else:
+                            await backend.clear(key=temp_cache_key)
                     else:
                         await backend.clear(key=temp_cache_key)
                     SQLBotLogUtil.debug(f"Cache cleared: {temp_cache_key}")
@@ -135,21 +145,21 @@ def clear_cache(
     return decorator
 
 
-def init_sqlbot_cache():
+def init_sqlbot_cache() -> None:
     cache_type: str = settings.CACHE_TYPE
     if cache_type == "memory":
         FastAPICache.init(InMemoryBackend())
         SQLBotLogUtil.info("mySQLBot 使用内存缓存, 仅支持单进程模式")
     elif cache_type == "redis":
-        from fastapi_cache.backends.redis import RedisBackend
         import redis.asyncio as redis
+        from fastapi_cache.backends.redis import RedisBackend
         from redis.asyncio.connection import ConnectionPool
 
         redis_url = settings.CACHE_REDIS_URL or "redis://localhost:6379/0"
         pool = ConnectionPool.from_url(url=redis_url)
         redis_client = redis.Redis(connection_pool=pool)
         FastAPICache.init(RedisBackend(redis_client), prefix="sqlbot-cache")
-        SQLBotLogUtil.info(f"mySQLBot 使用Redis缓存, 可使用多进程模式")
+        SQLBotLogUtil.info("mySQLBot 使用Redis缓存, 可使用多进程模式")
     else:
         SQLBotLogUtil.warning("mySQLBot 未启用缓存, 可使用多进程模式")
 

@@ -1,26 +1,51 @@
+import secrets
+from collections.abc import Callable
+from typing import Any, TypeVar, cast
 
 from fastapi import APIRouter
-from sqlmodel import func, select
+from sqlmodel import col, func, select
+
 from apps.system.crud.apikey_manage import clear_api_key_cache
 from apps.system.models.system_model import ApiKeyModel
 from apps.system.schemas.system_schema import ApikeyGridItem, ApikeyStatus
+from common.audit.models.log_model import OperationModules, OperationType
+from common.audit.schemas.logger_decorator import LogConfig, system_log
 from common.core.deps import CurrentUser, SessionDep
 from common.utils.time import get_timestamp
-import secrets
 
-router = APIRouter(tags=["system_apikey"], prefix="/system/apikey", include_in_schema=False)
-from common.audit.models.log_model import OperationType, OperationModules
-from common.audit.schemas.logger_decorator import LogConfig, system_log
+router = APIRouter(
+    tags=["system_apikey"], prefix="/system/apikey", include_in_schema=False
+)
+
+F = TypeVar("F", bound=Callable[..., Any])
+typed_system_log = cast(Callable[[LogConfig], Callable[[F], F]], system_log)
+
 
 @router.get("")
 async def grid(session: SessionDep, current_user: CurrentUser) -> list[ApikeyGridItem]:
-    query = select(ApiKeyModel).where(ApiKeyModel.uid == current_user.id).order_by(ApiKeyModel.create_time.desc())
-    return session.exec(query).all()
+    query = (
+        select(ApiKeyModel)
+        .where(ApiKeyModel.uid == current_user.id)
+        .order_by(col(ApiKeyModel.create_time).desc())
+    )
+    result = session.exec(query).all()
+    return [ApikeyGridItem.model_validate(item.model_dump()) for item in result]
+
 
 @router.post("")
-@system_log(LogConfig(operation_type=OperationType.CREATE, module=OperationModules.API_KEY,result_id_expr='result.self'))
-async def create(session: SessionDep, current_user: CurrentUser):
-    count = session.exec(select(func.count()).select_from(ApiKeyModel).where(ApiKeyModel.uid == current_user.id)).one()
+@typed_system_log(
+    LogConfig(
+        operation_type=OperationType.CREATE,
+        module=OperationModules.API_KEY,
+        result_id_expr="result.self",
+    )
+)
+async def create(session: SessionDep, current_user: CurrentUser) -> int:
+    count = session.exec(
+        select(func.count())
+        .select_from(ApiKeyModel)
+        .where(ApiKeyModel.uid == current_user.id)
+    ).one()
     if count >= 5:
         raise ValueError("Maximum of 5 API keys allowed")
     access_key = secrets.token_urlsafe(16)
@@ -30,15 +55,28 @@ async def create(session: SessionDep, current_user: CurrentUser):
         secret_key=secret_key,
         create_time=get_timestamp(),
         uid=current_user.id,
-        status=True
+        status=True,
     )
     session.add(api_key)
     session.commit()
+    if api_key.id is None:
+        raise ValueError("Failed to create API Key")
     return api_key.id
 
+
 @router.put("/status")
-@system_log(LogConfig(operation_type=OperationType.UPDATE, module=OperationModules.API_KEY,resource_id_expr='id'))
-async def status(session: SessionDep, current_user: CurrentUser, dto: ApikeyStatus):
+@typed_system_log(
+    LogConfig(
+        operation_type=OperationType.UPDATE,
+        module=OperationModules.API_KEY,
+        resource_id_expr="id",
+    )
+)
+async def status(
+    session: SessionDep,
+    current_user: CurrentUser,
+    dto: ApikeyStatus,
+) -> None:
     api_key = session.get(ApiKeyModel, dto.id)
     if not api_key:
         raise ValueError("API Key not found")
@@ -51,9 +89,16 @@ async def status(session: SessionDep, current_user: CurrentUser, dto: ApikeyStat
     session.add(api_key)
     session.commit()
 
+
 @router.delete("/{id}")
-@system_log(LogConfig(operation_type=OperationType.DELETE, module=OperationModules.API_KEY,resource_id_expr='id'))
-async def delete(session: SessionDep, current_user: CurrentUser, id: int):
+@typed_system_log(
+    LogConfig(
+        operation_type=OperationType.DELETE,
+        module=OperationModules.API_KEY,
+        resource_id_expr="id",
+    )
+)
+async def delete(session: SessionDep, current_user: CurrentUser, id: int) -> None:
     api_key = session.get(ApiKeyModel, id)
     if not api_key:
         raise ValueError("API Key not found")
@@ -62,4 +107,3 @@ async def delete(session: SessionDep, current_user: CurrentUser, id: int):
     await clear_api_key_cache(api_key.access_key)
     session.delete(api_key)
     session.commit()
-    

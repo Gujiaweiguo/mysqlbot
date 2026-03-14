@@ -1,35 +1,40 @@
-import yaml
-from pathlib import Path
+import importlib
 from functools import cache
-from typing import Union
+from pathlib import Path
+from typing import Any
 
 from apps.db.constant import DB
 
+yaml = importlib.import_module("yaml")
+
 # 基础路径配置
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-TEMPLATES_DIR = PROJECT_ROOT / 'templates'
-BASE_TEMPLATE_PATH = TEMPLATES_DIR / 'template.yaml'
-SQL_TEMPLATES_DIR = TEMPLATES_DIR / 'sql_examples'
+TEMPLATES_DIR = PROJECT_ROOT / "templates"
+BASE_TEMPLATE_PATH = TEMPLATES_DIR / "template.yaml"
+SQL_TEMPLATES_DIR = TEMPLATES_DIR / "sql_examples"
 
 
 @cache
-def _load_template_file(file_path: Path):
+def _load_template_file(file_path: Path) -> dict[str, Any]:
     """内部函数：加载并解析YAML文件"""
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
+        with open(file_path, encoding="utf-8") as f:
+            content = yaml.safe_load(f)
+            if not isinstance(content, dict):
+                raise ValueError(f"Template file {file_path} must contain a mapping")
+            return content
     except FileNotFoundError:
         raise FileNotFoundError(f"Template file not found at {file_path}")
     except yaml.YAMLError as e:
         raise ValueError(f"Error parsing YAML file {file_path}: {e}")
 
 
-def get_base_template():
+def get_base_template() -> dict[str, Any]:
     """获取基础模板（自动缓存）"""
     return _load_template_file(BASE_TEMPLATE_PATH)
 
 
-def get_sql_template(db_type: Union[str, DB]):
+def get_sql_template(db_type: str | DB) -> dict[str, Any]:
     # 处理输入参数
     if isinstance(db_type, str):
         # 如果是字符串，查找对应的枚举值，找不到则使用默认的 DB.pg
@@ -45,7 +50,7 @@ def get_sql_template(db_type: Union[str, DB]):
     return _load_template_file(template_path)
 
 
-def get_all_sql_templates():
+def get_all_sql_templates() -> dict[str, dict[str, Any]]:
     """获取所有支持的数据库模板"""
     templates = {}
     for db in DB:
@@ -57,8 +62,6 @@ def get_all_sql_templates():
     return templates
 
 
-def reload_all_templates():
+def reload_all_templates() -> None:
     """清空所有模板缓存"""
     _load_template_file.cache_clear()
-
-

@@ -1,27 +1,33 @@
 import os
-from typing import Dict, Any
+from collections.abc import AsyncIterator
+from importlib import import_module
+from typing import Any
 
-import sqlbot_xpack
 from alembic.config import Config
 from fastapi import FastAPI, Request
 from fastapi.concurrency import asynccontextmanager
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
-from fastapi_mcp import FastApiMCP
+from sqlmodel import Session, select
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
 
 from alembic import command
 from apps.api import api_router
 from apps.datasource.crud.datasource import ensure_internal_pg_datasource
-from apps.swagger.i18n import PLACEHOLDER_PREFIX, tags_metadata, i18n_list
-from apps.swagger.i18n import get_translation, DEFAULT_LANG
-from apps.system.models.system_model import WorkspaceModel
+from apps.swagger.i18n import (
+    DEFAULT_LANG,
+    PLACEHOLDER_PREFIX,
+    get_translation,
+    i18n_list,
+    tags_metadata,
+)
 from apps.system.crud.aimodel_manage import async_model_info
 from apps.system.crud.assistant import init_dynamic_cors
 from apps.system.middleware.auth import TokenMiddleware
+from apps.system.models.system_model import WorkspaceModel
 from apps.system.schemas.permission import RequestContextMiddleware
 from common.audit.schemas.request_context import RequestContextMiddlewareCommon
 from common.core.config import settings
@@ -29,45 +35,60 @@ from common.core.db import engine
 from common.core.response_middleware import ResponseMiddleware, exception_handler
 from common.core.sqlbot_cache import init_sqlbot_cache
 from common.utils.embedding_threads import (
-    fill_empty_terminology_embeddings,
     fill_empty_data_training_embeddings,
     fill_empty_table_and_ds_embeddings,
+    fill_empty_terminology_embeddings,
 )
 from common.utils.utils import SQLBotLogUtil
-from sqlmodel import Session, select
 
 
-def run_migrations():
+def run_migrations() -> None:
     alembic_cfg = Config("alembic.ini")
     command.upgrade(alembic_cfg, "head")
 
 
-def init_terminology_embedding_data():
+def init_terminology_embedding_data() -> None:
     fill_empty_terminology_embeddings()
 
 
-def init_data_training_embedding_data():
+def init_data_training_embedding_data() -> None:
     fill_empty_data_training_embeddings()
 
 
-def init_table_and_ds_embedding():
+def init_table_and_ds_embedding() -> None:
     fill_empty_table_and_ds_embeddings()
 
 
-def init_default_internal_datasource():
+def init_default_internal_datasource() -> None:
     with Session(engine) as session:
         workspace_ids = session.exec(select(WorkspaceModel.id)).all()
         if not workspace_ids:
             workspace_ids = [1]
         for workspace_id in workspace_ids:
+            if workspace_id is None:
+                continue
             ensure_internal_pg_datasource(
-                session=session, oid=int(workspace_id), create_by=1, commit=False
+                session=session, oid=workspace_id, create_by=1, commit=False
             )
         session.commit()
 
 
+def _get_xpack_core() -> Any:
+    xpack_module = import_module("sqlbot_xpack")
+    xpack_core = getattr(xpack_module, "core", None)
+    if xpack_core is None:
+        raise RuntimeError("sqlbot_xpack.core is unavailable")
+    return xpack_core
+
+
+def _get_fastapi_mcp_class() -> Any:
+    mcp_module = import_module("fastapi_mcp")
+    return mcp_module.FastApiMCP
+
+
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    xpack_core = _get_xpack_core()
     run_migrations()
     init_sqlbot_cache()
     init_dynamic_cors(app)
@@ -76,9 +97,9 @@ async def lifespan(app: FastAPI):
     init_default_internal_datasource()
     init_table_and_ds_embedding()
     SQLBotLogUtil.info("✅ SQLBot 初始化完成")
-    await sqlbot_xpack.core.clean_xpack_cache()
+    await xpack_core.clean_xpack_cache()
     await async_model_info()  # 异步加密已有模型的密钥和地址
-    await sqlbot_xpack.core.monitor_app(app)
+    await xpack_core.monitor_app(app)
     yield
     SQLBotLogUtil.info("SQLBot 应用关闭")
 
@@ -98,13 +119,11 @@ app = FastAPI(
 )
 
 # cache docs for different text
-_openapi_cache: Dict[str, Dict[str, Any]] = {}
+_openapi_cache: dict[str, dict[str, Any]] = {}
 
 
 # replace placeholder
-def replace_placeholders_in_schema(
-    schema: Dict[str, Any], trans: Dict[str, str]
-) -> None:
+def replace_placeholders_in_schema(schema: Any, trans: dict[str, str]) -> None:
     """
     search OpenAPI schema，replace PLACEHOLDER_xxx to text。
     """
@@ -133,7 +152,7 @@ def get_language_from_request(request: Request) -> str:
     return DEFAULT_LANG
 
 
-def generate_openapi_for_lang(lang: str) -> Dict[str, Any]:
+def generate_openapi_for_lang(lang: str) -> dict[str, Any]:
     if lang in _openapi_cache:
         return _openapi_cache[lang]
 
@@ -171,14 +190,14 @@ def generate_openapi_for_lang(lang: str) -> Dict[str, Any]:
 
 # custom /openapi.json and /docs
 @app.get("/openapi.json", include_in_schema=False)
-async def custom_openapi(request: Request):
+async def custom_openapi(request: Request) -> JSONResponse:
     lang = get_language_from_request(request)
     schema = generate_openapi_for_lang(lang)
     return JSONResponse(schema)
 
 
 @app.get("/docs", include_in_schema=False)
-async def custom_swagger_ui(request: Request):
+async def custom_swagger_ui(request: Request) -> HTMLResponse:
     lang = get_language_from_request(request)
     from fastapi.openapi.docs import get_swagger_ui_html
 
@@ -191,13 +210,21 @@ async def custom_swagger_ui(request: Request):
     )
 
 
+async def starlette_http_exception_handler(
+    request: Request, exc: Exception
+) -> JSONResponse:
+    if isinstance(exc, StarletteHTTPException):
+        return await exception_handler.http_exception_handler(request, exc)
+    return await exception_handler.global_exception_handler(request, exc)
+
+
 mcp_app = FastAPI()
 # mcp server, images path
 images_path = settings.MCP_IMAGE_PATH
 os.makedirs(images_path, exist_ok=True)
 mcp_app.mount("/images", StaticFiles(directory=images_path), name="images")
 
-mcp = FastApiMCP(
+mcp = _get_fastapi_mcp_class()(
     app,
     name="SQLBot MCP Server",
     description="SQLBot MCP Server",
@@ -232,13 +259,14 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # Register exception handlers
 app.add_exception_handler(
-    StarletteHTTPException, exception_handler.http_exception_handler
+    StarletteHTTPException,
+    starlette_http_exception_handler,
 )
 app.add_exception_handler(Exception, exception_handler.global_exception_handler)
 
 mcp.setup_server()
 
-sqlbot_xpack.init_fastapi_app(app)
+import_module("sqlbot_xpack").init_fastapi_app(app)
 if __name__ == "__main__":
     import uvicorn
 

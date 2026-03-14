@@ -1,0 +1,40 @@
+{
+  "report_id": "g5-failure-path-20260314-184103",
+  "created_at": "2026-03-14T18:41:03.935748",
+  "base_url": "http://127.0.0.1:8000",
+  "mock_provider_base": "http://172.17.0.1:39693",
+  "overall_passed": true,
+  "cases": [
+    {
+      "case_id": "g5-429-rate-limit",
+      "scenario": "provider datasource endpoint returns HTTP 429",
+      "passed": true,
+      "controlled_error": true,
+      "frontend_can_continue": true,
+      "mock_rate_limit_hits": 1,
+      "response_status": 500,
+      "response_duration_ms": 324,
+      "error_message": "{\"message\":\"Failed to get datasource list from http://172.17.0.1:39693/rate-limit/ds, response: <Response [429]>\",\"traceback\":\"Traceback (most recent call last):\\n  File \\\"/opt/sqlbot/app/apps/chat/task/llm.py\\\", line 1105, in run_task\\n    for chunk in ds_res:\\nException: Failed to get datasource list from http://172.17.0.1:39693/rate-limit/ds, response: <Response [429]>\\n\"}",
+      "recovery_status": 200,
+      "recovery_duration_ms": 34093,
+      "recovery_success": true
+    },
+    {
+      "case_id": "g5-transient-recovery",
+      "scenario": "provider transient 503 first call, then recovery on next attempt",
+      "passed": true,
+      "first_attempt_failed": true,
+      "first_attempt_status": 500,
+      "first_attempt_duration_ms": 115,
+      "first_error_message": "{\"message\":\"Failed to get datasource list from http://172.17.0.1:39693/transient/ds, response: <Response [503]>\",\"traceback\":\"Traceback (most recent call last):\\n  File \\\"/opt/sqlbot/app/apps/chat/task/llm.py\\\", line 1105, in run_task\\n    for chunk in ds_res:\\nException: Failed to get datasource list from http://172.17.0.1:39693/transient/ds, response: <Response [503]>\\n\"}",
+      "second_attempt_status": 200,
+      "second_attempt_duration_ms": 111367,
+      "second_attempt_success": true,
+      "second_attempt_controlled_failure": false,
+      "second_error_message": "{'success': True, 'record_id': 45, 'title': '订单总金额', 'sql': 'SELECT SUM(\"t1\".\"order_amount\") AS \"total_amount\" FROM \"demo_sales\".\"orders\" \"t1\" LIMIT 1000', 'data': {'fields': ['total_amount'], 'data': [{'total_amount': 893.4}], 'sql': 'U0VMRUNUIFNVTSgidDEiLiJvcmRlcl9hbW91bnQiKSBBUyAidG90YWxfYW1vdW50IiBGUk9NIChTRUxFQ1QgKiBGUk9NIGRlbW9fc2FsZXMub3JkZXJzKSAidDEiIExJTUlUIDEwMDA='}}",
+      "mock_transient_hits": 2,
+      "observed_retry_count": 1,
+      "final_status": "success"
+    }
+  ]
+}

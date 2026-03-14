@@ -1,8 +1,9 @@
-from sqlmodel import Field, SQLModel,BigInteger
 from datetime import datetime
-from typing import Optional
 from enum import Enum
+
 from pydantic import BaseModel
+from sqlmodel import BigInteger, Field, SQLModel
+
 
 class OperationModules(str, Enum):
     CHAT = "chat"  # 问数
@@ -26,9 +27,11 @@ class OperationModules(str, Enum):
     SYSTEM_MANAGEMENT = "system_management"  # 系统管理
     OPT_LOG = "opt_log"  # 操作日志
 
+
 class OperationStatus(str, Enum):
     SUCCESS = "success"
     FAILED = "failed"
+
 
 class OperationType(str, Enum):
     CREATE = "create"
@@ -48,35 +51,38 @@ class OperationType(str, Enum):
     ANALYSIS = "analysis"
     PREDICTION = "prediction"
 
+
 class SystemLogsResource(SQLModel, table=True):
     __tablename__ = "sys_logs_resource"
-    id: Optional[int] = Field(default=None, primary_key=True)
-    log_id: Optional[int] = Field(default=None,sa_type=BigInteger())
-    resource_id: Optional[str] = Field(default=None)
-    resource_name: Optional[str] = Field(default=None)
-    module: Optional[str] = Field(default=None)
+    id: int | None = Field(default=None, primary_key=True)
+    log_id: int | None = Field(default=None, sa_type=BigInteger)
+    resource_id: str | None = Field(default=None)
+    resource_name: str | None = Field(default=None)
+    module: str | None = Field(default=None)
 
 
 class SystemLog(SQLModel, table=True):
     __tablename__ = "sys_logs"
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     operation_type: str = Field(default=None)
     operation_detail: str = Field(default=None)
-    user_id: Optional[int] = Field(default=None, sa_type=BigInteger())
+    user_id: int | None = Field(default=None, sa_type=BigInteger)
     operation_status: str = Field(default=None)
-    ip_address: Optional[str] = Field(default=None)
-    user_agent: Optional[str] = Field(default=None)
-    execution_time: int = Field(default=0, description="执行时间(毫秒)", sa_type=BigInteger())
-    error_message: Optional[str] = Field(default=None)
+    ip_address: str | None = Field(default=None)
+    user_agent: str | None = Field(default=None)
+    execution_time: int = Field(
+        default=0, description="执行时间(毫秒)", sa_type=BigInteger
+    )
+    error_message: str | None = Field(default=None)
     create_time: datetime = Field(default_factory=datetime.now)
-    module: Optional[str] = Field(default=None)
-    oid: Optional[int] = Field(default=None, sa_type=BigInteger())
-    resource_id: Optional[str] = Field(default=None)
-    request_method: Optional[str] = Field(default=None)
-    request_path: Optional[str] = Field(default=None)
-    remark: Optional[str] = Field(default=None)
-    user_name: Optional[str] = Field(default=None)
-    resource_name: Optional[str] = Field(default=None)
+    module: str | None = Field(default=None)
+    oid: int | None = Field(default=None, sa_type=BigInteger)
+    resource_id: str | None = Field(default=None)
+    request_method: str | None = Field(default=None)
+    request_path: str | None = Field(default=None)
+    remark: str | None = Field(default=None)
+    user_name: str | None = Field(default=None)
+    resource_name: str | None = Field(default=None)
 
 
 class SystemLogInfo(BaseModel):
@@ -85,11 +91,12 @@ class SystemLogInfo(BaseModel):
     operation_detail_info: str = Field(default=None)
     user_name: str = Field(default=None)
     resource_name: str = Field(default=None)
-    operation_status:  str = Field(default=None)
-    ip_address: Optional[str] = Field(default=None)
+    operation_status: str = Field(default=None)
+    ip_address: str | None = Field(default=None)
     create_time: datetime = Field(default_factory=datetime.now)
-    oid_list:  str = Field(default=None)
-    remark:  str = Field(default=None)
+    oid_list: str = Field(default=None)
+    remark: str = Field(default=None)
+
 
 class SystemLogInfoResult(BaseModel):
     id: str = Field(default=None)
@@ -97,11 +104,11 @@ class SystemLogInfoResult(BaseModel):
     operation_detail_info: str = Field(default=None)
     user_name: str = Field(default=None)
     resource_name: str = Field(default=None)
-    operation_status:  str = Field(default=None)
-    operation_status_name:  str = Field(default=None)
-    ip_address: Optional[str] = Field(default=None)
+    operation_status: str = Field(default=None)
+    operation_status_name: str = Field(default=None)
+    ip_address: str | None = Field(default=None)
     create_time: datetime = Field(default_factory=datetime.now)
-    oid_name:  str = Field(default=None)
-    oid:  str = Field(default=None)
-    error_message:  str = Field(default=None)
-    remark:  str = Field(default=None)
+    oid_name: str = Field(default=None)
+    oid: str = Field(default=None)
+    error_message: str = Field(default=None)
+    remark: str = Field(default=None)

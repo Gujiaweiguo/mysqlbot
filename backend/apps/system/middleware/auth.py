@@ -1,35 +1,42 @@
-
 import base64
-import json
-from typing import Optional
+from collections.abc import Awaitable, Callable
+from typing import Any
+
+import jwt
 from fastapi import Request
 from fastapi.responses import JSONResponse
-import jwt
+from fastapi.security.utils import get_authorization_scheme_param
 from sqlmodel import Session
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+from starlette.types import ASGIApp
+
 from apps.system.crud.apikey_manage import get_api_key
-from apps.system.models.system_model import ApiKeyModel, AssistantModel
-from common.core.db import engine 
 from apps.system.crud.assistant import get_assistant_info, get_assistant_user
 from apps.system.crud.user import get_user_by_account, get_user_info
+from apps.system.models.system_model import ApiKeyModel, AssistantModel
 from apps.system.schemas.system_schema import AssistantHeader, UserInfoDTO
 from common.core import security
 from common.core.config import settings
+from common.core.db import engine
+from common.core.deps import get_i18n
 from common.core.schemas import TokenPayload
-from common.utils.locale import I18n
+from common.utils.locale import I18nHelper
 from common.utils.utils import SQLBotLogUtil, get_origin_from_referer
 from common.utils.whitelist import whiteUtils
-from fastapi.security.utils import get_authorization_scheme_param
-from common.core.deps import get_i18n
+
+AssistantValidation = tuple[bool, Any, AssistantHeader | None]
+
+
 class TokenMiddleware(BaseHTTPMiddleware):
-    
-    
-    
-    def __init__(self, app):
+    def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
 
-    async def dispatch(self, request, call_next):
-        
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
         if self.is_options(request) or whiteUtils.is_whitelisted(request.url.path):
             return await call_next(request)
         assistantTokenKey = settings.ASSISTANT_TOKEN_KEY
@@ -41,182 +48,245 @@ class TokenMiddleware(BaseHTTPMiddleware):
             if validate_pass:
                 request.state.current_user = data
                 return await call_next(request)
-            message = trans('i18n_permission.authenticate_invalid', msg = data)
-            return JSONResponse(message, status_code=401, headers={"Access-Control-Allow-Origin": "*"})
-        #if assistantToken and assistantToken.lower().startswith("assistant "):
+            message = trans("i18n_permission.authenticate_invalid", msg=data)
+            return JSONResponse(
+                message,
+                status_code=401,
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
+        # if assistantToken and assistantToken.lower().startswith("assistant "):
         if assistantToken:
-            validator: tuple[any] = await self.validateAssistant(assistantToken, trans)
+            validator = await self.validateAssistant(assistantToken, trans)
             if validator[0]:
                 request.state.current_user = validator[1]
                 if request.state.current_user and trans.lang:
                     request.state.current_user.language = trans.lang
                 request.state.assistant = validator[2]
-                origin = request.headers.get("X-SQLBOT-HOST-ORIGIN") or get_origin_from_referer(request)
+                origin = request.headers.get(
+                    "X-SQLBOT-HOST-ORIGIN"
+                ) or get_origin_from_referer(request)
                 if origin and validator[2]:
                     request.state.assistant.request_origin = origin
                 return await call_next(request)
-            message = trans('i18n_permission.authenticate_invalid', msg = validator[1])
-            return JSONResponse(message, status_code=401, headers={"Access-Control-Allow-Origin": "*"})
-        #validate pass
+            message = trans("i18n_permission.authenticate_invalid", msg=validator[1])
+            return JSONResponse(
+                message,
+                status_code=401,
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
+        # validate pass
         tokenkey = settings.TOKEN_KEY
         token = request.headers.get(tokenkey)
         validate_pass, data = await self.validateToken(token, trans)
         if validate_pass:
             request.state.current_user = data
             return await call_next(request)
-        
-        message = trans('i18n_permission.authenticate_invalid', msg = data)
-        return JSONResponse(message, status_code=401, headers={"Access-Control-Allow-Origin": "*"})
-    
-    def is_options(self, request: Request):
+
+        message = trans("i18n_permission.authenticate_invalid", msg=data)
+        return JSONResponse(
+            message,
+            status_code=401,
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
+
+    def is_options(self, request: Request) -> bool:
         return request.method == "OPTIONS"
-    
-    async def validateAskToken(self, askToken: Optional[str], trans: I18n):
+
+    async def validateAskToken(
+        self, askToken: str | None, trans: I18nHelper
+    ) -> tuple[bool, Any]:
         if not askToken:
-            return False, f"Miss Token[X-SQLBOT-ASK-TOKEN]!"
+            return False, "Miss Token[X-SQLBOT-ASK-TOKEN]!"
         schema, param = get_authorization_scheme_param(askToken)
         if schema.lower() != "sk":
-            return False, f"Token schema error!"
-        try: 
+            return False, "Token schema error!"
+        try:
             payload = jwt.decode(
-                param, options={"verify_signature": False, "verify_exp": False}, algorithms=[security.ALGORITHM]
+                param,
+                options={"verify_signature": False, "verify_exp": False},
+                algorithms=[security.ALGORITHM],
             )
-            access_key = payload.get('access_key', None)
-            
+            access_key = payload.get("access_key", None)
+
             if not access_key:
-                return False, f"Miss access_key payload error!"
+                return False, "Miss access_key payload error!"
             with Session(engine) as session:
                 api_key_model = await get_api_key(session, access_key)
-                api_key_model = ApiKeyModel.model_validate(api_key_model) if api_key_model else None
+                api_key_model = (
+                    ApiKeyModel.model_validate(api_key_model) if api_key_model else None
+                )
                 if not api_key_model:
-                    return False, f"Invalid access_key!"
+                    return False, "Invalid access_key!"
                 if not api_key_model.status:
-                    return False, f"Disabled access_key!"
+                    return False, "Disabled access_key!"
                 payload = jwt.decode(
                     param, api_key_model.secret_key, algorithms=[security.ALGORITHM]
                 )
                 uid = api_key_model.uid
-                session_user = await get_user_info(session = session, user_id = uid)
+                session_user = await get_user_info(session=session, user_id=uid)
                 if not session_user:
-                    message = trans('i18n_not_exist', msg = trans('i18n_user.account'))
+                    message = trans("i18n_not_exist", msg=trans("i18n_user.account"))
                     raise Exception(message)
                 session_user = UserInfoDTO.model_validate(session_user)
                 if session_user.status != 1:
-                    message = trans('i18n_login.user_disable', msg = trans('i18n_concat_admin'))
+                    message = trans(
+                        "i18n_login.user_disable", msg=trans("i18n_concat_admin")
+                    )
                     raise Exception(message)
                 if not session_user.oid or session_user.oid == 0:
-                    message = trans('i18n_login.no_associated_ws', msg = trans('i18n_concat_admin'))
+                    message = trans(
+                        "i18n_login.no_associated_ws",
+                        msg=trans("i18n_concat_admin"),
+                    )
                     raise Exception(message)
                 return True, session_user
         except Exception as e:
             msg = str(e)
             SQLBotLogUtil.exception(f"Token validation error: {msg}")
-            if 'expired' in msg:
-                return False, jwt.ExpiredSignatureError(trans('i18n_permission.token_expired')) 
+            if "expired" in msg:
+                return False, jwt.ExpiredSignatureError(
+                    trans("i18n_permission.token_expired")
+                )
             return False, e
-    
-    async def validateToken(self, token: Optional[str], trans: I18n):
+
+    async def validateToken(
+        self, token: str | None, trans: I18nHelper
+    ) -> tuple[bool, Any]:
         if not token:
             return False, f"Miss Token[{settings.TOKEN_KEY}]!"
         schema, param = get_authorization_scheme_param(token)
         if schema.lower() != "bearer":
-            return False, f"Token schema error!"
-        try: 
+            return False, "Token schema error!"
+        try:
             payload = jwt.decode(
                 param, settings.SECRET_KEY, algorithms=[security.ALGORITHM]
             )
             token_data = TokenPayload(**payload)
+            if token_data.id is None:
+                return False, "Miss user id payload error!"
             with Session(engine) as session:
-                session_user = await get_user_info(session = session, user_id = token_data.id)
+                session_user = await get_user_info(
+                    session=session, user_id=token_data.id
+                )
                 if not session_user:
-                    message = trans('i18n_not_exist', msg = trans('i18n_user.account'))
+                    message = trans("i18n_not_exist", msg=trans("i18n_user.account"))
                     raise Exception(message)
                 session_user = UserInfoDTO.model_validate(session_user)
                 if session_user.status != 1:
-                    message = trans('i18n_login.user_disable', msg = trans('i18n_concat_admin'))
+                    message = trans(
+                        "i18n_login.user_disable", msg=trans("i18n_concat_admin")
+                    )
                     raise Exception(message)
                 if not session_user.oid or session_user.oid == 0:
-                    message = trans('i18n_login.no_associated_ws', msg = trans('i18n_concat_admin'))
+                    message = trans(
+                        "i18n_login.no_associated_ws",
+                        msg=trans("i18n_concat_admin"),
+                    )
                     raise Exception(message)
                 return True, session_user
         except Exception as e:
             msg = str(e)
             SQLBotLogUtil.exception(f"Token validation error: {msg}")
-            if 'expired' in msg:
-                return False, jwt.ExpiredSignatureError(trans('i18n_permission.token_expired')) 
+            if "expired" in msg:
+                return False, jwt.ExpiredSignatureError(
+                    trans("i18n_permission.token_expired")
+                )
             return False, e
-            
-    
-    async def validateAssistant(self, assistantToken: Optional[str], trans: I18n) -> tuple[any]:
+
+    async def validateAssistant(
+        self,
+        assistantToken: str | None,
+        trans: I18nHelper,
+    ) -> AssistantValidation:
         if not assistantToken:
-            return False, f"Miss Token[{settings.TOKEN_KEY}]!"
+            return False, f"Miss Token[{settings.TOKEN_KEY}]!", None
         schema, param = get_authorization_scheme_param(assistantToken)
-        
-        
+
         try:
-            if schema.lower() == 'embedded':
+            if schema.lower() == "embedded":
                 return await self.validateEmbedded(param, trans)
             if schema.lower() != "assistant":
-                return False, f"Token schema error!" 
+                return False, "Token schema error!", None
             payload = jwt.decode(
                 param, settings.SECRET_KEY, algorithms=[security.ALGORITHM]
             )
             token_data = TokenPayload(**payload)
-            if not payload['assistant_id']:
-                return False, f"Miss assistant payload error!"
+            if token_data.id is None:
+                return False, "Miss user id payload error!", None
+            if not payload["assistant_id"]:
+                return False, "Miss assistant payload error!", None
             with Session(engine) as session:
-                """ session_user = await get_user_info(session = session, user_id = token_data.id)
-                session_user = UserInfoDTO.model_validate(session_user) """
-                session_user = get_assistant_user(id = token_data.id)
-                assistant_info = await get_assistant_info(session=session, assistant_id=payload['assistant_id'])
+                session_user = get_assistant_user(id=token_data.id)
+                assistant_info = await get_assistant_info(
+                    session=session,
+                    assistant_id=payload["assistant_id"],
+                )
                 assistant_info = AssistantModel.model_validate(assistant_info)
-                assistant_info = AssistantHeader.model_validate(assistant_info.model_dump(exclude_unset=True))
-                session_user.oid = int(assistant_info.oid)
-                        
+                assistant_info = AssistantHeader.model_validate(
+                    assistant_info.model_dump(exclude_unset=True)
+                )
+                if assistant_info.oid is not None:
+                    session_user.oid = int(assistant_info.oid)
+
                 return True, session_user, assistant_info
         except Exception as e:
             SQLBotLogUtil.exception(f"Assistant validation error: {str(e)}")
             # Return False and the exception message
-            return False, e
-    
-    async def validateEmbedded(self, param: str, trans: I18n) -> tuple[any]:
-        try: 
+            return False, e, None
+
+    async def validateEmbedded(
+        self,
+        param: str,
+        trans: I18nHelper,
+    ) -> AssistantValidation:
+        try:
             # WARNING: Signature verification is disabled for embedded tokens
             # This is a security risk and should only be used if absolutely necessary
             # Consider implementing proper signature verification with a shared secret
-            payload: dict = jwt.decode(
+            payload: dict[str, Any] = jwt.decode(
                 param,
                 options={"verify_signature": False, "verify_exp": False},
-                algorithms=[security.ALGORITHM]
+                algorithms=[security.ALGORITHM],
             )
-            app_key = payload.get('appId', '')
-            embeddedId = payload.get('embeddedId', None)
+            app_key = str(payload.get("appId", ""))
+            embeddedId = payload.get("embeddedId", None)
             if not embeddedId:
                 embeddedId = xor_decrypt(app_key)
-            if not payload['account']:
-                return False, f"Miss account payload error!"
-            account = payload['account']
+            if not payload["account"]:
+                return False, "Miss account payload error!", None
+            account = str(payload["account"])
             with Session(engine) as session:
-                assistant_info = await get_assistant_info(session=session, assistant_id=embeddedId)
+                assistant_info = await get_assistant_info(
+                    session=session,
+                    assistant_id=embeddedId,
+                )
                 assistant_info = AssistantModel.model_validate(assistant_info)
+                if assistant_info.app_secret is None:
+                    return False, "Missing app secret", None
                 payload = jwt.decode(
                     param, assistant_info.app_secret, algorithms=[security.ALGORITHM]
                 )
-                assistant_info = AssistantHeader.model_validate(assistant_info.model_dump(exclude_unset=True))
-                """ session_user = await get_user_info(session = session, user_id = token_data.id)
-                session_user = UserInfoDTO.model_validate(session_user) """
-                session_user = get_user_by_account(session = session, account=account)
-                if not session_user:
-                    message = trans('i18n_not_exist', msg = trans('i18n_user.account'))
+                assistant_info = AssistantHeader.model_validate(
+                    assistant_info.model_dump(exclude_unset=True)
+                )
+                account_user = get_user_by_account(session=session, account=account)
+                if not account_user:
+                    message = trans("i18n_not_exist", msg=trans("i18n_user.account"))
                     raise Exception(message)
-                session_user = await get_user_info(session = session, user_id = session_user.id)
-                
+                session_user = await get_user_info(
+                    session=session, user_id=account_user.id
+                )
                 session_user = UserInfoDTO.model_validate(session_user)
                 if session_user.status != 1:
-                    message = trans('i18n_login.user_disable', msg = trans('i18n_concat_admin'))
+                    message = trans(
+                        "i18n_login.user_disable", msg=trans("i18n_concat_admin")
+                    )
                     raise Exception(message)
                 if not session_user.oid or session_user.oid == 0:
-                    message = trans('i18n_login.no_associated_ws', msg = trans('i18n_concat_admin'))
+                    message = trans(
+                        "i18n_login.no_associated_ws",
+                        msg=trans("i18n_concat_admin"),
+                    )
                     raise Exception(message)
                 if session_user.oid:
                     assistant_info.oid = int(session_user.oid)
@@ -224,8 +294,9 @@ class TokenMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             SQLBotLogUtil.exception(f"Embedded validation error: {str(e)}")
             # Return False and the exception message
-            return False, e
-    
+            return False, e, None
+
+
 def xor_decrypt(encrypted_str: str, key: int = 0xABCD1234) -> int:
     encrypted_bytes = base64.urlsafe_b64decode(encrypted_str)
     hex_str = encrypted_bytes.hex()

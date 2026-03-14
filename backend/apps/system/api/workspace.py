@@ -1,12 +1,19 @@
-from typing import Optional
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, Path, Query
 from sqlmodel import (
+    col,
     exists,
     or_,
     select,
+)
+from sqlmodel import (
     delete as sqlmodel_delete,
+)
+from sqlmodel import (
     update as sqlmodel_update,
 )
+
 from apps.datasource.crud.datasource import ensure_internal_pg_datasource
 from apps.swagger.i18n import PLACEHOLDER_PREFIX
 from apps.system.crud.user import clean_user_cache
@@ -26,8 +33,8 @@ from apps.system.schemas.system_schema import (
     UserWsOption,
     WorkspaceUser,
 )
-from common.audit.models.log_model import OperationType, OperationModules
-from common.audit.schemas.logger_decorator import system_log, LogConfig
+from common.audit.models.log_model import OperationModules, OperationType
+from common.audit.schemas.logger_decorator import LogConfig, system_log
 from common.core.deps import CurrentUser, SessionDep, Trans
 from common.core.pagination import Paginator
 from common.core.schemas import PaginatedResponse, PaginationParams
@@ -50,8 +57,8 @@ async def option_pager(
     pageNum: int = Path(description=f"{PLACEHOLDER_PREFIX}page_num"),
     pageSize: int = Path(description=f"{PLACEHOLDER_PREFIX}page_size"),
     oid: int = Query(description=f"{PLACEHOLDER_PREFIX}oid"),
-    keyword: Optional[str] = Query(None, description=f"{PLACEHOLDER_PREFIX}keyword"),
-):
+    keyword: str | None = Query(None, description=f"{PLACEHOLDER_PREFIX}keyword"),
+) -> PaginatedResponse[UserWsOption]:
     if not current_user.isAdmin:
         raise Exception(
             trans(
@@ -67,18 +74,21 @@ async def option_pager(
     stmt = (
         select(UserModel.id, UserModel.account, UserModel.name)
         .where(
-            ~exists().where(UserWsModel.uid == UserModel.id, UserWsModel.oid == oid),
-            UserModel.id != 1,
+            ~exists().where(
+                col(UserWsModel.uid) == col(UserModel.id),
+                col(UserWsModel.oid) == oid,
+            ),
+            col(UserModel.id) != 1,
         )
-        .order_by(UserModel.account, UserModel.create_time)
+        .order_by(col(UserModel.account), col(UserModel.create_time))
     )
 
     if keyword:
         keyword_pattern = f"%{keyword}%"
         stmt = stmt.where(
             or_(
-                UserModel.account.ilike(keyword_pattern),
-                UserModel.name.ilike(keyword_pattern),
+                col(UserModel.account).ilike(keyword_pattern),
+                col(UserModel.name).ilike(keyword_pattern),
             )
         )
     return await paginator.get_paginated_response(
@@ -94,7 +104,7 @@ async def option_user(
     current_user: CurrentUser,
     trans: Trans,
     keyword: str = Query(description="搜索关键字"),
-):
+) -> Any:
     if not keyword:
         raise Exception(trans("i18n_miss_args", key="[keyword]"))
     if (not current_user.isAdmin) and current_user.weight == 0:
@@ -102,15 +112,17 @@ async def option_user(
     oid = current_user.oid
 
     stmt = select(UserModel.id, UserModel.account, UserModel.name).where(
-        ~exists().where(UserWsModel.uid == UserModel.id, UserWsModel.oid == oid),
-        UserModel.id != 1,
+        ~exists().where(
+            col(UserWsModel.uid) == col(UserModel.id), col(UserWsModel.oid) == oid
+        ),
+        col(UserModel.id) != 1,
     )
 
     if keyword:
         stmt = stmt.where(
             or_(
-                UserModel.account == keyword,
-                UserModel.name == keyword,
+                col(UserModel.account) == keyword,
+                col(UserModel.name) == keyword,
             )
         )
     return session.exec(stmt).first()
@@ -128,9 +140,9 @@ async def pager(
     trans: Trans,
     pageNum: int,
     pageSize: int,
-    keyword: Optional[str] = Query(None, description="搜索关键字(可选)"),
-    oid: Optional[int] = Query(None, description="空间ID(仅admin用户生效)"),
-):
+    keyword: str | None = Query(None, description="搜索关键字(可选)"),
+    oid: int | None = Query(None, description="空间ID(仅admin用户生效)"),
+) -> PaginatedResponse[WorkspaceUser]:
     if not current_user.isAdmin and current_user.weight == 0:
         raise Exception(trans("i18n_permission.no_permission", url="", msg=""))
     if current_user.isAdmin:
@@ -140,28 +152,19 @@ async def pager(
     pagination = PaginationParams(page=pageNum, size=pageSize)
     paginator = Paginator(session)
     stmt = (
-        select(
-            UserModel.id,
-            UserModel.account,
-            UserModel.name,
-            UserModel.email,
-            UserModel.status,
-            UserModel.create_time,
-            UserModel.oid,
-            UserWsModel.weight,
-        )
-        .join(UserWsModel, UserModel.id == UserWsModel.uid)
-        .where(UserWsModel.oid == workspace_id, UserModel.id != 1)
-        .order_by(UserModel.account, UserModel.create_time)
+        select(UserModel, UserWsModel.weight)
+        .join(UserWsModel, col(UserModel.id) == col(UserWsModel.uid))
+        .where(col(UserWsModel.oid) == workspace_id, col(UserModel.id) != 1)
+        .order_by(col(UserModel.account), col(UserModel.create_time))
     )
 
     if keyword:
         keyword_pattern = f"%{keyword}%"
         stmt = stmt.where(
             or_(
-                UserModel.account.ilike(keyword_pattern),
-                UserModel.name.ilike(keyword_pattern),
-                UserModel.email.ilike(keyword_pattern),
+                col(UserModel.account).ilike(keyword_pattern),
+                col(UserModel.name).ilike(keyword_pattern),
+                col(UserModel.email).ilike(keyword_pattern),
             )
         )
     return await paginator.get_paginated_response(
@@ -185,7 +188,7 @@ async def pager(
 )
 async def create(
     session: SessionDep, current_user: CurrentUser, trans: Trans, creator: UserWsDTO
-):
+) -> None:
     if not current_user.isAdmin and current_user.weight == 0:
         raise Exception(trans("i18n_permission.no_permission", url="", msg=""))
     oid: int = (
@@ -217,20 +220,20 @@ async def create(
         resource_id_expr="editor.uid_list",
     )
 )
-async def uws_edit(session: SessionDep, trans: Trans, editor: UserWsEditor):
+async def uws_edit(session: SessionDep, trans: Trans, editor: UserWsEditor) -> None:
     await edit(session, trans, editor)
 
 
-async def edit(session: SessionDep, trans: Trans, editor: UserWsEditor):
+async def edit(session: SessionDep, trans: Trans, editor: UserWsEditor) -> None:
     if not editor.oid or not editor.uid:
         raise Exception(trans("i18n_miss_args", key="[oid, uid]"))
     db_model = session.exec(
         select(UserWsModel).where(
-            UserWsModel.uid == editor.uid, UserWsModel.oid == editor.oid
+            col(UserWsModel.uid) == editor.uid, col(UserWsModel.oid) == editor.oid
         )
     ).first()
     if not db_model:
-        raise HTTPException("uws not exist")
+        raise HTTPException(status_code=404, detail="uws not exist")
     if editor.weight == db_model.weight:
         return
 
@@ -255,17 +258,19 @@ async def edit(session: SessionDep, trans: Trans, editor: UserWsEditor):
 )
 async def delete(
     session: SessionDep, current_user: CurrentUser, trans: Trans, dto: UserWsBase
-):
+) -> None:
     if not current_user.isAdmin and current_user.weight == 0:
         raise Exception(trans("i18n_permission.no_permission", url="", msg=""))
     oid: int = dto.oid if (current_user.isAdmin and dto.oid) else current_user.oid
-    db_model_list: list[UserWsModel] = session.exec(
-        select(UserWsModel).where(
-            UserWsModel.uid.in_(dto.uid_list), UserWsModel.oid == oid
-        )
-    ).all()
+    db_model_list = list(
+        session.exec(
+            select(UserWsModel).where(
+                col(UserWsModel.uid).in_(dto.uid_list), col(UserWsModel.oid) == oid
+            )
+        ).all()
+    )
     if not db_model_list:
-        raise HTTPException(f"UserWsModel not found")
+        raise HTTPException(status_code=404, detail="UserWsModel not found")
     for db_model in db_model_list:
         session.delete(db_model)
 
@@ -281,8 +286,8 @@ async def delete(
     description=f"{PLACEHOLDER_PREFIX}ws_all_api",
 )
 @require_permissions(permission=SqlbotPermission(role=["admin"]))
-async def query(session: SessionDep, trans: Trans):
-    list_result = session.exec(select(WorkspaceModel)).all()
+async def query(session: SessionDep, trans: Trans) -> list[WorkspaceModel]:
+    list_result = list(session.exec(select(WorkspaceModel)).all())
     for ws in list_result:
         if ws.name.startswith("i18n"):
             ws.name = trans(ws.name)
@@ -303,10 +308,13 @@ async def query(session: SessionDep, trans: Trans):
         result_id_expr="id",
     )
 )
-async def add(session: SessionDep, creator: WorkspaceBase):
+async def add(session: SessionDep, creator: WorkspaceBase) -> WorkspaceModel:
     db_model = WorkspaceModel.model_validate(creator)
     db_model.create_time = get_timestamp()
     session.add(db_model)
+    session.flush()
+    if db_model.id is None:
+        raise HTTPException(status_code=500, detail="Failed to create workspace")
     ensure_internal_pg_datasource(
         session=session, oid=db_model.id, create_by=1, commit=False
     )
@@ -326,11 +334,13 @@ async def add(session: SessionDep, creator: WorkspaceBase):
         resource_id_expr="editor.id",
     )
 )
-async def update(session: SessionDep, editor: WorkspaceEditor):
+async def update(session: SessionDep, editor: WorkspaceEditor) -> None:
     id = editor.id
     db_model = session.get(WorkspaceModel, id)
     if not db_model:
-        raise HTTPException(f"WorkspaceModel with id {id} not found")
+        raise HTTPException(
+            status_code=404, detail=f"WorkspaceModel with id {id} not found"
+        )
     db_model.name = editor.name
     session.add(db_model)
 
@@ -346,10 +356,12 @@ async def get_one(
     session: SessionDep,
     trans: Trans,
     id: int = Path(description=f"{PLACEHOLDER_PREFIX}oid"),
-):
+) -> WorkspaceModel:
     db_model = session.get(WorkspaceModel, id)
     if not db_model:
-        raise HTTPException(f"WorkspaceModel with id {id} not found")
+        raise HTTPException(
+            status_code=404, detail=f"WorkspaceModel with id {id} not found"
+        )
     if db_model.name.startswith("i18n"):
         db_model.name = trans(db_model.name)
     return db_model
@@ -372,26 +384,30 @@ async def single_delete(
     session: SessionDep,
     current_user: CurrentUser,
     id: int = Path(description=f"{PLACEHOLDER_PREFIX}oid"),
-):
+) -> None:
     if not current_user.isAdmin:
-        raise HTTPException("only admin can delete workspace")
+        raise HTTPException(status_code=403, detail="only admin can delete workspace")
     if id == 1:
-        raise HTTPException(f"Can not delete default workspace")
+        raise HTTPException(status_code=400, detail="Can not delete default workspace")
     db_model = session.get(WorkspaceModel, id)
     if not db_model:
-        raise HTTPException(f"WorkspaceModel with id {id} not found")
+        raise HTTPException(
+            status_code=404, detail=f"WorkspaceModel with id {id} not found"
+        )
 
     if current_user.oid == id:
         current_user.oid = 1  # reset to default workspace
         update_stmt = (
             sqlmodel_update(UserModel)
-            .where(UserModel.id == current_user.id)
+            .where(col(UserModel.id) == current_user.id)
             .values(oid=1)
         )
         session.exec(update_stmt)
         await clean_user_cache(current_user.id)
 
-    user_ws_list = session.exec(select(UserWsModel).where(UserWsModel.oid == id)).all()
+    user_ws_list = session.exec(
+        select(UserWsModel).where(col(UserWsModel.oid) == id)
+    ).all()
     if user_ws_list:
         # clean user cache
         for user_ws in user_ws_list:
@@ -399,6 +415,6 @@ async def single_delete(
         # reset user default oid
         await reset_user_oid(session, id)
         # delete user_ws
-        session.exec(sqlmodel_delete(UserWsModel).where(UserWsModel.oid == id))
+        session.exec(sqlmodel_delete(UserWsModel).where(col(UserWsModel.oid) == id))
 
     session.delete(db_model)

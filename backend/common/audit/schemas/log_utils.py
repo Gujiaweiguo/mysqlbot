@@ -1,126 +1,184 @@
-from sqlalchemy import select, func
+from importlib import import_module
+from typing import Protocol, cast
+
+from sqlalchemy import String, func, literal, union_all
 from sqlalchemy.sql import Select
-from sqlalchemy import String, union_all
+from sqlalchemy.sql.elements import ColumnElement
+from sqlmodel import col, select
 
 from apps.chat.models.chat_model import Chat
 from apps.dashboard.models.dashboard_model import CoreDashboard
 from apps.data_training.models.data_training_model import DataTraining
 from apps.datasource.models.datasource import CoreDatasource
-from apps.system.models.system_model import WorkspaceModel, AiModelDetail, ApiKeyModel
+from apps.system.models.system_model import (
+    AiModelDetail,
+    ApiKeyModel,
+    AssistantModel,
+    WorkspaceModel,
+)
 from apps.system.models.user import UserModel
 from apps.terminology.models.terminology_model import Terminology
-from apps.system.models.system_model import AssistantModel
-
-from sqlbot_xpack.permissions.models.ds_rules import DsRules
-from sqlbot_xpack.custom_prompt.models.custom_prompt_model import CustomPrompt
-from sqlbot_xpack.permissions.models.ds_permission import DsPermission
-from sqlalchemy import literal_column
 
 
-def build_resource_union_query() -> Select:
+class _NamedResourceModel(Protocol):
+    id: object
+    name: object
+
+
+def _resource_query(
+    id_column: object,
+    name_column: object,
+    module: str,
+    from_model: type[object],
+) -> Select[tuple[object, object, str]]:
+    id_col = cast(ColumnElement[object], col(id_column))
+    name_col = cast(ColumnElement[object], col(name_column))
+    query = select(
+        func.cast(id_col, String).label("id"),
+        name_col.label("name"),
+        literal(module).label("module"),
+    ).select_from(from_model)
+    return cast(Select[tuple[object, object, str]], query)
+
+
+def _load_xpack_model(module_path: str, class_name: str) -> type[_NamedResourceModel]:
+    module = import_module(module_path)
+    model = getattr(module, class_name, None)
+    if not isinstance(model, type):
+        raise TypeError(
+            f"Invalid model '{class_name}' loaded from module '{module_path}'"
+        )
+    return cast(type[_NamedResourceModel], model)
+
+
+def build_resource_union_query() -> Select[tuple[object, object, object]]:
     """
     构建资源名称的union查询
     返回包含id, name, module的查询
     """
     # 创建各个子查询，每个查询都包含module字段
 
+    custom_prompt_model = _load_xpack_model(
+        "sqlbot_xpack.custom_prompt.models.custom_prompt_model", "CustomPrompt"
+    )
+    ds_permission_model = _load_xpack_model(
+        "sqlbot_xpack.permissions.models.ds_permission", "DsPermission"
+    )
+    ds_rules_model = _load_xpack_model(
+        "sqlbot_xpack.permissions.models.ds_rules", "DsRules"
+    )
+
     # ai_model 表查询
-    ai_model_query = select(
-        func.cast(AiModelDetail.id, String).label("id"),
-        AiModelDetail.name.label("name"),
-        literal_column("'ai_model'").label("module")
-    ).select_from(AiModelDetail)
+    ai_model_query = _resource_query(
+        AiModelDetail.id,
+        AiModelDetail.name,
+        "ai_model",
+        AiModelDetail,
+    )
 
     # chat 表查询（使用brief作为name）
-    chat_query = select(
-        func.cast(Chat.id, String).label("id"),
-        Chat.brief.label("name"),
-        literal_column("'chat'").label("module")
-    ).select_from(Chat)
+    chat_query = _resource_query(
+        Chat.id,
+        Chat.brief,
+        "chat",
+        Chat,
+    )
 
     # dashboard 表查询
-    dashboard_query = select(
-        func.cast(CoreDashboard.id, String).label("id"),
-        CoreDashboard.name.label("name"),
-        literal_column("'dashboard'").label("module")
-    ).select_from(CoreDashboard)
+    dashboard_query = _resource_query(
+        CoreDashboard.id,
+        CoreDashboard.name,
+        "dashboard",
+        CoreDashboard,
+    )
 
     # datasource 表查询
-    datasource_query = select(
-        func.cast(CoreDatasource.id, String).label("id"),
-        CoreDatasource.name.label("name"),
-        literal_column("'datasource'").label("module")
-    ).select_from(CoreDatasource)
+    datasource_query = _resource_query(
+        CoreDatasource.id,
+        CoreDatasource.name,
+        "datasource",
+        CoreDatasource,
+    )
 
     # custom_prompt 表查询
-    custom_prompt_query = select(
-        func.cast(CustomPrompt.id, String).label("id"),
-        CustomPrompt.name.label("name"),
-        literal_column("'prompt_words'").label("module")
-    ).select_from(CustomPrompt)
+    custom_prompt_query = _resource_query(
+        custom_prompt_model.id,
+        custom_prompt_model.name,
+        "prompt_words",
+        custom_prompt_model,
+    )
 
     # data_training 表查询（使用question作为name）
-    data_training_query = select(
-        func.cast(DataTraining.id, String).label("id"),
-        DataTraining.question.label("name"),
-        literal_column("'data_training'").label("module")
-    ).select_from(DataTraining)
+    data_training_query = _resource_query(
+        DataTraining.id,
+        DataTraining.question,
+        "data_training",
+        DataTraining,
+    )
 
     # ds_permission 表查询
-    ds_permission_query = select(
-        func.cast(DsPermission.id, String).label("id"),
-        DsPermission.name.label("name"),
-        literal_column("'permission'").label("module")
-    ).select_from(DsPermission)
+    ds_permission_query = _resource_query(
+        ds_permission_model.id,
+        ds_permission_model.name,
+        "permission",
+        ds_permission_model,
+    )
 
     # ds_rules 表查询
-    ds_rules_query = select(
-        func.cast(DsRules.id, String).label("id"),
-        DsRules.name.label("name"),
-        literal_column("'rules'").label("module")
-    ).select_from(DsRules)
+    ds_rules_query = _resource_query(
+        ds_rules_model.id,
+        ds_rules_model.name,
+        "rules",
+        ds_rules_model,
+    )
 
     # sys_user 表查询
-    user_query = select(
-        func.cast(UserModel.id, String).label("id"),
-        UserModel.name.label("name"),
-        literal_column("'user'").label("module")
-    ).select_from(UserModel)
+    user_query = _resource_query(
+        UserModel.id,
+        UserModel.name,
+        "user",
+        UserModel,
+    )
 
     # sys_user 表查询
-    member_query = select(
-        func.cast(UserModel.id, String).label("id"),
-        UserModel.name.label("name"),
-        literal_column("'member'").label("module")
-    ).select_from(UserModel)
+    member_query = _resource_query(
+        UserModel.id,
+        UserModel.name,
+        "member",
+        UserModel,
+    )
 
     # sys_workspace 表查询
-    sys_workspace_query = select(
-        func.cast(WorkspaceModel.id, String).label("id"),
-        WorkspaceModel.name.label("name"),
-        literal_column("'workspace'").label("module")
-    ).select_from(WorkspaceModel)
+    sys_workspace_query = _resource_query(
+        WorkspaceModel.id,
+        WorkspaceModel.name,
+        "workspace",
+        WorkspaceModel,
+    )
 
     # terminology 表查询（使用word作为name）
-    terminology_query = select(
-        func.cast(Terminology.id, String).label("id"),
-        Terminology.word.label("name"),
-        literal_column("'terminology'").label("module")
-    ).select_from(Terminology)
+    terminology_query = _resource_query(
+        Terminology.id,
+        Terminology.word,
+        "terminology",
+        Terminology,
+    )
 
     # sys_assistant 表查询
-    sys_assistant_query = select(
-        func.cast(AssistantModel.id, String).label("id"),
-        AssistantModel.name.label("name"),
-        literal_column("'application'").label("module")
-    ).select_from(AssistantModel)
+    sys_assistant_query = _resource_query(
+        AssistantModel.id,
+        AssistantModel.name,
+        "application",
+        AssistantModel,
+    )
 
     # sys_apikey 表查询
-    sys_apikey_query = select(
-        func.cast(ApiKeyModel.id, String).label("id"),
-        ApiKeyModel.access_key.label("name"),
-        literal_column("'api_key'").label("module")
-    ).select_from(ApiKeyModel)
+    sys_apikey_query = _resource_query(
+        ApiKeyModel.id,
+        ApiKeyModel.access_key,
+        "api_key",
+        ApiKeyModel,
+    )
 
     # 使用 union_all() 方法连接所有查询
     union_query = union_all(
@@ -137,8 +195,9 @@ def build_resource_union_query() -> Select:
         sys_workspace_query,
         terminology_query,
         sys_assistant_query,
-        sys_apikey_query
+        sys_apikey_query,
     )
 
     # 返回查询，包含所有字段
-    return select(union_query.c.id, union_query.c.name, union_query.c.module)
+    final_query = select(union_query.c.id, union_query.c.name, union_query.c.module)
+    return cast(Select[tuple[object, object, object]], final_query)
