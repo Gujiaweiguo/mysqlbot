@@ -43,8 +43,25 @@ export default defineConfig(({ mode }) => {
       chunkSizeWarningLimit: 2000,
       rollupOptions: {
         output: {
-          manualChunks: {
-            'element-plus-secondary': ['element-plus-secondary'],
+          manualChunks: (id) => {
+            if (id.includes('element-plus-secondary')) {
+              return 'element-plus-secondary'
+            }
+            if (id.includes('node_modules/@antv/')) {
+              return 'antv'
+            }
+            if (id.includes('node_modules/lodash/')) {
+              return 'lodash'
+            }
+            if (id.includes('node_modules/echarts/')) {
+              return 'echarts'
+            }
+            if (id.includes('node_modules/zrender/')) {
+              return 'zrender'
+            }
+            if (id.includes('node_modules/vue/') || id.includes('node_modules/vue-router/') || id.includes('node_modules/pinia/')) {
+              return 'vue-vendor'
+            }
           },
         },
       },
