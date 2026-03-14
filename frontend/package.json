@@ -22,7 +22,7 @@
     "@eslint/js": "^9.28.0",
     "@highlightjs/vue-plugin": "^2.1.0",
     "@npkg/tinymce-plugins": "^0.0.7",
-    "@tinymce/tinymce-vue": "^5.1.0",
+    "@tinymce/tinymce-vue": "^6.3.0",
     "@vueuse/core": "^14.1.0",
     "dayjs": "^1.11.13",
     "element-plus": "^2.10.1",
@@ -72,7 +72,6 @@
     "unplugin-auto-import": "^19.1.2",
     "unplugin-vue-components-secondary": "^0.24.6",
     "vite": "^6.3.1",
-    "vite-plugin-svg-icons": "^2.0.1",
     "vite-svg-loader": "^5.1.0",
     "vue-tsc": "^2.2.8"
   }
