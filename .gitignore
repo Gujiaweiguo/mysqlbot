@@ -187,5 +187,10 @@ cython_debug/
 .DS_Store
 test.py
 
+# Runtime data directories
+data/
+
+# Temporary diagnosis/debug files
+*-diagnosis.png
 
 !/.venv/
