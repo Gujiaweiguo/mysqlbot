@@ -10,7 +10,7 @@ const pwdForm = reactive({
   confirm_pwd: '',
 })
 const PWD_REGEX =
-  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[~!@#$%^&*()_+\-={}|:"<>?`\[\];',./])[A-Za-z\d~!@#$%^&*()_+\-={}|:"<>?`\[\];',./]{8,20}$/
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[~!@#$%^&*()_+\-={}|:"<>?`[\];',./])[A-Za-z\d~!@#$%^&*()_+\-={}|:"<>?`[\];',./]{8,20}$/
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 const validatePass = (rule: any, value: any, callback: any) => {

@@ -13,6 +13,7 @@ withDefaults(
   }>(),
   {
     hideAvatar: false,
+    logoAssistant: '',
   }
 )
 const appearanceStore = useAppearanceStoreWithOut()

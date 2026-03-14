@@ -381,7 +381,7 @@
             <span style="width: calc(48% - 2px)">{{ t('variables.variables') }}</span>
             <span>{{ t('variables.variable_value') }}</span>
           </div>
-          <div v-for="(_, index) in state.form.system_variables" class="item">
+          <div v-for="(_, index) in state.form.system_variables" :key="index" class="item">
             <el-select
               v-model="state.form.system_variables[index].variableId"
               style="width: 236px"
@@ -548,7 +548,7 @@ import { request } from '@/utils/request'
 import { workspaceList } from '@/api/workspace'
 import { variablesApi } from '@/api/variables'
 import { formatTimestamp } from '@/utils/date'
-import { ClickOutside as vClickOutside } from 'element-plus-secondary'
+import { ClickOutside as vClickOutside, ElButton } from 'element-plus-secondary'
 import icon_warning_filled from '@/assets/svg/icon_warning_filled.svg'
 import { useClipboard } from '@vueuse/core'
 
