@@ -104,6 +104,9 @@ from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 from sqlmodel import Session, SQLModel, create_engine
 
+from apps.system.schemas.system_schema import UserInfoDTO
+from common.core.config import settings
+
 
 @pytest.fixture(scope="session")
 def test_db_engine() -> Generator[Any, None, None]:
@@ -172,7 +175,81 @@ async def async_client(test_db: Session) -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest.fixture
-def auth_headers() -> dict[str, str]:
+def auth_user() -> UserInfoDTO:
+    return UserInfoDTO(
+        id=1,
+        account="test-admin",
+        oid=1,
+        name="Test Admin",
+        email="test-admin@example.com",
+        status=1,
+        origin=0,
+        oid_list=[1],
+        system_variables=[],
+        language="en",
+        weight=1,
+        isAdmin=True,
+    )
+
+
+@pytest.fixture
+def auth_headers(
+    monkeypatch: pytest.MonkeyPatch, auth_user: UserInfoDTO
+) -> dict[str, str]:
+    from apps.system.middleware.auth import TokenMiddleware
+
+    async def fake_validate_token(
+        self: TokenMiddleware, token: str | None, trans: object
+    ) -> tuple[bool, UserInfoDTO]:
+        _ = self
+        _ = trans
+        assert token == "Bearer test-token"
+        return True, auth_user
+
+    monkeypatch.setattr(TokenMiddleware, "validateToken", fake_validate_token)
+
     return {
-        "Authorization": "Bearer test-token",
+        settings.TOKEN_KEY: "Bearer test-token",
     }
+
+
+@pytest.fixture
+def mock_llm_stream(monkeypatch: pytest.MonkeyPatch) -> Any:
+    class FakeLLM:
+        def __init__(
+            self, chunks: list[str | dict[str, object]], error: Exception | None
+        ) -> None:
+            self._chunks = chunks
+            self._error = error
+
+        async def astream(
+            self, prompt: str
+        ) -> AsyncGenerator[str | dict[str, object], None]:
+            _ = prompt
+            if self._error is not None:
+                raise self._error
+            for chunk in self._chunks:
+                yield chunk
+
+    class FakeLLMInstance:
+        def __init__(
+            self, chunks: list[str | dict[str, object]], error: Exception | None
+        ) -> None:
+            self.llm = FakeLLM(chunks, error)
+
+    def install(
+        *,
+        chunks: list[str | dict[str, object]] | None = None,
+        error: Exception | None = None,
+    ) -> None:
+        from apps.ai_model import model_factory
+
+        def fake_create_llm(config: object) -> FakeLLMInstance:
+            _ = config
+            return FakeLLMInstance(chunks or ["ok"], error)
+
+        monkeypatch.setattr(
+            model_factory.LLMFactory, "create_llm", staticmethod(fake_create_llm)
+        )
+
+    return install

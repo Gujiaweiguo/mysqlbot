@@ -35,3 +35,10 @@ class TestAuthEndpoints:
             headers={"Authorization": "Bearer invalid_token"},
         )
         assert response.status_code == 401
+
+    def test_protected_endpoint_with_auth_headers(
+        self, test_app: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        response = test_app.get("/api/v1/user/info", headers=auth_headers)
+        assert response.status_code == 200
+        assert response.json()["data"]["account"] == "test-admin"
