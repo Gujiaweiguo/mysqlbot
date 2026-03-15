@@ -40,7 +40,7 @@ jobs:
           cache-dependency-glob: "backend/pyproject.toml"
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --extra cpu
 
       - name: Get changed Python files
         id: changed-files
