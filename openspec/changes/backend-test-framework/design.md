@@ -11,7 +11,7 @@ Current state:
 - CI workflow (`quality-check.yml`) runs backend tests and uploads a coverage artifact
 - Backend baseline now passes locally with `136` tests and `30.03%` coverage
 - CI configuration now treats backend test failures as blocking
-- Remaining gap is remote verification in GitHub Actions before this change can be considered fully closed
+- GitHub Actions verification now passes for the blocking backend/frontend quality workflow (`Quality Check (G1-G2)` run `23101653996`)
 
 ## Goals / Non-Goals
 
@@ -100,6 +100,7 @@ Additional test-environment guards disable or stub heavyweight startup/runtime c
 - Run after lint passes
 - Upload coverage report as artifact
 - Once the baseline is reliably green, remove `continue-on-error` so backend tests become a real gate
+- Use the CPU torch extra in CI (`uv sync --extra cpu`, `uv run --extra cpu pytest ...`) so the quality job does not depend on CUDA package downloads
 
 ## Risks / Trade-offs
 

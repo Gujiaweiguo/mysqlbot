@@ -32,5 +32,5 @@ None - this is new infrastructure with no existing specs to modify.
 
 - **Dependencies**: pytest / pytest-asyncio / pytest-cov are now in use for backend validation
 - **Files**: `backend/tests/` now contains shared fixtures plus smoke and unit coverage across `apps/` and `common/`
-- **CI**: `.github/workflows/quality-check.yml` now treats backend test failures as blocking and still uploads `coverage.xml`; GitHub Actions verification remains pending until the workflow runs remotely
+- **CI**: `.github/workflows/quality-check.yml` now treats backend test failures as blocking, uploads `coverage.xml`, and has been verified green in GitHub Actions (`Quality Check (G1-G2)` run `23101653996`)
 - **Coverage Target**: Initial 30% target is now met locally (`136 passed`, `30.03%` coverage)

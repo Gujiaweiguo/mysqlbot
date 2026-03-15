@@ -32,7 +32,7 @@
 - [x] 5.1 Update `.github/workflows/quality-check.yml` to run backend tests
 - [x] 5.2 Add coverage report upload step
 - [x] 5.3 Make backend tests blocking in CI
-- [ ] 5.4 Verify green in GitHub Actions
+- [x] 5.4 Verify green in GitHub Actions
 
 ## 6. Documentation
 
