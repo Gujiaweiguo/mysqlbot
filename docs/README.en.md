@@ -1,14 +1,9 @@
-<p align="center"><img src="https://resource-fit2cloud-com.oss-cn-hangzhou.aliyuncs.com/sqlbot/sqlbot.png" alt="mySQLBot" width="300" /></p>
+
 <h3 align="center">Intelligent Questioning System Based on Large Models and RAG</h3>
 <p align="center">
   <a href="https://trendshift.io/repositories/14540" target="_blank"><img src="https://trendshift.io/api/badge/repositories/14540" alt="dataease%2FmySQLBot | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/dataease/mySQLBot/releases/latest"><img src="https://img.shields.io/github/v/release/dataease/mySQLBot" alt="Latest release"></a>
-  <a href="https://github.com/dataease/mySQLBot"><img src="https://img.shields.io/github/stars/dataease/mySQLBot?color=%231890FF&style=flat-square" alt="Stars"></a>    
-  <a href="https://hub.docker.com/r/dataease/SQLbot"><img src="https://img.shields.io/docker/pulls/dataease/sqlbot?label=downloads" alt="Download"></a><br/>
-</p>
 
 <p align="center">
   <a href="README.md"><img alt="中文(简体)" src="https://img.shields.io/badge/中文(简体)-d9d9d9"></a>
@@ -48,13 +43,8 @@ docker run -d \
   -v ./data/sqlbot/logs:/opt/sqlbot/app/logs \
   -v ./data/postgresql:/var/lib/postgresql/data \
   --privileged=true \
-  dataease/sqlbot
+  my-net/mysqlbot
 ```
-
-You can also quickly deploy mySQLBot through the [1Panel app store](https://apps.fit2cloud.com/1panel).
-
-If you are in an intranet environment, you can deploy mySQLBot via the [offline installation package](https://community.fit2cloud.com/#/products/sqlbot/downloads).
-
 
 ### Access methods
 
@@ -71,23 +61,10 @@ If you are in an intranet environment, you can deploy mySQLBot via the [offline 
     
   </tr>
 
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=dataease/sqlbot&type=Date)](https://www.star-history.com/#dataease/sqlbot&Date)
-
-## Other star projects under FIT2CLOUD
-
-- [DataEase](https://github.com/dataease/dataease/) - Open source BI tools
-- [1Panel](https://github.com/1panel-dev/1panel/) - A modern, open-source Linux server operation and maintenance management panel
-- [MaxKB](https://github.com/1panel-dev/MaxKB/) - Powerful and easy-to-use enterprise-grade intelligent agent platform
-- [JumpServer](https://github.com/jumpserver/jumpserver/) - Popular open source bastion hosts
-- [Cordys CRM](https://github.com/1Panel-dev/CordysCRM) - A new generation of open-source AI CRM systems
-- [Halo](https://github.com/halo-dev/halo/) - Powerful and easy-to-use open-source website building tools
-- [MeterSphere](https://github.com/metersphere/metersphere/) - Next-generation open-source continuous testing tools
 
 ## License
 
-This repository is licensed under the [FIT2CLOUD Open Source License](LICENSE), which is essentially GPLv3 but with some additional restrictions.
+This repository is licensed under the [LICENSE](../LICENSE), which is essentially GPLv3 but with some additional restrictions.
 
 You may conduct secondary development based on the mySQLBot source code, but you must adhere to the following:
 
@@ -95,4 +72,3 @@ You may conduct secondary development based on the mySQLBot source code, but you
 
 - Derivative works resulting from secondary development must comply with the open-source obligations of GPL v3.
 
-For commercial licensing, please contact support@fit2cloud.com.

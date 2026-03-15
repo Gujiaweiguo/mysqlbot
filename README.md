@@ -1,4 +1,4 @@
-<p align="center"><img src="https://resource-fit2cloud-com.oss-cn-hangzhou.aliyuncs.com/sqlbot/sqlbot.png" alt="mySQLBot" width="300" /></p>
+
 <h3 align="center">基于大模型和 RAG 的智能问数系统</h3>
 
 </p>
@@ -51,7 +51,7 @@ docker run -d \
 
 ### 联系我们
 
-如你有更多问题，可以加入我们的技术交流群与我们交流。
+如你有更多问题，可以与我们交流。
 
 ## UI 展示
 
