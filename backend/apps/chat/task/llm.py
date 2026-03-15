@@ -283,6 +283,7 @@ def _custom_prompt_type(enum_name: str) -> object:
 
 class LLMService:
     ds: CoreDatasource | AssistantOutDsSchema | None
+    ds_core_id: int | None
     chat_question: ChatQuestion
     config: LLMConfig
     llm: BaseChatModel
@@ -331,6 +332,7 @@ class LLMService:
         self.record: ChatRecord = ChatRecord.model_construct()
         self.future: Future[None] = Future()
         self.future.set_result(None)
+        self.ds_core_id = None
         chat_id = chat_question.chat_id
         chat: Chat | None = session.get(Chat, chat_id)
         if not chat:
@@ -383,7 +385,7 @@ class LLMService:
         chat_question.lang = get_lang_name(current_user.language)
         self.trans = i18n(lang=current_user.language)
 
-        self.ds = ds
+        self._set_datasource(ds)
         self.chat_question = chat_question
         if config is None:
             raise SingleMessageError("No available model configuration found")
@@ -463,6 +465,18 @@ class LLMService:
                     count_value = 0
                 instance.base_message_round_count_limit = count_value
         return instance
+
+    def _set_datasource(self, ds: CoreDatasource | AssistantOutDsSchema | None) -> None:
+        self.ds = ds
+        self.ds_core_id = ds.id if isinstance(ds, CoreDatasource) else None
+
+    def _ensure_runtime_datasource(self, _session: Session) -> None:
+        if self.ds_core_id is None:
+            return
+        current_ds = _session.get(CoreDatasource, self.ds_core_id)
+        if current_ds is None:
+            raise SingleMessageError("No available datasource configuration found")
+        self.ds = current_ds
 
     def is_running(self, timeout: float = 0.5) -> bool:
         try:
@@ -1027,7 +1041,7 @@ class LLMService:
                             "No available datasource configuration found"
                         )
                     out_ds_schema = self.out_ds_instance.get_ds(data_id)
-                    self.ds = out_ds_schema
+                    self._set_datasource(out_ds_schema)
                     ds_type = out_ds_schema.type or ""
                     self.chat_question.engine = ds_type + get_version(out_ds_schema)
 
@@ -1039,10 +1053,10 @@ class LLMService:
                         raise SingleMessageError(
                             f"Datasource configuration with id {_datasource} not found"
                         )
-                    self.ds = db_ds
+                    self._set_datasource(db_ds)
                     self.chat_question.engine = (
                         db_ds.type_name if db_ds.type != "excel" else "PostgreSQL"
-                    ) + get_version(self.ds)
+                    ) + get_version(db_ds)
 
                     _engine_type = self.chat_question.engine
                     _chat.engine_type = db_ds.type_name or ""
@@ -1644,6 +1658,7 @@ class LLMService:
         _session: Session | None = None
         try:
             _session = session_maker()
+            self._ensure_runtime_datasource(_session)
             if self.ds:
                 oid = self.ds.oid if isinstance(self.ds, CoreDatasource) else 1
                 ds_id = self.ds.id if isinstance(self.ds, CoreDatasource) else None
@@ -2132,6 +2147,7 @@ class LLMService:
         _session: Session | None = None
         try:
             _session = session_maker()
+            self._ensure_runtime_datasource(_session)
             res = self.generate_recommend_questions_task(_session)
 
             for chunk in res:
@@ -2190,6 +2206,7 @@ class LLMService:
         _session: Session | None = None
         try:
             _session = session_maker()
+            self._ensure_runtime_datasource(_session)
             record_id = self.get_record().id
             if record_id is None:
                 raise SingleMessageError("Record not initialized")
