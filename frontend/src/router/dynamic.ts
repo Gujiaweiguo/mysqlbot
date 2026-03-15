@@ -1,7 +1,5 @@
 import LayoutDsl from '@/components/layout/LayoutDsl.vue'
 
-import Datasource from '@/views/ds/Datasource.vue'
-import SetAssistant from '@/views/system/embedded/iframe.vue'
 import { i18n } from '@/i18n'
 import { useUserStore } from '@/stores/user'
 import type { Router } from 'vue-router'
@@ -18,7 +16,7 @@ const dynamicRouterList = [
       {
         path: 'index',
         name: 'ds',
-        component: Datasource,
+        component: () => import('@/views/ds/Datasource.vue'),
         meta: { title: t('menu.Data Connections'), iconActive: 'ds', iconDeActive: 'noDs' },
       },
     ],
@@ -32,7 +30,7 @@ const dynamicRouterList = [
       {
         path: 'index',
         name: 'as',
-        component: SetAssistant,
+        component: () => import('@/views/system/embedded/iframe.vue'),
         meta: {
           title: t('embedded.assistant_app'),
           iconActive: 'embedded',

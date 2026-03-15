@@ -47,8 +47,14 @@ export default defineConfig(({ mode }) => {
             if (id.includes('element-plus-secondary')) {
               return 'element-plus-secondary'
             }
-            if (id.includes('node_modules/@antv/')) {
-              return 'antv'
+            if (id.includes('node_modules/@antv/g2/')) {
+              return 'antv-g2'
+            }
+            if (id.includes('node_modules/@antv/s2/')) {
+              return 'antv-s2'
+            }
+            if (id.includes('node_modules/@antv/x6/')) {
+              return 'antv-x6'
             }
             if (id.includes('node_modules/lodash/')) {
               return 'lodash'
@@ -59,7 +65,11 @@ export default defineConfig(({ mode }) => {
             if (id.includes('node_modules/zrender/')) {
               return 'zrender'
             }
-            if (id.includes('node_modules/vue/') || id.includes('node_modules/vue-router/') || id.includes('node_modules/pinia/')) {
+            if (
+              id.includes('node_modules/vue/') ||
+              id.includes('node_modules/vue-router/') ||
+              id.includes('node_modules/pinia/')
+            ) {
               return 'vue-vendor'
             }
           },
