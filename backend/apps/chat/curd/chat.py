@@ -1,6 +1,6 @@
 import datetime
 from collections.abc import Mapping
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
 
 import orjson
 import sqlparse
@@ -1052,13 +1052,19 @@ def create_chat(
     if not create_chat_obj.question or create_chat_obj.question.strip() == "":
         create_chat_obj.question = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    chat = Chat.model_construct(
-        create_time=datetime.datetime.now(),
-        create_by=current_user.id,
-        oid=current_user.oid,
-        brief=create_chat_obj.question.strip()[:20],
-        origin=create_chat_obj.origin if create_chat_obj.origin is not None else 0,
-    )
+    chat_payload: dict[str, Any] = {
+        "id": None,
+        "create_time": datetime.datetime.now(),
+        "create_by": current_user.id,
+        "oid": current_user.oid,
+        "brief": create_chat_obj.question.strip()[:20],
+        "origin": create_chat_obj.origin if create_chat_obj.origin is not None else 0,
+        "datasource": create_chat_obj.datasource,
+        "engine_type": "",
+        "recommended_question_answer": None,
+        "recommended_question": None,
+    }
+    chat = Chat(**chat_payload)
     ds: CoreDatasource | AssistantOutDsSchema | None = None
     if create_chat_obj.datasource:
         chat.datasource = create_chat_obj.datasource
@@ -1100,16 +1106,38 @@ def create_chat(
 
     if require_datasource and ds:
         # generate first empty record
-        record = ChatRecord.model_construct()
+        record_payload: dict[str, Any] = {
+            "id": None,
+            "chat_id": chat.id,
+            "ai_modal_id": None,
+            "first_chat": True,
+            "create_time": datetime.datetime.now(),
+            "finish_time": None,
+            "create_by": current_user.id,
+            "datasource": ds.id,
+            "engine_type": ds.type_name,
+            "question": None,
+            "sql_answer": None,
+            "sql": None,
+            "sql_exec_result": None,
+            "data": None,
+            "chart_answer": None,
+            "chart": None,
+            "analysis": None,
+            "predict": None,
+            "predict_data": None,
+            "recommended_question_answer": None,
+            "recommended_question": None,
+            "datasource_select_answer": None,
+            "finish": True,
+            "error": None,
+            "analysis_record_id": None,
+            "predict_record_id": None,
+            "regenerate_record_id": None,
+        }
+        record = ChatRecord(**record_payload)
         if chat.id is None or ds.id is None or ds.type_name is None:
             raise Exception("Invalid chat or datasource data")
-        record.chat_id = chat.id
-        record.datasource = ds.id
-        record.engine_type = ds.type_name
-        record.first_chat = True
-        record.finish = True
-        record.create_time = datetime.datetime.now()
-        record.create_by = current_user.id
         if isinstance(ds, CoreDatasource) and ds.recommended_config == 2:
             questions = get_datasource_recommended_chart(session, ds.id)
             record.recommended_question = orjson.dumps(questions).decode()
@@ -1117,7 +1145,7 @@ def create_chat(
                 {"content": questions}
             ).decode()
 
-        _record = ChatRecord.model_validate(record.model_dump())
+        _record = record.model_copy(deep=True)
 
         session.add(record)
         session.flush()
@@ -1143,20 +1171,40 @@ def save_question(
     if not chat:
         raise Exception(f"Chat with id {question.chat_id} not found")
 
-    record = ChatRecord.model_construct()
-    record.question = question.question
+    record_payload: dict[str, Any] = {
+        "id": None,
+        "chat_id": chat.id,
+        "ai_modal_id": question.ai_modal_id,
+        "first_chat": False,
+        "create_time": datetime.datetime.now(),
+        "finish_time": None,
+        "create_by": current_user.id,
+        "datasource": chat.datasource,
+        "engine_type": chat.engine_type,
+        "question": question.question,
+        "sql_answer": None,
+        "sql": None,
+        "sql_exec_result": None,
+        "data": None,
+        "chart_answer": None,
+        "chart": None,
+        "analysis": None,
+        "predict": None,
+        "predict_data": None,
+        "recommended_question_answer": None,
+        "recommended_question": None,
+        "datasource_select_answer": None,
+        "finish": False,
+        "error": None,
+        "analysis_record_id": None,
+        "predict_record_id": None,
+        "regenerate_record_id": question.regenerate_record_id,
+    }
+    record = ChatRecord(**record_payload)
     if chat.id is None:
         raise Exception(f"Chat with id {question.chat_id} not found")
-    record.chat_id = chat.id
-    record.create_time = datetime.datetime.now()
-    record.create_by = current_user.id
-    record.datasource = chat.datasource
-    record.engine_type = chat.engine_type
-    record.ai_modal_id = question.ai_modal_id
-    if question.regenerate_record_id is not None:
-        record.regenerate_record_id = question.regenerate_record_id
 
-    result = ChatRecord.model_validate(record.model_dump())
+    result = record.model_copy(deep=True)
 
     session.add(record)
     session.flush()
@@ -1170,16 +1218,36 @@ def save_question(
 def save_analysis_predict_record(
     session: SessionDep, base_record: ChatRecord, action_type: str
 ) -> ChatRecord:
-    record = ChatRecord.model_construct()
-    record.question = base_record.question
-    record.chat_id = base_record.chat_id
-    record.datasource = base_record.datasource
-    record.engine_type = base_record.engine_type
-    record.ai_modal_id = base_record.ai_modal_id
-    record.create_time = datetime.datetime.now()
-    record.create_by = base_record.create_by
-    record.chart = base_record.chart
-    record.data = base_record.data
+    record_payload: dict[str, Any] = {
+        "id": None,
+        "chat_id": base_record.chat_id,
+        "ai_modal_id": base_record.ai_modal_id,
+        "first_chat": False,
+        "create_time": datetime.datetime.now(),
+        "finish_time": None,
+        "create_by": base_record.create_by,
+        "datasource": base_record.datasource,
+        "engine_type": base_record.engine_type,
+        "question": base_record.question,
+        "sql_answer": None,
+        "sql": None,
+        "sql_exec_result": None,
+        "data": base_record.data,
+        "chart_answer": None,
+        "chart": base_record.chart,
+        "analysis": None,
+        "predict": None,
+        "predict_data": None,
+        "recommended_question_answer": None,
+        "recommended_question": None,
+        "datasource_select_answer": None,
+        "finish": False,
+        "error": None,
+        "analysis_record_id": None,
+        "predict_record_id": None,
+        "regenerate_record_id": None,
+    }
+    record = ChatRecord(**record_payload)
 
     if action_type == "analysis":
         if base_record.id is not None:
@@ -1188,7 +1256,7 @@ def save_analysis_predict_record(
         if base_record.id is not None:
             record.predict_record_id = base_record.id
 
-    result = ChatRecord.model_validate(record.model_dump())
+    result = record.model_copy(deep=True)
 
     session.add(record)
     session.flush()
@@ -1208,18 +1276,24 @@ def start_log(
     full_message: list[MessagePayload] | MessagePayload | None = None,
     local_operation: bool = False,
 ) -> ChatLog:
-    log = ChatLog.model_construct(
-        type=TypeEnum.CHAT,
-        operate=operate,
-        pid=record_id,
-        ai_modal_id=ai_modal_id,
-        base_modal=ai_modal_name,
-        messages=full_message,
-        start_time=datetime.datetime.now(),
-        local_operation=local_operation,
-    )
+    log_payload: dict[str, Any] = {
+        "id": None,
+        "type": TypeEnum.CHAT,
+        "operate": operate,
+        "pid": record_id,
+        "ai_modal_id": ai_modal_id,
+        "base_modal": ai_modal_name,
+        "messages": full_message,
+        "reasoning_content": None,
+        "start_time": datetime.datetime.now(),
+        "finish_time": None,
+        "token_usage": None,
+        "local_operation": local_operation,
+        "error": False,
+    }
+    log = ChatLog(**log_payload)
 
-    result = ChatLog.model_validate(log.model_dump())
+    result = log.model_copy(deep=True)
 
     session.add(log)
     session.flush()
@@ -1363,7 +1437,7 @@ def save_select_datasource_answer(
         record.datasource = datasource
         record.engine_type = engine_type if engine_type is not None else ""
 
-    result = ChatRecord.model_validate(record.model_dump())
+    result = record.model_copy(deep=True)
 
     if datasource:
         stmt = (
@@ -1460,7 +1534,7 @@ def save_sql(session: SessionDep, record_id: int, sql: str) -> ChatRecord:
 
     record.sql = sql
 
-    result = ChatRecord.model_validate(record.model_dump())
+    result = record.model_copy(deep=True)
 
     stmt = (
         update(ChatRecord)
@@ -1507,7 +1581,7 @@ def save_chart(session: SessionDep, record_id: int, chart: str) -> ChatRecord:
 
     record.chart = chart
 
-    result = ChatRecord.model_validate(record.model_dump())
+    result = record.model_copy(deep=True)
 
     stmt = (
         update(ChatRecord)
@@ -1533,7 +1607,7 @@ def save_predict_data(
 
     record.predict_data = data
 
-    result = ChatRecord.model_validate(record.model_dump())
+    result = record.model_copy(deep=True)
 
     stmt = (
         update(ChatRecord)
@@ -1559,7 +1633,7 @@ def save_error_message(session: SessionDep, record_id: int, message: str) -> Cha
     record.finish = True
     record.finish_time = datetime.datetime.now()
 
-    result = ChatRecord.model_validate(record.model_dump())
+    result = record.model_copy(deep=True)
 
     stmt = (
         update(ChatRecord)
@@ -1594,7 +1668,7 @@ def save_sql_exec_data(session: SessionDep, record_id: int, data: str) -> ChatRe
 
     record.data = data
 
-    result = ChatRecord.model_validate(record.model_dump())
+    result = record.model_copy(deep=True)
 
     stmt = (
         update(ChatRecord)
@@ -1621,7 +1695,7 @@ def finish_record(session: SessionDep, record_id: int) -> ChatRecord:
     record.finish = True
     record.finish_time = datetime.datetime.now()
 
-    result = ChatRecord.model_validate(record.model_dump())
+    result = record.model_copy(deep=True)
 
     stmt = (
         update(ChatRecord)
