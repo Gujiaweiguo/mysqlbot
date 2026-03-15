@@ -2,7 +2,6 @@ import os.path
 import threading
 
 from langchain_core.embeddings import Embeddings
-from langchain_huggingface import HuggingFaceEmbeddings
 from pydantic import BaseModel
 
 from common.core.config import settings
@@ -32,6 +31,8 @@ _embedding_model: dict[str, Embeddings | None] = {}
 class EmbeddingModelCache:
     @staticmethod
     def _new_instance(config: EmbeddingModelInfo = local_embedding_model) -> Embeddings:
+        from langchain_huggingface import HuggingFaceEmbeddings
+
         return HuggingFaceEmbeddings(
             model_name=config.name,
             cache_folder=config.folder,

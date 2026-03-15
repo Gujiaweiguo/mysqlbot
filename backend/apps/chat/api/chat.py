@@ -2,6 +2,7 @@ import asyncio
 import io
 import traceback
 from collections.abc import Iterator
+from importlib import import_module
 from typing import Any, cast
 
 import orjson
@@ -43,7 +44,6 @@ from apps.chat.models.chat_model import (
     QuickCommand,
     RenameChat,
 )
-from apps.chat.task.llm import LLMService
 from apps.swagger.i18n import PLACEHOLDER_PREFIX
 from apps.system.schemas.permission import SqlbotPermission, require_permissions
 from common.audit.models.log_model import OperationModules, OperationType
@@ -53,6 +53,11 @@ from common.utils.command_utils import parse_quick_command
 from common.utils.data_format import DataFormat
 
 router = APIRouter(tags=["Data Q&A"], prefix="/chat")
+
+
+def _get_llm_service_class() -> type[Any]:
+    module = import_module("apps.chat.task.llm")
+    return cast(type[Any], module.LLMService)
 
 
 @router.get(
@@ -358,7 +363,7 @@ async def ask_recommend_questions(
             chat_id=record.chat_id, question=record.question if record.question else ""
         )
 
-        llm_service = await cast(Any, LLMService).create(
+        llm_service = await cast(Any, _get_llm_service_class()).create(
             session, current_user, request_question, current_assistant, True
         )
         llm_service.set_record(record)
@@ -409,7 +414,9 @@ def find_base_question(record_id: int, session: SessionDep) -> str:
     return base_question
 
 
-@router.post("/question", summary=f"{PLACEHOLDER_PREFIX}ask_question")
+@router.post(
+    "/question", response_model=None, summary=f"{PLACEHOLDER_PREFIX}ask_question"
+)
 @require_permissions(
     permission=SqlbotPermission(type="chat", keyExpression="request_question.chat_id")
 )
@@ -609,7 +616,7 @@ async def stream_sql(
     embedding: bool = False,
 ) -> StreamingResponse | JSONResponse:
     try:
-        llm_service = await cast(Any, LLMService).create(
+        llm_service = await cast(Any, _get_llm_service_class()).create(
             session,
             current_user,
             request_question,
@@ -660,6 +667,7 @@ async def stream_sql(
 
 @router.post(
     "/record/{chat_record_id}/{action_type}",
+    response_model=None,
     summary=f"{PLACEHOLDER_PREFIX}analysis_or_predict",
 )
 async def analysis_or_predict_question(
@@ -702,7 +710,7 @@ async def analysis_or_predict(
             chat_id=record.chat_id, question=record.question
         )
 
-        llm_service = await cast(Any, LLMService).create(
+        llm_service = await cast(Any, _get_llm_service_class()).create(
             session, current_user, request_question, current_assistant
         )
         llm_service.run_analysis_or_predict_task_async(

@@ -86,8 +86,25 @@ def _get_fastapi_mcp_class() -> Any:
     return mcp_module.FastApiMCP
 
 
+def _should_run_startup_tasks() -> bool:
+    return os.getenv("SKIP_STARTUP_TASKS", "false").lower() not in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
+def _should_setup_mcp() -> bool:
+    return os.getenv("SKIP_MCP_SETUP", "false").lower() not in {"1", "true", "yes"}
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    if not _should_run_startup_tasks():
+        SQLBotLogUtil.info("⏭️ Skipping startup side effects")
+        yield
+        return
+
     xpack_core = _get_xpack_core()
     run_migrations()
     init_sqlbot_cache()
@@ -264,7 +281,8 @@ app.add_exception_handler(
 )
 app.add_exception_handler(Exception, exception_handler.global_exception_handler)
 
-mcp.setup_server()
+if _should_setup_mcp():
+    mcp.setup_server()
 
 import_module("sqlbot_xpack").init_fastapi_app(app)
 if __name__ == "__main__":

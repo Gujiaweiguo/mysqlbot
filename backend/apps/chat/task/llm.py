@@ -8,13 +8,12 @@ from collections.abc import Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime
 from importlib import import_module
-from typing import Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import httpx
 import orjson
 import pandas as pd
 import sqlparse
-from langchain.chat_models.base import BaseChatModel
 from langchain_community.utilities import SQLDatabase
 from langchain_core.messages import (
     AIMessage,
@@ -95,6 +94,11 @@ from common.error import (
 from common.utils.data_format import DataFormat
 from common.utils.locale import I18n, I18nHelper
 from common.utils.utils import SQLBotLogUtil, extract_nested_json, prepare_for_orjson
+
+if TYPE_CHECKING:
+    from langchain.chat_models.base import BaseChatModel
+else:
+    BaseChatModel = Any
 
 warnings.filterwarnings("ignore")
 

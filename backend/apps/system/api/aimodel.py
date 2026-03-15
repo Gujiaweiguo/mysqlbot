@@ -1,12 +1,12 @@
 import json
 from collections.abc import AsyncIterator
+from importlib import import_module
 from typing import Any, cast
 
 from fastapi import APIRouter, Path, Query
 from fastapi.responses import StreamingResponse
 from sqlmodel import col, func, select, update
 
-from apps.ai_model.model_factory import LLMConfig, LLMFactory
 from apps.swagger.i18n import PLACEHOLDER_PREFIX
 from apps.system.models.system_model import AiModelDetail
 from apps.system.schemas.ai_model_schema import (
@@ -31,19 +31,22 @@ router = APIRouter(tags=["system_model"], prefix="/system/aimodel")
 async def check_llm(info: AiModelCreator, trans: Trans) -> StreamingResponse:
     async def generate() -> AsyncIterator[str]:
         try:
+            model_factory_module = import_module("apps.ai_model.model_factory")
+            llm_config_cls = model_factory_module.LLMConfig
+            llm_factory_cls = model_factory_module.LLMFactory
             additional_params = {
                 item.key: prepare_model_arg(item.val)
                 for item in info.config_list
                 if item.key and item.val
             }
-            config = LLMConfig(
+            config = llm_config_cls(
                 model_type="openai" if info.protocol == 1 else "vllm",
                 model_name=info.base_model,
                 api_key=info.api_key,
                 api_base_url=info.api_domain,
                 additional_params=additional_params,
             )
-            llm_instance = LLMFactory.create_llm(config)
+            llm_instance = llm_factory_cls.create_llm(config)
             async for chunk in llm_instance.llm.astream("1+1=?"):
                 SQLBotLogUtil.info(str(chunk))
                 if chunk and isinstance(chunk, str):

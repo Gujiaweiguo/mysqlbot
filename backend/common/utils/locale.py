@@ -79,7 +79,7 @@ class I18n:
         *,
         key: str | None = None,
         **kwargs: Any,
-    ) -> "I18nHelper" | str:
+    ) -> "I18nHelper | str":
         if key is not None:
             helper = I18nHelper(
                 self, request if isinstance(request, Request) else None, lang

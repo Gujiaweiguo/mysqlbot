@@ -1,20 +1,29 @@
 import json
 from abc import ABC, abstractmethod
 from functools import lru_cache
-from typing import Any, cast
+from importlib import import_module
+from typing import TYPE_CHECKING, Any, cast
 
-from langchain.chat_models.base import BaseChatModel
-from langchain_community.llms import VLLMOpenAI
-from langchain_openai import AzureChatOpenAI
 from pydantic import BaseModel, SecretStr
 from sqlmodel import Session, col, select
 from typing_extensions import override
 
-from apps.ai_model.openai.llm import BaseChatOpenAI
 from apps.system.models.system_model import AiModelDetail
 from common.core.db import engine
 from common.utils.crypto import sqlbot_decrypt
 from common.utils.utils import prepare_model_arg
+
+if TYPE_CHECKING:
+    from langchain.chat_models.base import BaseChatModel
+    from langchain_community.llms import VLLMOpenAI
+    from langchain_openai import AzureChatOpenAI
+
+    from apps.ai_model.openai.llm import BaseChatOpenAI
+else:
+    BaseChatModel = Any
+    VLLMOpenAI = Any
+    AzureChatOpenAI = Any
+    BaseChatOpenAI = Any
 
 # from langchain_community.llms import Tongyi, VLLM
 
@@ -74,6 +83,7 @@ class BaseLLM(ABC):
 class OpenAIvLLM(BaseLLM):
     @override
     def _init_llm(self) -> BaseChatModel:
+        vllm_cls = import_module("langchain_community.llms").VLLMOpenAI
         llm = VLLMOpenAI(
             openai_api_key=self.config.api_key or "Empty",
             openai_api_base=self.config.api_base_url,
@@ -87,6 +97,7 @@ class OpenAIvLLM(BaseLLM):
 class OpenAIAzureLLM(BaseLLM):
     @override
     def _init_llm(self) -> AzureChatOpenAI:
+        azure_chat_openai_cls = import_module("langchain_openai").AzureChatOpenAI
         params = dict(self.config.additional_params)
         api_version_raw = params.pop("api_version", None)
         deployment_name_raw = params.pop("deployment_name", None)
@@ -94,7 +105,7 @@ class OpenAIAzureLLM(BaseLLM):
         deployment_name = (
             deployment_name_raw if isinstance(deployment_name_raw, str) else None
         )
-        return AzureChatOpenAI(
+        return azure_chat_openai_cls(
             azure_endpoint=self.config.api_base_url,
             api_key=SecretStr(self.config.api_key) if self.config.api_key else None,
             model=self.config.model_name,
@@ -108,7 +119,8 @@ class OpenAIAzureLLM(BaseLLM):
 class OpenAILLM(BaseLLM):
     @override
     def _init_llm(self) -> BaseChatModel:
-        return BaseChatOpenAI(
+        base_chat_openai_cls = import_module("apps.ai_model.openai.llm").BaseChatOpenAI
+        return base_chat_openai_cls(
             model=self.config.model_name,
             api_key=SecretStr(self.config.api_key) if self.config.api_key else None,
             base_url=self.config.api_base_url,

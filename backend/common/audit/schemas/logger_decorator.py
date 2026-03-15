@@ -576,18 +576,23 @@ def system_log(
                     if not isinstance(input_account_dec, str):
                         input_account_dec = ""
                     input_account = await sqlbot_decrypt(input_account_dec)
-                    with Session(engine) as session:
-                        userInfo = get_user_by_account(
-                            session=session, account=input_account
-                        )
-                        if userInfo is not None:
-                            resource_id = userInfo.id
-                            resource_name = userInfo.name
-                            oid = userInfo.oid
-                        else:
-                            resource_id = -1
-                            oid = -1
-                            resource_name = input_account
+                    try:
+                        with Session(engine) as session:
+                            userInfo = get_user_by_account(
+                                session=session, account=input_account
+                            )
+                            if userInfo is not None:
+                                resource_id = userInfo.id
+                                resource_name = userInfo.name
+                                oid = userInfo.oid
+                            else:
+                                resource_id = -1
+                                oid = -1
+                                resource_name = input_account
+                    except Exception:
+                        resource_id = -1
+                        oid = -1
+                        resource_name = input_account
                 if config.operation_type == OperationType.DELETE:
                     with Session(engine) as session:
                         module = config.module or ""
