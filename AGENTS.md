@@ -35,7 +35,8 @@ Notes:
 - Dev server (reload): `uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload`
 - Lint/typecheck script: `bash scripts/lint.sh`
 - Format script: `bash scripts/format.sh`
-- Test script (coverage): `bash scripts/test.sh`
+- Run all tests: `uv run pytest`
+- Run tests with coverage: `uv run pytest --cov=apps --cov=common --cov-report=term-missing`
 
 Notes:
 - `scripts/lint.sh` currently runs: `mypy app`, `ruff check app`, `ruff format app --check`.
@@ -52,18 +53,18 @@ Notes:
 - Start stack: `docker-compose up -d`
 
 ## 4) Single-Test Commands (Priority)
-Backend has `pytest` installed, but no committed `tests/` files were detected at scan time.
-When tests exist, use these patterns:
+Backend has `pytest` configured with tests in `backend/tests/`. Use these patterns:
 
-- Single file: `uv run pytest path/to/test_file.py`
-- Single function: `uv run pytest path/to/test_file.py::test_name`
-- Single class method: `uv run pytest path/to/test_file.py::TestClass::test_method`
+- Single file: `uv run pytest tests/path/to/test_file.py`
+- Single function: `uv run pytest tests/path/to/test_file.py::test_name`
+- Single class method: `uv run pytest tests/path/to/test_file.py::TestClass::test_method`
 - Name filter: `uv run pytest -k "keyword"`
 
 Useful flags:
 - Verbose: `-v`
 - Stop on first fail: `-x`
 - Show prints/stdout: `-s`
+- Coverage: `--cov=apps --cov=common --cov-report=term-missing`
 
 Frontend test runner status:
 - No Vitest/Jest script/config is present now.
