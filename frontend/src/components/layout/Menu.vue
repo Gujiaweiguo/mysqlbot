@@ -85,6 +85,16 @@ const routerList = computed(() => {
   --ed-menu-bg-color: transparent;
   --ed-menu-base-level-padding: 4px;
   border-right: none;
+
+  .ed-menu-item,
+  .ed-sub-menu {
+    list-style: none;
+
+    &::marker {
+      content: '';
+    }
+  }
+
   .ed-menu-item {
     height: 40px !important;
     border-radius: 6px !important;
@@ -129,6 +139,15 @@ const routerList = computed(() => {
 .ed-menu--popup {
   padding: 8px;
   background: #eff1f0;
+
+  .ed-menu-item,
+  .ed-sub-menu {
+    list-style: none;
+
+    &::marker {
+      content: '';
+    }
+  }
 
   .ed-menu-item {
     padding: 9px 16px;
