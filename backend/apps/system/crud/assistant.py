@@ -20,7 +20,6 @@ from apps.system.schemas.system_schema import (
 from common.core.config import settings
 from common.core.db import engine
 from common.core.sqlbot_cache import cache
-from common.utils.aes_crypto import simple_aes_decrypt
 from common.utils.locale import I18nHelper
 from common.utils.utils import SQLBotLogUtil, get_domain_list, string_to_numeric_hash
 
@@ -383,6 +382,8 @@ class AssistantOutDs:
                 attr_value = ds_dict.get(attr)
                 if isinstance(attr_value, str):
                     try:
+                        from common.utils.aes_crypto import simple_aes_decrypt
+
                         ds_dict[attr] = simple_aes_decrypt(
                             attr_value,
                             key_text,
