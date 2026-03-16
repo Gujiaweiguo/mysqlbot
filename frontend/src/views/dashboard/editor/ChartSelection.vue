@@ -24,7 +24,7 @@ const curSelectChange = (value: boolean) => {
 
 <template>
   <div class="chart-selection-container">
-    <el-checkbox class="select-area" :value="isSelected" @change="curSelectChange"></el-checkbox>
+    <el-checkbox v-model="isSelected" class="select-area" @change="curSelectChange"></el-checkbox>
     <SQView :view-info="viewInfo" show-position="multiplexing"></SQView>
   </div>
 </template>
