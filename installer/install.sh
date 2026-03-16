@@ -80,12 +80,12 @@ function prepare_sqlbot_run_base() {
 
     mkdir -p ${SQLBOT_RUN_BASE}/conf
     mkdir -p ${SQLBOT_RUN_BASE}/data/sqlbot/{excel,images,logs}
+    mkdir -p ${SQLBOT_RUN_BASE}/data/redis
 
     if [ "${SQLBOT_EXTERNAL_DB}" = "false" ]; then
         mkdir -p ${SQLBOT_RUN_BASE}/data/postgresql
+        export SQLBOT_DB_HOST=postgresql
         export SQLBOT_DB_PORT=5432
-    else
-        sed -i -e "/^    depends_on/,+2d" docker-compose.yml
     fi
 
     log_content "调整配置文件参数"

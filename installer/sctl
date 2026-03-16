@@ -14,6 +14,10 @@ source ${SQLBOT_RUNNING_BASE}/.env
 set +a
 export COMPOSE_HTTP_TIMEOUT=180
 
+if [[ "${SQLBOT_CACHE_TYPE}" == "redis" ]] && [[ -f "${SQLBOT_RUNNING_BASE}/docker-compose.redis.yml" ]]; then
+   compose_files="-f docker-compose.yml -f docker-compose.redis.yml"
+fi
+
 docker-compose version >/dev/null 2>&1
 if [ $? -ne 0 ]; then
    docker compose version >/dev/null 2>&1
