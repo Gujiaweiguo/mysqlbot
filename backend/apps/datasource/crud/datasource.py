@@ -155,7 +155,8 @@ def ensure_internal_pg_datasource(
     conf.extraJdbc = ""
     conf.driver = ""
     conf.sheets = []
-    datasource = CoreDatasource.model_construct(
+    datasource = CoreDatasource(
+        id=None,
         name=DEFAULT_INTERNAL_DS_NAME,
         description=DEFAULT_INTERNAL_DS_DESCRIPTION,
         type="pg",
@@ -312,7 +313,10 @@ def chooseTables(
 def update_ds(
     session: SessionDep, trans: Trans, user: CurrentUser, ds: CoreDatasource
 ) -> CoreDatasource:
-    ds.id = int(ds.id)
+    ds_id = cast(object, ds.id)
+    if not isinstance(ds_id, int):
+        raise HTTPException(status_code=500, detail=trans("i18n_ds_invalid"))
+    ds.id = ds_id
     check_name(session, trans, user, ds)
     # status = check_status(session, trans, ds)
     ds.status = "Success"
@@ -426,7 +430,8 @@ def sync_single_fields(session: SessionDep, trans: Trans, id: int) -> None:
 
     # do table embedding
     run_save_table_embeddings([table.id])
-    run_save_ds_embeddings([ds.id])
+    if ds.id is not None:
+        run_save_ds_embeddings([ds.id])
 
 
 def sync_table(
@@ -495,7 +500,8 @@ def sync_table(
 
     # do table embedding
     run_save_table_embeddings(id_list)
-    run_save_ds_embeddings([ds.id])
+    if ds.id is not None:
+        run_save_ds_embeddings([ds.id])
 
 
 def sync_fields(
@@ -720,11 +726,14 @@ def updateNum(session: SessionDep, ds: CoreDatasource) -> None:
         get_tables(ds) if ds.type != "excel" else _get_datasource_conf(ds).sheets
     )
     all_tables_list = all_tables or []
-    selected_tables = get_tables_by_ds_id(session, ds.id)
+    ds_id = cast(object, ds.id)
+    if not isinstance(ds_id, int):
+        return
+    selected_tables = get_tables_by_ds_id(session, ds_id)
     num = f"{len(selected_tables)}/{len(all_tables_list)}"
 
     record = session.exec(
-        select(CoreDatasource).where(col(CoreDatasource.id) == ds.id)
+        select(CoreDatasource).where(col(CoreDatasource.id) == ds_id)
     ).first()
     if record is None:
         return
@@ -980,7 +989,7 @@ async def get_ws_ds(session: SessionDep, oid: int) -> list[int]:
         select(col(CoreDatasource.id)).distinct().where(col(CoreDatasource.oid) == oid)
     )
     db_list = session.exec(stmt).all()
-    return list(db_list)
+    return [db_id for db_id in db_list if isinstance(db_id, int)]
 
 
 @clear_cache(

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, field_validator
 from sqlalchemy import BigInteger, Column, DateTime, Identity, Text
@@ -8,31 +8,32 @@ from sqlmodel import Field, SQLModel
 
 
 class CoreDatasource(SQLModel, table=True):
-    __tablename__ = "core_datasource"
-    id: int = Field(
+    __tablename__ = cast(Any, "core_datasource")
+    id: int | None = Field(
+        default=None,
         sa_column=Column(
             BigInteger, Identity(always=True), nullable=False, primary_key=True
-        )
+        ),
     )
     name: str = Field(max_length=128, nullable=False)
-    description: str = Field(max_length=512, nullable=True)
+    description: str | None = Field(default=None, max_length=512, nullable=True)
     type: str = Field(max_length=64)
-    type_name: str = Field(max_length=64, nullable=True)
+    type_name: str | None = Field(default=None, max_length=64, nullable=True)
     configuration: str = Field(sa_column=Column(Text))
-    create_time: datetime = Field(
-        sa_column=Column(DateTime(timezone=False), nullable=True)
+    create_time: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=False), nullable=True)
     )
     create_by: int = Field(sa_column=Column(BigInteger()))
-    status: str = Field(max_length=64, nullable=True)
-    num: str = Field(max_length=256, nullable=True)
+    status: str | None = Field(default=None, max_length=64, nullable=True)
+    num: str | None = Field(default=None, max_length=256, nullable=True)
     oid: int = Field(sa_column=Column(BigInteger()))
     table_relation: list[Any] = Field(sa_column=Column(JSONB, nullable=True))
-    embedding: str = Field(sa_column=Column(Text, nullable=True))
+    embedding: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     recommended_config: int = Field(sa_column=Column(BigInteger()))
 
 
 class CoreTable(SQLModel, table=True):
-    __tablename__ = "core_table"
+    __tablename__ = cast(Any, "core_table")
     id: int = Field(
         sa_column=Column(
             BigInteger, Identity(always=True), nullable=False, primary_key=True
@@ -43,11 +44,11 @@ class CoreTable(SQLModel, table=True):
     table_name: str = Field(sa_column=Column(Text))
     table_comment: str = Field(sa_column=Column(Text))
     custom_comment: str = Field(sa_column=Column(Text))
-    embedding: str = Field(sa_column=Column(Text, nullable=True))
+    embedding: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
 
 
 class DsRecommendedProblem(SQLModel, table=True):
-    __tablename__ = "ds_recommended_problem"
+    __tablename__ = cast(Any, "ds_recommended_problem")
     id: int = Field(
         sa_column=Column(
             BigInteger, Identity(always=True), nullable=False, primary_key=True
@@ -57,14 +58,14 @@ class DsRecommendedProblem(SQLModel, table=True):
     question: str = Field(sa_column=Column(Text))
     remark: str = Field(sa_column=Column(Text))
     sort: int = Field(sa_column=Column(BigInteger()))
-    create_time: datetime = Field(
-        sa_column=Column(DateTime(timezone=False), nullable=True)
+    create_time: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=False), nullable=True)
     )
     create_by: int = Field(sa_column=Column(BigInteger()))
 
 
 class CoreField(SQLModel, table=True):
-    __tablename__ = "core_field"
+    __tablename__ = cast(Any, "core_field")
     id: int = Field(
         sa_column=Column(
             BigInteger, Identity(always=True), nullable=False, primary_key=True
@@ -74,7 +75,7 @@ class CoreField(SQLModel, table=True):
     table_id: int = Field(sa_column=Column(BigInteger()))
     checked: bool = Field(default=True)
     field_name: str = Field(sa_column=Column(Text))
-    field_type: str = Field(max_length=128, nullable=True)
+    field_type: str | None = Field(default=None, max_length=128, nullable=True)
     field_comment: str = Field(sa_column=Column(Text))
     custom_comment: str = Field(sa_column=Column(Text))
     field_index: int = Field(sa_column=Column(BigInteger()))
