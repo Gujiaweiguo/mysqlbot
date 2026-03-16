@@ -26,22 +26,32 @@ mySQLBot 是一款基于大语言模型和 RAG 的智能问数系统，由 DataE
 
 ### 安装部署
 
-准备一台 Linux 服务器，安装好 [Docker](https://docs.docker.com/get-docker/)，执行以下一键安装脚本：
+准备一台 Linux 服务器，安装好 [Docker](https://docs.docker.com/get-docker/) 与 Docker Compose，推荐使用 Docker Compose 启动。
+
+根目录 `docker-compose.yaml` 默认会基于当前仓库源码构建 `gosqlbot-app`，适合本地安装与调试。
+
+#### 默认模式：app + postgresql
 
 ```bash
-docker run -d \
-  --name mysqlbot \
-  --restart unless-stopped \
-  -p 8000:8000 \
-  -p 8001:8001 \
-  -v ./data/sqlbot/excel:/opt/sqlbot/data/excel \
-  -v ./data/sqlbot/file:/opt/sqlbot/data/file \
-  -v ./data/sqlbot/images:/opt/sqlbot/images \
-  -v ./data/sqlbot/logs:/opt/sqlbot/app/logs \
-  -v ./data/postgresql:/var/lib/postgresql/data \
-  --privileged=true \
-  my-net/mysqlbot
+docker compose up -d
 ```
+
+#### 可选模式：app + redis + postgresql
+
+```bash
+docker compose -f docker-compose.yaml -f docker-compose.redis.yaml up -d
+```
+
+> 如果你使用安装器产物中的 Compose 文件，则默认继续走预构建镜像模式；仓库根目录 Compose 更偏向源码构建与开发调试。
+
+#### 数据目录
+
+- `./data/sqlbot/excel` → Excel 文件
+- `./data/sqlbot/file` → 上传文件
+- `./data/sqlbot/images` → 图片与嵌入资源
+- `./data/sqlbot/logs` → 应用日志
+- `./data/postgresql` → PostgreSQL 数据
+- `./data/redis` → Redis 数据（仅 Redis 模式）
 
 ### 访问方式
 

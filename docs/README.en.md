@@ -29,22 +29,32 @@ mySQLBot is an intelligent data query system based on large language models and 
 
 ### Installation and Deployment
 
-Prepare a Linux server, install [Docker](https://docs.docker.com/get-docker/), and execute the following one-click installation script:
+Prepare a Linux server, install [Docker](https://docs.docker.com/get-docker/) and Docker Compose, and start the stack with Docker Compose.
+
+The root `docker-compose.yaml` builds `gosqlbot-app` from the current repository source by default, which is intended for local installation and debugging.
+
+#### Default mode: app + postgresql
 
 ```bash
-docker run -d \
-  --name sqlbot \
-  --restart unless-stopped \
-  -p 8000:8000 \
-  -p 8001:8001 \
-  -v ./data/sqlbot/excel:/opt/sqlbot/data/excel \
-  -v ./data/sqlbot/file:/opt/sqlbot/data/file \
-  -v ./data/sqlbot/images:/opt/sqlbot/images \
-  -v ./data/sqlbot/logs:/opt/sqlbot/app/logs \
-  -v ./data/postgresql:/var/lib/postgresql/data \
-  --privileged=true \
-  my-net/mysqlbot
+docker compose up -d
 ```
+
+#### Optional mode: app + redis + postgresql
+
+```bash
+docker compose -f docker-compose.yaml -f docker-compose.redis.yaml up -d
+```
+
+> The installer-generated Compose files can still stay image-based for distribution, while the repository root Compose is oriented toward source-based local development.
+
+#### Data directories
+
+- `./data/sqlbot/excel` → Excel files
+- `./data/sqlbot/file` → Uploaded files
+- `./data/sqlbot/images` → Images and embedded assets
+- `./data/sqlbot/logs` → Application logs
+- `./data/postgresql` → PostgreSQL data
+- `./data/redis` → Redis data (Redis mode only)
 
 ### Access methods
 
@@ -71,4 +81,3 @@ You may conduct secondary development based on the mySQLBot source code, but you
 - You cannot replace or modify the mySQLBot logo and copyright information;
 
 - Derivative works resulting from secondary development must comply with the open-source obligations of GPL v3.
-
