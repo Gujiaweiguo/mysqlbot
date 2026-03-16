@@ -82,7 +82,7 @@ class QuickCommand(Enum):
 
 
 class ChatLog(SQLModel, table=True):
-    __tablename__ = "chat_log"
+    __tablename__ = cast(Any, "chat_log")
     id: int | None = Field(
         sa_column=Column(BigInteger, Identity(always=True), primary_key=True)
     )
@@ -105,11 +105,11 @@ class ChatLog(SQLModel, table=True):
     base_modal: str | None = Field(max_length=255)
     messages: list[dict[str, Any]] | None = Field(sa_column=Column(JSONB))
     reasoning_content: str | None = Field(sa_column=Column(Text, nullable=True))
-    start_time: datetime = Field(
-        sa_column=Column(DateTime(timezone=False), nullable=True)
+    start_time: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=False), nullable=True)
     )
-    finish_time: datetime = Field(
-        sa_column=Column(DateTime(timezone=False), nullable=True)
+    finish_time: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=False), nullable=True)
     )
     token_usage: dict[str, Any] | int | None = Field(sa_column=Column(JSONB))
     local_operation: bool = Field(default=False)
@@ -117,63 +117,93 @@ class ChatLog(SQLModel, table=True):
 
 
 class Chat(SQLModel, table=True):
-    __tablename__ = "chat"
+    __tablename__ = cast(Any, "chat")
     id: int | None = Field(
         sa_column=Column(BigInteger, Identity(always=True), primary_key=True)
     )
     oid: int | None = Field(sa_column=Column(BigInteger, nullable=True, default=1))
-    create_time: datetime = Field(
-        sa_column=Column(DateTime(timezone=False), nullable=True)
+    create_time: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=False), nullable=True)
     )
-    create_by: int = Field(sa_column=Column(BigInteger, nullable=True))
-    brief: str = Field(max_length=64, nullable=True)
+    create_by: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    brief: str | None = Field(default=None, max_length=64, nullable=True)
     chat_type: str = Field(max_length=20, default="chat")  # chat, datasource
-    datasource: int = Field(sa_column=Column(BigInteger, nullable=True))
+    datasource: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
     engine_type: str = Field(max_length=64)
     origin: int | None = Field(
         sa_column=Column(Integer, nullable=False, default=0)
     )  # 0: default, 1: mcp, 2: assistant
     brief_generate: bool = Field(default=False)
-    recommended_question_answer: str = Field(sa_column=Column(Text, nullable=True))
-    recommended_question: str = Field(sa_column=Column(Text, nullable=True))
+    recommended_question_answer: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    recommended_question: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
     recommended_generate: bool = Field(default=False)
 
 
 class ChatRecord(SQLModel, table=True):
-    __tablename__ = "chat_record"
+    __tablename__ = cast(Any, "chat_record")
     id: int | None = Field(
         sa_column=Column(BigInteger, Identity(always=True), primary_key=True)
     )
     chat_id: int = Field(sa_column=Column(BigInteger, nullable=False))
     ai_modal_id: int | None = Field(sa_column=Column(BigInteger))
     first_chat: bool = Field(sa_column=Column(Boolean, nullable=True, default=False))
-    create_time: datetime = Field(
-        sa_column=Column(DateTime(timezone=False), nullable=True)
+    create_time: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=False), nullable=True)
     )
-    finish_time: datetime = Field(
-        sa_column=Column(DateTime(timezone=False), nullable=True)
+    finish_time: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=False), nullable=True)
     )
-    create_by: int = Field(sa_column=Column(BigInteger, nullable=True))
-    datasource: int = Field(sa_column=Column(BigInteger, nullable=True))
-    engine_type: str = Field(max_length=64, nullable=True)
-    question: str = Field(sa_column=Column(Text, nullable=True))
-    sql_answer: str = Field(sa_column=Column(Text, nullable=True))
-    sql: str = Field(sa_column=Column(Text, nullable=True))
-    sql_exec_result: str = Field(sa_column=Column(Text, nullable=True))
-    data: str = Field(sa_column=Column(Text, nullable=True))
-    chart_answer: str = Field(sa_column=Column(Text, nullable=True))
-    chart: str = Field(sa_column=Column(Text, nullable=True))
-    analysis: str = Field(sa_column=Column(Text, nullable=True))
-    predict: str = Field(sa_column=Column(Text, nullable=True))
-    predict_data: str = Field(sa_column=Column(Text, nullable=True))
-    recommended_question_answer: str = Field(sa_column=Column(Text, nullable=True))
-    recommended_question: str = Field(sa_column=Column(Text, nullable=True))
-    datasource_select_answer: str = Field(sa_column=Column(Text, nullable=True))
+    create_by: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    datasource: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    engine_type: str | None = Field(default=None, max_length=64, nullable=True)
+    question: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    sql_answer: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    sql: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    sql_exec_result: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    data: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    chart_answer: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    chart: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    analysis: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    predict: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    predict_data: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    recommended_question_answer: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    recommended_question: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    datasource_select_answer: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
     finish: bool = Field(sa_column=Column(Boolean, nullable=True, default=False))
-    error: str = Field(sa_column=Column(Text, nullable=True))
-    analysis_record_id: int = Field(sa_column=Column(BigInteger, nullable=True))
-    predict_record_id: int = Field(sa_column=Column(BigInteger, nullable=True))
-    regenerate_record_id: int = Field(sa_column=Column(BigInteger, nullable=True))
+    error: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    analysis_record_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    predict_record_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    regenerate_record_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
 
 
 class ChatRecordResult(BaseModel):

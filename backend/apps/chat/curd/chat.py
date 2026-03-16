@@ -610,7 +610,11 @@ def get_chat_with_records(
     ds: CoreDatasource | AssistantOutDsSchema | None
     if current_assistant and current_assistant.type in dynamic_ds_types:
         out_ds_instance = AssistantOutDsFactory.get_instance(current_assistant)
-        ds = out_ds_instance.get_ds(chat.datasource, trans)
+        ds = (
+            out_ds_instance.get_ds(chat.datasource, trans)
+            if chat.datasource is not None
+            else None
+        )
     else:
         ds = session.get(CoreDatasource, chat.datasource) if chat.datasource else None
 
@@ -1011,6 +1015,7 @@ def list_generate_sql_logs(session: SessionDep, chart_id: int) -> list[ChatLog]:
                 ),
                 col(ChatLog.type) == TypeEnum.CHAT,
                 col(ChatLog.operate) == OperationEnum.GENERATE_SQL,
+                col(ChatLog.finish_time).is_not(None),
             )
         )
         .order_by(col(ChatLog.start_time))
@@ -1031,6 +1036,7 @@ def list_generate_chart_logs(session: SessionDep, chart_id: int) -> list[ChatLog
                 ),
                 col(ChatLog.type) == TypeEnum.CHAT,
                 col(ChatLog.operate) == OperationEnum.GENERATE_CHART,
+                col(ChatLog.finish_time).is_not(None),
             )
         )
         .order_by(col(ChatLog.start_time))
