@@ -1,56 +1,70 @@
+from typing import Any, cast
+
 from pydantic import BaseModel
 from sqlalchemy import BigInteger, Column, Integer, SmallInteger, String, Text
 from sqlmodel import Field, SQLModel
 
 
 class CoreDashboard(SQLModel, table=True):
-    __tablename__ = "core_dashboard"
+    __tablename__ = cast(Any, "core_dashboard")
     id: str = Field(sa_column=Column(String(50), nullable=False, primary_key=True))
-    name: str = Field(
+    name: str | None = Field(
         default=None, max_length=255, sa_column=Column(String(255), nullable=True)
     )
-    pid: str = Field(
+    pid: str | None = Field(
         default=None, max_length=50, sa_column=Column(String(50), nullable=True)
     )
-    workspace_id: str = Field(
+    workspace_id: str | None = Field(
         default=None, max_length=50, sa_column=Column(String(50), nullable=True)
     )
-    org_id: str = Field(
+    org_id: str | None = Field(
         default=None, max_length=50, sa_column=Column(String(50), nullable=True)
     )
-    level: int = Field(default=None, sa_column=Column(Integer, nullable=True))
-    node_type: str = Field(
+    level: int | None = Field(default=None, sa_column=Column(Integer, nullable=True))
+    node_type: str | None = Field(
         default=None, max_length=255, sa_column=Column(String(255), nullable=True)
     )
-    type: str = Field(
+    type: str | None = Field(
         default=None, max_length=50, sa_column=Column(String(50), nullable=True)
     )
-    canvas_style_data: str = Field(default=None, sa_column=Column(Text, nullable=True))
-    component_data: str = Field(default=None, sa_column=Column(Text, nullable=True))
-    canvas_view_info: str = Field(default=None, sa_column=Column(Text, nullable=True))
+    canvas_style_data: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    component_data: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    canvas_view_info: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
     mobile_layout: int = Field(default=0, sa_column=Column(SmallInteger, nullable=True))
     status: int = Field(default=1, sa_column=Column(Integer, nullable=True))
     self_watermark_status: int = Field(
         default=0, sa_column=Column(Integer, nullable=True)
     )
     sort: int = Field(default=0, sa_column=Column(Integer, nullable=True))
-    create_time: int = Field(default=None, sa_column=Column(BigInteger, nullable=True))
-    create_by: str = Field(
+    create_time: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    create_by: str | None = Field(
         default=None, max_length=255, sa_column=Column(String(255), nullable=True)
     )
-    update_time: int = Field(default=None, sa_column=Column(BigInteger, nullable=True))
-    update_by: str = Field(
+    update_time: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    update_by: str | None = Field(
         default=None, max_length=255, sa_column=Column(String(255), nullable=True)
     )
-    remark: str = Field(
+    remark: str | None = Field(
         default=None, max_length=255, sa_column=Column(String(255), nullable=True)
     )
-    source: str = Field(
+    source: str | None = Field(
         default=None, max_length=255, sa_column=Column(String(255), nullable=True)
     )
     delete_flag: int = Field(default=0, sa_column=Column(SmallInteger, nullable=True))
-    delete_time: int = Field(default=None, sa_column=Column(BigInteger, nullable=True))
-    delete_by: str = Field(
+    delete_time: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    delete_by: str | None = Field(
         default=None, max_length=255, sa_column=Column(String(255), nullable=True)
     )
     version: int = Field(default=3, sa_column=Column(Integer, nullable=True))
