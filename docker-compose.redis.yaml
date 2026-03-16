@@ -1,0 +1,28 @@
+services:
+  gosqlbot-app:
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      CACHE_TYPE: redis
+      CACHE_REDIS_URL: ${SQLBOT_CACHE_REDIS_URL:-redis://redis:6379/0}
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: redis
+    restart: always
+    networks:
+      - sqlbot-network
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ${SQLBOT_REDIS_DATA_DIR:-./data/redis}:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+networks:
+  sqlbot-network:
+    name: sqlbot-network

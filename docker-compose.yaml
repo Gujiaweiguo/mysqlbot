@@ -1,23 +1,29 @@
 name: mysqlbot
 
 services:
-  mysqlbot:
-    image: ${SQLBOT_IMAGE:-dataease/sqlbot:latest}
-    container_name: mysqlbot
+  gosqlbot-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${SQLBOT_IMAGE:-gosqlbot-app:local}
+    container_name: gosqlbot-app
     restart: always
     privileged: true
     networks:
-      - mynet
+      - sqlbot-network
+    depends_on:
+      postgresql:
+        condition: service_healthy
     ports:
       - 8000:8000
       - 8001:8001
     environment:
       # Database configuration
-      POSTGRES_SERVER: localhost
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: sqlbot
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: Password123@pg
+      POSTGRES_SERVER: postgresql
+      POSTGRES_PORT: ${SQLBOT_PG_PORT:-5432}
+      POSTGRES_DB: ${SQLBOT_PG_DB:-sqlbot}
+      POSTGRES_USER: ${SQLBOT_PG_USER:-root}
+      POSTGRES_PASSWORD: ${SQLBOT_PG_PASSWORD:-Password123@pg}
       # Project basic settings
       PROJECT_NAME: "mySQLBot"
       DEFAULT_PWD: "mySQLBot@123456"
@@ -31,14 +37,37 @@ services:
       # Logging
       LOG_LEVEL: "INFO"
       SQL_DEBUG: False
+      CACHE_TYPE: ${SQLBOT_CACHE_TYPE:-memory}
+      CACHE_REDIS_URL: ${SQLBOT_CACHE_REDIS_URL:-}
     volumes:
       - ${SQLBOT_DATA_DIR:-./data/sqlbot}/excel:/opt/sqlbot/data/excel
       - ${SQLBOT_DATA_DIR:-./data/sqlbot}/file:/opt/sqlbot/data/file
       - ${SQLBOT_DATA_DIR:-./data/sqlbot}/images:/opt/sqlbot/images
       - ${SQLBOT_DATA_DIR:-./data/sqlbot}/logs:/opt/sqlbot/app/logs
+  postgresql:
+    image: pgvector/pgvector:pg17
+    container_name: postgresql
+    restart: always
+    networks:
+      - sqlbot-network
+    environment:
+      POSTGRES_DB: ${SQLBOT_PG_DB:-sqlbot}
+      POSTGRES_USER: ${SQLBOT_PG_USER:-root}
+      POSTGRES_PASSWORD: ${SQLBOT_PG_PASSWORD:-Password123@pg}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
       - ${SQLBOT_PG_DATA_DIR:-./data/postgresql}:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${SQLBOT_PG_USER:-root} -d ${SQLBOT_PG_DB:-sqlbot}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
 networks:
-  mynet:
-    external: true
-    name: mynet
+  sqlbot-network:
+    name: sqlbot-network
