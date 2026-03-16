@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import Enum
+from typing import Any, cast
 
 from pydantic import BaseModel
 from sqlmodel import BigInteger, Field, SQLModel
@@ -53,7 +54,7 @@ class OperationType(str, Enum):
 
 
 class SystemLogsResource(SQLModel, table=True):
-    __tablename__ = "sys_logs_resource"
+    __tablename__ = cast(Any, "sys_logs_resource")
     id: int | None = Field(default=None, primary_key=True)
     log_id: int | None = Field(default=None, sa_type=BigInteger)
     resource_id: str | None = Field(default=None)
@@ -62,12 +63,12 @@ class SystemLogsResource(SQLModel, table=True):
 
 
 class SystemLog(SQLModel, table=True):
-    __tablename__ = "sys_logs"
+    __tablename__ = cast(Any, "sys_logs")
     id: int | None = Field(default=None, primary_key=True)
-    operation_type: str = Field(default=None)
-    operation_detail: str = Field(default=None)
+    operation_type: str | None = Field(default=None)
+    operation_detail: str | None = Field(default=None)
     user_id: int | None = Field(default=None, sa_type=BigInteger)
-    operation_status: str = Field(default=None)
+    operation_status: str | None = Field(default=None)
     ip_address: str | None = Field(default=None)
     user_agent: str | None = Field(default=None)
     execution_time: int = Field(
