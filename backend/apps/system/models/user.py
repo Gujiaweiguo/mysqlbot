@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import BigInteger, Column
 from sqlalchemy.dialects.postgresql import JSONB
@@ -21,11 +21,13 @@ class BaseUserPO(SQLModel):
         default_factory=get_timestamp, sa_type=BigInteger, nullable=False
     )
     language: str = Field(max_length=255, default="zh-CN")
-    system_variables: list[Any] = Field(sa_column=Column(JSONB, nullable=True))
+    system_variables: list[Any] | None = Field(
+        default=None, sa_column=Column(JSONB, nullable=True)
+    )
 
 
 class UserModel(SnowflakeBase, BaseUserPO, table=True):
-    __tablename__ = "sys_user"
+    __tablename__ = cast(Any, "sys_user")
 
 
 class UserPlatformBase(SQLModel):
@@ -35,4 +37,4 @@ class UserPlatformBase(SQLModel):
 
 
 class UserPlatformModel(SnowflakeBase, UserPlatformBase, table=True):
-    __tablename__ = "sys_user_platform"
+    __tablename__ = cast(Any, "sys_user_platform")
