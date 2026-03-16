@@ -33,16 +33,22 @@ flowchart LR
 - 容器入口：`start.sh:1`
 - 镜像构建：`Dockerfile:1`
 
-## 3. 启动时序（容器内）
+## 3. 启动时序（Compose 拓扑）
 
-按 `start.sh` 的顺序：
+默认部署模式为：
 
-1. 启动 PostgreSQL 进程并等待 5432 就绪。
-2. 使用 PM2 启动 G2-SSR 服务（`g2-ssr/app.js`）。
-3. 启动 MCP FastAPI（`main:mcp_app`，8001）。
-4. 启动主 FastAPI（`main:app`，8000）。
+- `gosqlbot-app`
+- `postgresql`
+- 可选 `redis`
 
-这意味着 mySQLBot 在一个容器内同时承载数据库、API、MCP 与图表渲染能力。
+按新的 Compose 约定：
+
+1. `postgresql` 先通过 healthcheck 达到可用状态。
+2. `gosqlbot-app` 在数据库就绪后启动。
+3. app 容器内部继续按 `start.sh` 顺序启动 G2-SSR、MCP FastAPI（8001）和主 FastAPI（8000）。
+4. 可选 Redis 模式下，`redis` 作为独立服务加入拓扑，由应用通过显式配置连接。
+
+这意味着 mySQLBot 不再在应用容器内承载 PostgreSQL 进程，数据库生命周期由 Compose 负责。
 
 ## 4. 前端架构
 
