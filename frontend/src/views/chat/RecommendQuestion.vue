@@ -178,6 +178,7 @@ defineExpose({ getRecommendQuestions, id: () => props.recordId, stop })
         v-for="(question, index) in computedQuestions"
         :key="index"
         class="question"
+        :data-testid="`recommended-question-${position}-${index}`"
         :class="{ disabled: disabled }"
         @click="clickQuestion(question)"
       >
@@ -189,6 +190,7 @@ defineExpose({ getRecommendQuestions, id: () => props.recordId, stop })
         v-for="(question, index) in computedQuestions"
         :key="index"
         class="question"
+        :data-testid="`recommended-question-${position}-${index}`"
         :class="{ disabled: disabled }"
         @click="clickQuestion(question)"
       >

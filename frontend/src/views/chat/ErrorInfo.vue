@@ -42,7 +42,7 @@ function showTraceBack() {
 </script>
 
 <template>
-  <div v-if="showBlock">
+  <div v-if="showBlock" data-testid="chat-error-container">
     <div
       v-if="!errorMessage.showMore && errorMessage.type == undefined"
       v-dompurify-html="errorMessage.message"

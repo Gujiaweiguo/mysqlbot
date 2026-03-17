@@ -362,6 +362,7 @@ watch(
         (isPredict && message?.record?.chart && data.length > 0))
     "
     v-loading.fullscreen.lock="loading"
+    data-testid="chart-block"
     class="chart-component-container"
     :class="{ 'full-screen': enlarge }"
   >

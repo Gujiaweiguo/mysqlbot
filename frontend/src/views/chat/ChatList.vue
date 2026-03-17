@@ -214,6 +214,7 @@ const handleConfirmPassword = () => {
         </div>
         <template v-for="chat in group.list" :key="chat.id">
           <div
+            :data-testid="`chat-item-${chat.id}`"
             class="chat-list-item"
             :class="{ active: currentChatId === chat.id, hide: !expandMap[group.key] }"
             @click="onClickHistory(chat)"

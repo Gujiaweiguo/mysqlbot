@@ -34,7 +34,12 @@ const SelectDs = () => {
 </script>
 
 <template>
-  <div class="card" :class="isSelected && 'is-selected'" @click="SelectDs">
+  <div
+    class="card"
+    :class="isSelected && 'is-selected'"
+    :data-testid="`datasource-card-${id}`"
+    @click="SelectDs"
+  >
     <div class="name-icon">
       <img :src="icon" width="32px" height="32px" />
       <div class="info">

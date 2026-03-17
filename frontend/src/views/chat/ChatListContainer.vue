@@ -227,7 +227,7 @@ function onChatRenamed(chat: Chat) {
           </el-icon>
         </el-button>
       </div>
-      <el-button class="btn" type="primary" @click="createNewChat">
+      <el-button data-testid="new-chat-button" class="btn" type="primary" @click="createNewChat">
         <el-icon style="margin-right: 6px">
           <icon_new_chat_outlined />
         </el-icon>
@@ -235,6 +235,7 @@ function onChatRenamed(chat: Chat) {
       </el-button>
       <el-input
         v-model="search"
+        data-testid="chat-search-input"
         :prefix-icon="Search"
         class="search"
         name="quick-search"
