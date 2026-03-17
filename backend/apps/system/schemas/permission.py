@@ -27,6 +27,20 @@ class SqlbotPermission(BaseModel):
     keyExpression: str | None = None
 
 
+def _normalize_resource_id(resource: Any) -> Any:
+    if isinstance(resource, list):
+        return [_normalize_resource_id(item) for item in resource]
+    if isinstance(resource, str):
+        value = resource.strip()
+        if value.startswith("-"):
+            numeric = value[1:]
+            if numeric.isdigit():
+                return int(value)
+        elif value.isdigit():
+            return int(value)
+    return resource
+
+
 async def get_ws_resource(oid: int, type: str) -> list[Any]:
     with Session(engine) as session:
         stmt = None
@@ -44,12 +58,13 @@ async def check_ws_permission(oid: int, type: str, resource: Any) -> bool:
     if not resource or (isinstance(resource, list) and len(resource) == 0):
         return True
 
-    resource_id_list = await get_ws_resource(oid, type)
+    resource_id_list = _normalize_resource_id(await get_ws_resource(oid, type))
+    normalized_resource = _normalize_resource_id(resource)
     if not resource_id_list:
         return False
-    if isinstance(resource, list):
-        return set(resource).issubset(set(resource_id_list))
-    return resource in resource_id_list
+    if isinstance(normalized_resource, list):
+        return set(normalized_resource).issubset(set(resource_id_list))
+    return normalized_resource in resource_id_list
 
 
 def require_permissions(permission: SqlbotPermission) -> Callable[[F], F]:
