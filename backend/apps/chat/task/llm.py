@@ -30,7 +30,6 @@ from sqlmodel import select as sqlmodel_select
 from apps.ai_model.model_factory import LLMConfig, LLMFactory, get_default_config
 from apps.chat.curd.chat import (
     end_log,
-    finish_record,
     format_chart_fields,
     format_json_data,
     get_chart_config,
@@ -44,18 +43,11 @@ from apps.chat.curd.chat import (
     list_generate_sql_logs,
     rename_chat,
     save_analysis_answer,
-    save_analysis_predict_record,
-    save_chart,
     save_chart_answer,
-    save_error_message,
     save_predict_answer,
-    save_predict_data,
-    save_question,
     save_recommend_question_answer,
     save_select_datasource_answer,
-    save_sql,
     save_sql_answer,
-    save_sql_exec_data,
     start_log,
     trigger_log_error,
 )
@@ -69,6 +61,9 @@ from apps.chat.models.chat_model import (
     OperationEnum,
     RenameChat,
 )
+from apps.chat.persistence import ChatPersistenceService
+from apps.chat.streaming import emit_chat_error, emit_chat_event, emit_finish_event
+from apps.chat.task.stages import ChartResultStage, PredictResultStage, SQLAnswerStage
 from apps.data_training.curd.data_training import get_training_template
 from apps.datasource.crud.datasource import get_table_schema
 from apps.datasource.crud.permission import get_row_permission_filters, is_normal_user
@@ -416,7 +411,7 @@ def _normalize_llm_stream_error(exc: Exception) -> Exception:
 def _is_license_valid() -> bool:
     module = cast(
         _LicenseModuleProtocol,
-        import_module("sqlbot_xpack.license.license_manage"),
+        cast(object, import_module("sqlbot_xpack.license.license_manage")),
     )
     return bool(module.SQLBotLicenseUtil.valid())
 
@@ -429,7 +424,7 @@ def _find_custom_prompts(
 ) -> tuple[str, list[dict[str, object]]]:
     module = cast(
         _CustomPromptModuleProtocol,
-        import_module("sqlbot_xpack.custom_prompt.curd.custom_prompt"),
+        cast(object, import_module("sqlbot_xpack.custom_prompt.curd.custom_prompt")),
     )
     return module.find_custom_prompts(session, custom_prompt_type, oid, ds_id)
 
@@ -437,7 +432,10 @@ def _find_custom_prompts(
 def _custom_prompt_type(enum_name: str) -> object:
     module = cast(
         _CustomPromptEnumModuleProtocol,
-        import_module("sqlbot_xpack.custom_prompt.models.custom_prompt_model"),
+        cast(
+            object,
+            import_module("sqlbot_xpack.custom_prompt.models.custom_prompt_model"),
+        ),
     )
     enum_cls = module.CustomPromptTypeEnum
     return cast(object, getattr(enum_cls, enum_name))
@@ -491,6 +489,7 @@ class LLMService:
         self.chunk_list = []
         self.current_user = current_user
         self.current_assistant = current_assistant
+        self.persistence = ChatPersistenceService()
         self.record: ChatRecord = ChatRecord.model_construct()
         self.future: Future[None] = Future()
         self.future.set_result(None)
@@ -508,7 +507,7 @@ class LLMService:
                         f"Datasource with id {chat_question.datasource_id} does not belong to current workspace"
                     )
                 chat.datasource = _ds.id
-                chat.engine_type = _ds.type_name
+                chat.engine_type = _ds.type_name or ""
                 # save chat
                 session.add(chat)
                 session.flush()
@@ -522,16 +521,20 @@ class LLMService:
                     current_assistant
                 )
                 ds = self.out_ds_instance.get_ds(chat.datasource)
-                chat_question.engine = (ds.type or "") + get_version(ds)
+                chat_question.engine = (ds.type or "") + (get_version(ds) or "")
             else:
                 ds = session.get(CoreDatasource, chat.datasource)
                 if not ds:
                     raise SingleMessageError(
                         "No available datasource configuration found"
                     )
-                chat_question.engine = (
-                    ds.type_name if ds.type != "excel" else "PostgreSQL"
-                ) + get_version(ds)
+                engine_name = ds.type_name or ""
+                if ds.type == "excel":
+                    engine_name = "PostgreSQL"
+                version_value = get_version(ds)
+                chat_question.engine = engine_name + (
+                    version_value if isinstance(version_value, str) else ""
+                )
 
         self.generate_sql_logs = list_generate_sql_logs(
             session=session, chart_id=chat_id
@@ -752,8 +755,7 @@ class LLMService:
         operate: OperationEnum,
     ) -> Iterator[ObjectDict]:
         try:
-            for chunk in process_stream(self.llm.stream(messages), token_usage):
-                yield chunk
+            yield from process_stream(self.llm.stream(messages), token_usage)
         except Exception as exc:
             log = self.current_logs.get(operate)
             if log is not None:
@@ -761,8 +763,10 @@ class LLMService:
             raise _normalize_llm_stream_error(exc) from exc
 
     def init_record(self, session: Session) -> ChatRecord:
-        self.record = save_question(
-            session=session, current_user=self.current_user, question=self.chat_question
+        self.record = self.persistence.init_record(
+            session=session,
+            current_user=self.current_user,
+            question=self.chat_question,
         )
         return self.record
 
@@ -1059,9 +1063,12 @@ class LLMService:
             )
         )
 
+        datasource_id = self.record.datasource
+        if datasource_id is None:
+            raise SingleMessageError("Datasource not initialized for recommendations")
+
         old_questions = [
-            question.strip()
-            for question in get_old_questions(_session, self.record.datasource)
+            question.strip() for question in get_old_questions(_session, datasource_id)
         ]
         guess_msg.append(
             HumanMessage(
@@ -1145,7 +1152,7 @@ class LLMService:
                 not self.current_assistant
                 or (self.current_assistant and self.current_assistant.type != 1)
             ):
-                _ds_list = get_ds_embedding(
+                embedded_ds_list = get_ds_embedding(
                     _session,
                     self.current_user,
                     _ds_list,
@@ -1153,10 +1160,11 @@ class LLMService:
                     self.chat_question.question or "",
                     self.current_assistant,
                 )
+                _ds_list = cast(list[ObjectDict], embedded_ds_list)
                 # yield {'content': '{"id":' + str(ds.get('id')) + '}'}
 
             for ds_item in _ds_list:
-                _ds_list_dict.append(ds_item)
+                _ds_list_dict.append(cast(ObjectDict, cast(object, ds_item)))
             datasource_msg.append(
                 HumanMessage(
                     self.chat_question.datasource_user_question(
@@ -1235,7 +1243,10 @@ class LLMService:
                     out_ds_schema = self.out_ds_instance.get_ds(data_id)
                     self._set_datasource(out_ds_schema)
                     ds_type = out_ds_schema.type or ""
-                    self.chat_question.engine = ds_type + get_version(out_ds_schema)
+                    version_value = get_version(out_ds_schema)
+                    self.chat_question.engine = ds_type + (
+                        version_value if isinstance(version_value, str) else ""
+                    )
 
                     _engine_type = self.chat_question.engine
                     _chat.engine_type = ds_type
@@ -1246,9 +1257,13 @@ class LLMService:
                             f"Datasource configuration with id {_datasource} not found"
                         )
                     self._set_datasource(db_ds)
-                    self.chat_question.engine = (
-                        db_ds.type_name if db_ds.type != "excel" else "PostgreSQL"
-                    ) + get_version(db_ds)
+                    engine_name = db_ds.type_name or ""
+                    if db_ds.type == "excel":
+                        engine_name = "PostgreSQL"
+                    version_value = get_version(db_ds)
+                    self.chat_question.engine = engine_name + (
+                        version_value if isinstance(version_value, str) else ""
+                    )
 
                     _engine_type = self.chat_question.engine
                     _chat.engine_type = db_ds.type_name or ""
@@ -1619,35 +1634,27 @@ class LLMService:
 
     @staticmethod
     def get_chart_type_from_sql_answer(res: str) -> str | None:
-        _, data = _extract_sql_answer_payload(res)
-        if data is None:
-            return None
-
-        try:
-            if _is_successful_sql_payload(data):
-                return _get_str(data, "chart-type")
-            return None
-        except Exception:
-            return None
+        return SQLAnswerStage(
+            _extract_sql_answer_payload,
+            _is_successful_sql_payload,
+            _get_str,
+        ).chart_type_from_answer(res)
 
     @staticmethod
     def get_brief_from_sql_answer(res: str) -> str | None:
-        _, data = _extract_sql_answer_payload(res)
-        if data is None:
-            return None
-
-        try:
-            if _is_successful_sql_payload(data):
-                return _get_str(data, "brief")
-            return None
-        except Exception:
-            return None
+        return SQLAnswerStage(
+            _extract_sql_answer_payload,
+            _is_successful_sql_payload,
+            _get_str,
+        ).brief_from_answer(res)
 
     def check_save_sql(self, session: Session, res: str, operate: OperationEnum) -> str:
         if self.record.id is None:
             raise SingleMessageError("Record not initialized")
         sql, *_ = self.check_sql(session=session, res=res, operate=operate)
-        _ = save_sql(session=session, sql=sql, record_id=self.record.id)
+        _ = self.persistence.save_sql(
+            session=session, sql=sql, record_id=self.record.id
+        )
 
         self.chat_question.sql = sql
 
@@ -1656,83 +1663,16 @@ class LLMService:
     def check_save_chart(self, session: Session, res: str) -> ObjectDict:
         if self.record.id is None:
             raise SingleMessageError("Record not initialized")
-        json_str = extract_nested_json(res)
-        if json_str is None:
-            raise SingleMessageError(
-                orjson.dumps(
-                    {
-                        "message": "Cannot parse chart config from answer",
-                        "traceback": "Cannot parse chart config from answer:\n" + res,
-                    }
-                ).decode()
-            )
-        chart: ObjectDict = {}
-        message = ""
-        error = False
+        chart = ChartResultStage(
+            parse_json_object=_parse_json_object,
+            as_object_dict=_as_object_dict,
+            as_object_dict_list=_as_object_dict_list,
+            as_object_list=_as_object_list,
+            get_str=_get_str,
+            lowercase_mapping_value=_lowercase_mapping_value,
+        ).parse_chart(res)
 
-        try:
-            data = _parse_json_object(json_str)
-            if data is None:
-                raise ValueError("Chart payload is not a valid object")
-
-            chart_type = _get_str(data, "type")
-            if chart_type and chart_type != "error":
-                chart = data
-                columns_value = chart.get("columns")
-                for column in _as_object_dict_list(columns_value):
-                    _lowercase_mapping_value(column, "value")
-
-                axis_data = _as_object_dict(chart.get("axis"))
-                if axis_data is not None:
-                    x_axis = _as_object_dict(axis_data.get("x"))
-                    if x_axis is not None:
-                        _lowercase_mapping_value(x_axis, "value")
-
-                    y_axis = axis_data.get("y")
-                    if y_axis:
-                        if isinstance(y_axis, list):
-                            for item in _as_object_dict_list(cast(object, y_axis)):
-                                _lowercase_mapping_value(item, "value")
-                        else:
-                            y_axis_mapping = _as_object_dict(y_axis)
-                            if y_axis_mapping is not None:
-                                _lowercase_mapping_value(y_axis_mapping, "value")
-
-                    series = _as_object_dict(axis_data.get("series"))
-                    if series is not None:
-                        _lowercase_mapping_value(series, "value")
-
-                    multi_quota = _as_object_dict(axis_data.get("multi-quota"))
-                    if multi_quota is not None:
-                        multi_quota_value = multi_quota.get("value")
-                        if isinstance(multi_quota_value, list):
-                            multi_quota_values = _as_object_list(
-                                cast(object, multi_quota_value)
-                            )
-                            multi_quota["value"] = [
-                                value.lower() if isinstance(value, str) else value
-                                for value in multi_quota_values
-                            ]
-                        elif isinstance(multi_quota_value, str):
-                            multi_quota["value"] = multi_quota_value.lower()
-            elif chart_type == "error":
-                message = _get_str(data, "reason") or "Chart is empty"
-                error = True
-            else:
-                raise Exception("Chart is empty")
-        except Exception:
-            error = True
-            message = orjson.dumps(
-                {
-                    "message": "Cannot parse chart config from answer",
-                    "traceback": "Cannot parse chart config from answer:\n" + res,
-                }
-            ).decode()
-
-        if error:
-            raise SingleMessageError(message)
-
-        _ = save_chart(
+        _ = self.persistence.save_chart(
             session=session,
             chart=orjson.dumps(chart).decode(),
             record_id=self.record.id,
@@ -1743,12 +1683,11 @@ class LLMService:
     def check_save_predict_data(self, session: Session, res: str) -> bool:
         if self.record.id is None:
             raise SingleMessageError("Record not initialized")
-        json_str = extract_nested_json(res)
+        json_str = PredictResultStage().extract_predict_payload(res)
 
-        if not json_str:
-            json_str = ""
-
-        _ = save_predict_data(session=session, record_id=self.record.id, data=json_str)
+        _ = self.persistence.save_predict_data(
+            session=session, record_id=self.record.id, data=json_str
+        )
 
         if json_str == "":
             return False
@@ -1758,7 +1697,7 @@ class LLMService:
     def save_error(self, session: Session, message: str) -> ChatRecord:
         if self.record.id is None:
             raise SingleMessageError("Record not initialized")
-        return save_error_message(
+        return self.persistence.save_error(
             session=session, record_id=self.record.id, message=message
         )
 
@@ -1787,7 +1726,7 @@ class LLMService:
                 )
             if self.ds and self.ds.id is not None:
                 data_obj["datasource"] = self.ds.id
-        return save_sql_exec_data(
+        return self.persistence.save_sql_exec_data(
             session=session,
             record_id=self.record.id,
             data=orjson.dumps(data_obj).decode(),
@@ -1796,7 +1735,7 @@ class LLMService:
     def finish(self, session: Session) -> ChatRecord:
         if self.record.id is None:
             raise SingleMessageError("Record not initialized")
-        return finish_record(session=session, record_id=self.record.id)
+        return self.persistence.finish(session=session, record_id=self.record.id)
 
     def execute_sql(self, sql: str) -> ObjectDict:
         """Execute SQL query
@@ -1890,28 +1829,14 @@ class LLMService:
 
             # return id
             if in_chat:
-                yield (
-                    "data:"
-                    + orjson.dumps({"type": "id", "id": self.get_record().id}).decode()
-                    + "\n\n"
-                )
+                yield emit_chat_event("id", id=self.get_record().id)
                 if self.get_record().regenerate_record_id:
-                    yield (
-                        "data:"
-                        + orjson.dumps(
-                            {
-                                "type": "regenerate_record_id",
-                                "regenerate_record_id": self.get_record().regenerate_record_id,
-                            }
-                        ).decode()
-                        + "\n\n"
+                    yield emit_chat_event(
+                        "regenerate_record_id",
+                        regenerate_record_id=self.get_record().regenerate_record_id,
                     )
-                yield (
-                    "data:"
-                    + orjson.dumps(
-                        {"type": "question", "question": self.get_record().question}
-                    ).decode()
-                    + "\n\n"
+                yield emit_chat_event(
+                    "question", question=self.get_record().question or ""
                 )
             else:
                 if stream:
@@ -1921,7 +1846,7 @@ class LLMService:
                         + str(self.get_record().id)
                         + "\n"
                     )
-                    yield "> " + self.get_record().question + "\n\n"
+                    yield "> " + str(self.get_record().question or "") + "\n\n"
             if not stream:
                 json_result["record_id"] = self.get_record().id
 
@@ -1932,33 +1857,21 @@ class LLMService:
                 for chunk in ds_res:
                     SQLBotLogUtil.info(str(chunk))
                     if in_chat:
-                        yield (
-                            "data:"
-                            + orjson.dumps(
-                                {
-                                    "content": _chunk_content_text(chunk),
-                                    "reasoning_content": _chunk_reasoning_text(chunk),
-                                    "type": "datasource-result",
-                                }
-                            ).decode()
-                            + "\n\n"
+                        yield emit_chat_event(
+                            "datasource-result",
+                            content=_chunk_content_text(chunk),
+                            reasoning_content=_chunk_reasoning_text(chunk),
                         )
                 if in_chat:
                     if self.ds is None:
                         raise SingleMessageError(
                             "No available datasource configuration found"
                         )
-                    yield (
-                        "data:"
-                        + orjson.dumps(
-                            {
-                                "id": self.ds.id,
-                                "datasource_name": self.ds.name,
-                                "engine_type": self.ds.type_name or self.ds.type,
-                                "type": "datasource",
-                            }
-                        ).decode()
-                        + "\n\n"
+                    yield emit_chat_event(
+                        "datasource",
+                        id=self.ds.id,
+                        datasource_name=self.ds.name,
+                        engine_type=self.ds.type_name or self.ds.type,
                     )
 
             else:
@@ -1977,23 +1890,13 @@ class LLMService:
             for chunk in sql_res:
                 full_sql_text += _chunk_content_text(chunk)
                 if in_chat:
-                    yield (
-                        "data:"
-                        + orjson.dumps(
-                            {
-                                "content": _chunk_content_text(chunk),
-                                "reasoning_content": _chunk_reasoning_text(chunk),
-                                "type": "sql-result",
-                            }
-                        ).decode()
-                        + "\n\n"
+                    yield emit_chat_event(
+                        "sql-result",
+                        content=_chunk_content_text(chunk),
+                        reasoning_content=_chunk_reasoning_text(chunk),
                     )
             if in_chat:
-                yield (
-                    "data:"
-                    + orjson.dumps({"type": "info", "msg": "sql generated"}).decode()
-                    + "\n\n"
-                )
+                yield emit_chat_event("info", msg="sql generated")
             # filter sql
             SQLBotLogUtil.info(full_sql_text)
 
@@ -2021,11 +1924,7 @@ class LLMService:
                         ),
                     )
                     if in_chat:
-                        yield (
-                            "data:"
-                            + orjson.dumps({"type": "brief", "brief": brief}).decode()
-                            + "\n\n"
-                        )
+                        yield emit_chat_event("brief", brief=brief)
                     if not stream:
                         json_result["title"] = brief
 
@@ -2093,11 +1992,7 @@ class LLMService:
 
             format_sql = sqlparse.format(sql, reindent=True)
             if in_chat:
-                yield (
-                    "data:"
-                    + orjson.dumps({"content": format_sql, "type": "sql"}).decode()
-                    + "\n\n"
-                )
+                yield emit_chat_event("sql", content=format_sql)
             else:
                 if stream:
                     yield f"```sql\n{format_sql}\n```\n\n"
@@ -2115,7 +2010,7 @@ class LLMService:
 
             if finish_step.value <= ChatFinishStep.GENERATE_SQL.value:
                 if in_chat:
-                    yield "data:" + orjson.dumps({"type": "finish"}).decode() + "\n\n"
+                    yield emit_finish_event()
                 if not stream:
                     yield json_result
                 return
@@ -2145,13 +2040,7 @@ class LLMService:
 
             _ = self.save_sql_data(session=_session, data_obj=result)
             if in_chat:
-                yield (
-                    "data:"
-                    + orjson.dumps(
-                        {"content": "execute-success", "type": "sql-data"}
-                    ).decode()
-                    + "\n\n"
-                )
+                yield emit_chat_event("sql-data", content="execute-success")
             if not stream:
                 if self.record.id is None:
                     raise SingleMessageError("Record not initialized")
@@ -2160,9 +2049,7 @@ class LLMService:
             if finish_step.value <= ChatFinishStep.QUERY_DATA.value:
                 if stream:
                     if in_chat:
-                        yield (
-                            "data:" + orjson.dumps({"type": "finish"}).decode() + "\n\n"
-                        )
+                        yield emit_finish_event()
                     else:
                         _column_list: list[AxisObj] = []
                         fields = _get_string_list(result, "fields") or []
@@ -2180,9 +2067,9 @@ class LLMService:
                         if not _data or not _fields_list:
                             yield "The SQL execution result is empty.\n\n"
                         else:
-                            df = pd.DataFrame(_data, columns=_fields_list)
+                            df = pd.DataFrame(_data, columns=pd.Index(_fields_list))
                             df_safe = DataFormat.safe_convert_to_string(df)
-                            markdown_table = df_safe.to_markdown(index=False)
+                            markdown_table = str(df_safe.to_markdown(index=False))
                             yield markdown_table + "\n\n"
                 else:
                     yield json_result
@@ -2216,23 +2103,13 @@ class LLMService:
             for chunk in chart_res:
                 full_chart_text += _chunk_content_text(chunk)
                 if in_chat:
-                    yield (
-                        "data:"
-                        + orjson.dumps(
-                            {
-                                "content": _chunk_content_text(chunk),
-                                "reasoning_content": _chunk_reasoning_text(chunk),
-                                "type": "chart-result",
-                            }
-                        ).decode()
-                        + "\n\n"
+                    yield emit_chat_event(
+                        "chart-result",
+                        content=_chunk_content_text(chunk),
+                        reasoning_content=_chunk_reasoning_text(chunk),
                     )
             if in_chat:
-                yield (
-                    "data:"
-                    + orjson.dumps({"type": "info", "msg": "chart generated"}).decode()
-                    + "\n\n"
-                )
+                yield emit_chat_event("info", msg="chart generated")
 
             # filter chart
             SQLBotLogUtil.info(full_chart_text)
@@ -2243,13 +2120,7 @@ class LLMService:
                 json_result["chart"] = chart
 
             if in_chat:
-                yield (
-                    "data:"
-                    + orjson.dumps(
-                        {"content": orjson.dumps(chart).decode(), "type": "chart"}
-                    ).decode()
-                    + "\n\n"
-                )
+                yield emit_chat_event("chart", content=orjson.dumps(chart).decode())
             else:
                 if stream:
                     fields = _get_string_list(result, "fields") or []
@@ -2261,13 +2132,13 @@ class LLMService:
                     if not md_data or not _fields_list:
                         yield "The SQL execution result is empty.\n\n"
                     else:
-                        df = pd.DataFrame(md_data, columns=_fields_list)
+                        df = pd.DataFrame(md_data, columns=pd.Index(_fields_list))
                         df_safe = DataFormat.safe_convert_to_string(df)
-                        markdown_table = df_safe.to_markdown(index=False)
+                        markdown_table = str(df_safe.to_markdown(index=False))
                         yield markdown_table + "\n\n"
 
             if in_chat:
-                yield "data:" + orjson.dumps({"type": "finish"}).decode() + "\n\n"
+                yield emit_finish_event()
             else:
                 # generate picture
                 try:
@@ -2333,11 +2204,7 @@ class LLMService:
             if _session:
                 _ = self.save_error(session=_session, message=error_msg)
             if in_chat:
-                yield (
-                    "data:"
-                    + orjson.dumps({"content": error_msg, "type": "error"}).decode()
-                    + "\n\n"
-                )
+                yield emit_chat_error(error_msg)
             else:
                 if stream:
                     yield "&#x274c; **ERROR:**\n"
@@ -2367,27 +2234,15 @@ class LLMService:
 
             for chunk in res:
                 if chunk.get("recommended_question"):
-                    yield (
-                        "data:"
-                        + orjson.dumps(
-                            {
-                                "content": chunk.get("recommended_question"),
-                                "type": "recommended_question",
-                            }
-                        ).decode()
-                        + "\n\n"
+                    yield emit_chat_event(
+                        "recommended_question",
+                        content=chunk.get("recommended_question"),
                     )
                 else:
-                    yield (
-                        "data:"
-                        + orjson.dumps(
-                            {
-                                "content": _chunk_content_text(chunk),
-                                "reasoning_content": _chunk_reasoning_text(chunk),
-                                "type": "recommended_question_result",
-                            }
-                        ).decode()
-                        + "\n\n"
+                    yield emit_chat_event(
+                        "recommended_question_result",
+                        content=_chunk_content_text(chunk),
+                        reasoning_content=_chunk_reasoning_text(chunk),
                     )
         except Exception:
             traceback.print_exc()
@@ -2403,7 +2258,11 @@ class LLMService:
         in_chat: bool = True,
         stream: bool = True,
     ) -> None:
-        self.set_record(save_analysis_predict_record(session, base_record, action_type))
+        self.set_record(
+            self.persistence.create_analysis_or_predict_record(
+                session, base_record, action_type
+            )
+        )
         self.future = executor.submit(
             self.run_analysis_or_predict_task_cache, action_type, in_chat, stream
         )
@@ -2426,11 +2285,7 @@ class LLMService:
             if record_id is None:
                 raise SingleMessageError("Record not initialized")
             if in_chat:
-                yield (
-                    "data:"
-                    + orjson.dumps({"type": "id", "id": record_id}).decode()
-                    + "\n\n"
-                )
+                yield emit_chat_event("id", id=record_id)
             else:
                 if stream:
                     yield (
@@ -2451,33 +2306,17 @@ class LLMService:
                     content = _chunk_content_text(chunk)
                     full_text += content
                     if in_chat:
-                        yield (
-                            "data:"
-                            + orjson.dumps(
-                                {
-                                    "content": content,
-                                    "reasoning_content": _chunk_reasoning_text(chunk),
-                                    "type": "analysis-result",
-                                }
-                            ).decode()
-                            + "\n\n"
+                        yield emit_chat_event(
+                            "analysis-result",
+                            content=content,
+                            reasoning_content=_chunk_reasoning_text(chunk),
                         )
                     else:
                         if stream:
                             yield str(content or "")
                 if in_chat:
-                    yield (
-                        "data:"
-                        + orjson.dumps(
-                            {"type": "info", "msg": "analysis generated"}
-                        ).decode()
-                        + "\n\n"
-                    )
-                    yield (
-                        "data:"
-                        + orjson.dumps({"type": "analysis_finish"}).decode()
-                        + "\n\n"
-                    )
+                    yield emit_chat_event("info", msg="analysis generated")
+                    yield emit_chat_event("analysis_finish")
                 else:
                     if stream:
                         yield "\n\n"
@@ -2492,34 +2331,18 @@ class LLMService:
                     content = _chunk_content_text(chunk)
                     full_text += content
                     if in_chat:
-                        yield (
-                            "data:"
-                            + orjson.dumps(
-                                {
-                                    "content": content,
-                                    "reasoning_content": _chunk_reasoning_text(chunk),
-                                    "type": "predict-result",
-                                }
-                            ).decode()
-                            + "\n\n"
+                        yield emit_chat_event(
+                            "predict-result",
+                            content=content,
+                            reasoning_content=_chunk_reasoning_text(chunk),
                         )
                 if in_chat:
-                    yield (
-                        "data:"
-                        + orjson.dumps(
-                            {"type": "info", "msg": "predict generated"}
-                        ).decode()
-                        + "\n\n"
-                    )
+                    yield emit_chat_event("info", msg="predict generated")
 
                 has_data = self.check_save_predict_data(session=_session, res=full_text)
                 if has_data:
                     if in_chat:
-                        yield (
-                            "data:"
-                            + orjson.dumps({"type": "predict-success"}).decode()
-                            + "\n\n"
-                        )
+                        yield emit_chat_event("predict-success")
                     else:
                         chart = get_chat_chart_config(_session, record_id)
                         origin_data = get_chat_chart_data(_session, record_id)
@@ -2538,9 +2361,11 @@ class LLMService:
                             if not md_data or not _fields_list:
                                 yield "Predict data result is empty.\n\n"
                             else:
-                                df = pd.DataFrame(md_data, columns=_fields_list)
+                                df = pd.DataFrame(
+                                    md_data, columns=pd.Index(_fields_list)
+                                )
                                 df_safe = DataFormat.safe_convert_to_string(df)
-                                markdown_table = df_safe.to_markdown(index=False)
+                                markdown_table = str(df_safe.to_markdown(index=False))
                                 yield markdown_table + "\n\n"
 
                         else:
@@ -2576,11 +2401,7 @@ class LLMService:
                                 raise e
                 else:
                     if in_chat:
-                        yield (
-                            "data:"
-                            + orjson.dumps({"type": "predict-failed"}).decode()
-                            + "\n\n"
-                        )
+                        yield emit_chat_event("predict-failed")
                     else:
                         if stream:
                             yield full_text + "\n\n"
@@ -2588,11 +2409,7 @@ class LLMService:
                         json_result["success"] = False
                         json_result["message"] = full_text
                 if in_chat:
-                    yield (
-                        "data:"
-                        + orjson.dumps({"type": "predict_finish"}).decode()
-                        + "\n\n"
-                    )
+                    yield emit_chat_event("predict_finish")
 
             _ = self.finish(_session)
 
@@ -2610,11 +2427,7 @@ class LLMService:
             if _session:
                 _ = self.save_error(session=_session, message=error_msg)
             if in_chat:
-                yield (
-                    "data:"
-                    + orjson.dumps({"content": error_msg, "type": "error"}).decode()
-                    + "\n\n"
-                )
+                yield emit_chat_error(error_msg)
             else:
                 if stream:
                     yield "&#x274c; **ERROR:**\n"
