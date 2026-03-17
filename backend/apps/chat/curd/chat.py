@@ -79,7 +79,7 @@ class ChatLogProtocol(Protocol):
     operate: OperationEnum | str | None
     local_operation: bool
     error: bool
-    messages: str | None
+    messages: object | None
 
 
 def _as_object_dict(value: object) -> ObjectDict | None:
@@ -140,8 +140,18 @@ def _safe_rounded_duration(
     return round(duration, 2)
 
 
-def _parse_json_value(raw_json: str | None) -> ObjectDict | list[object] | str | None:
-    if not raw_json or raw_json.strip() == "":
+def _parse_json_value(
+    raw_json: object | None,
+) -> ObjectDict | list[object] | str | None:
+    if raw_json is None:
+        return None
+    if isinstance(raw_json, dict):
+        return _as_object_dict(raw_json)
+    if isinstance(raw_json, list):
+        return _as_object_list(raw_json)
+    if not isinstance(raw_json, str):
+        return None
+    if raw_json.strip() == "":
         return None
     try:
         parsed = cast(object, orjson.loads(raw_json))
@@ -171,12 +181,16 @@ def _get_operate_name(operate: OperationEnum | str | None) -> str | None:
 def _parse_log_message(log: ChatLogProtocol) -> str | ObjectDict | list[object] | None:
     if log.messages is None:
         return None
+    if isinstance(log.messages, dict):
+        return _as_object_dict(cast(object, log.messages))
+    if isinstance(log.messages, list):
+        return _as_object_list(cast(object, log.messages))
     if log.operate == OperationEnum.CHOOSE_TABLE:
-        return log.messages
+        return log.messages if isinstance(log.messages, str) else None
     parsed = _parse_json_value(log.messages)
     if isinstance(parsed, (dict, list, str)):
         return parsed
-    return log.messages
+    return log.messages if isinstance(log.messages, str) else None
 
 
 def _row_to_record_result(

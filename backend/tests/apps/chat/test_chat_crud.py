@@ -1,13 +1,21 @@
+from dataclasses import dataclass
+from datetime import datetime
 from typing import cast
 
 from sqlmodel import Session
 
-from apps.chat.curd.chat import create_chat, save_question
+from apps.chat.curd.chat import (
+    _parse_json_value,
+    _parse_log_message,
+    create_chat,
+    save_question,
+)
 from apps.chat.models.chat_model import (
     Chat,
     ChatRecord,
     CreateChat,
     ChatQuestion,
+    OperationEnum,
 )
 from apps.system.schemas.system_schema import UserInfoDTO
 
@@ -15,7 +23,7 @@ from apps.system.schemas.system_schema import UserInfoDTO
 class FakeSession:
     def __init__(self) -> None:
         self._storage: dict[tuple[type[object], int], object] = {}
-        self._next_id = 1
+        self._next_id: int = 1
 
     def add(self, obj: object) -> None:
         assert hasattr(obj, "_sa_instance_state")
@@ -62,6 +70,17 @@ def build_user() -> UserInfoDTO:
     )
 
 
+@dataclass
+class FakeChatLogMessage:
+    operate: OperationEnum | str | None
+    messages: object | None
+    start_time: datetime | None = None
+    finish_time: datetime | None = None
+    token_usage: object | None = None
+    local_operation: bool = False
+    error: bool = False
+
+
 class TestChatCrud:
     def test_create_chat_without_datasource_persists_chat(self) -> None:
         session = FakeSession()
@@ -103,3 +122,18 @@ class TestChatCrud:
         assert db_record is not None
         assert db_record.question == "what is sales?"
         session.close()
+
+    def test_parse_json_value_accepts_list_input(self) -> None:
+        parsed = _parse_json_value([{"role": "user", "content": "hello"}])
+
+        assert parsed == [{"role": "user", "content": "hello"}]
+
+    def test_parse_log_message_accepts_list_messages(self) -> None:
+        log = FakeChatLogMessage(
+            operate=OperationEnum.GENERATE_SQL,
+            messages=[{"role": "user", "content": "hello"}],
+        )
+
+        parsed = _parse_log_message(log)
+
+        assert parsed == [{"role": "user", "content": "hello"}]
