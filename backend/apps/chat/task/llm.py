@@ -383,6 +383,36 @@ def _chunk_reasoning_text(chunk: ObjectDict) -> str:
     return _get_str(chunk, "reasoning_content") or ""
 
 
+def _is_llm_quota_error(exc: Exception) -> bool:
+    exc_name = type(exc).__name__.lower()
+    message = str(exc).lower()
+    if "not enough quota" in message:
+        return True
+    if "insufficient quota" in message or "insufficient_quota" in message:
+        return True
+    if "额度" in str(exc) or "余额" in str(exc):
+        return True
+    if "'code': '20031'" in message or '"code": "20031"' in message:
+        return True
+    if exc_name in {"permissiondeniederror", "ratelimiterror"} and "quota" in message:
+        return True
+    return False
+
+
+def _normalize_llm_stream_error(exc: Exception) -> Exception:
+    if _is_llm_quota_error(exc):
+        return SingleMessageError(
+            orjson.dumps(
+                {
+                    "message": "模型服务额度不足，请检查模型供应商余额/配额后重试",
+                    "type": "llm-quota-err",
+                    "retryable": False,
+                }
+            ).decode()
+        )
+    return exc
+
+
 def _is_license_valid() -> bool:
     module = cast(
         _LicenseModuleProtocol,
@@ -714,6 +744,22 @@ class LLMService:
                         AIMessage(content=str(_msg_dict.get("content") or ""))
                     )
 
+    def _iter_llm_stream(
+        self,
+        session: Session,
+        messages: list[BaseMessage],
+        token_usage: TokenUsage,
+        operate: OperationEnum,
+    ) -> Iterator[ObjectDict]:
+        try:
+            for chunk in process_stream(self.llm.stream(messages), token_usage):
+                yield chunk
+        except Exception as exc:
+            log = self.current_logs.get(operate)
+            if log is not None:
+                _ = trigger_log_error(session, log)
+            raise _normalize_llm_stream_error(exc) from exc
+
     def init_record(self, session: Session) -> ChatRecord:
         self.record = save_question(
             session=session, current_user=self.current_user, question=self.chat_question
@@ -904,7 +950,9 @@ class LLMService:
         full_thinking_text = ""
         full_analysis_text = ""
         token_usage: TokenUsage = {}
-        res = process_stream(self.llm.stream(analysis_msg), token_usage)
+        res = self._iter_llm_stream(
+            _session, analysis_msg, token_usage, OperationEnum.ANALYSIS
+        )
         for chunk in res:
             full_analysis_text += _chunk_content_text(chunk)
             full_thinking_text += _chunk_reasoning_text(chunk)
@@ -961,7 +1009,9 @@ class LLMService:
         full_thinking_text = ""
         full_predict_text = ""
         token_usage: TokenUsage = {}
-        res = process_stream(self.llm.stream(predict_msg), token_usage)
+        res = self._iter_llm_stream(
+            _session, predict_msg, token_usage, OperationEnum.PREDICT_DATA
+        )
         for chunk in res:
             full_predict_text += _chunk_content_text(chunk)
             full_thinking_text += _chunk_reasoning_text(chunk)
@@ -1032,7 +1082,12 @@ class LLMService:
         full_thinking_text = ""
         full_guess_text = ""
         token_usage: TokenUsage = {}
-        res = process_stream(self.llm.stream(guess_msg), token_usage)
+        res = self._iter_llm_stream(
+            _session,
+            guess_msg,
+            token_usage,
+            OperationEnum.GENERATE_RECOMMENDED_QUESTIONS,
+        )
         for chunk in res:
             full_guess_text += _chunk_content_text(chunk)
             full_thinking_text += _chunk_reasoning_text(chunk)
@@ -1120,7 +1175,12 @@ class LLMService:
             )
 
             token_usage: TokenUsage = {}
-            res = process_stream(self.llm.stream(datasource_msg), token_usage)
+            res = self._iter_llm_stream(
+                _session,
+                datasource_msg,
+                token_usage,
+                OperationEnum.CHOOSE_DATASOURCE,
+            )
             for chunk in res:
                 full_text += _chunk_content_text(chunk)
                 full_thinking_text += _chunk_reasoning_text(chunk)
@@ -1262,7 +1322,12 @@ class LLMService:
         full_thinking_text = ""
         full_sql_text = ""
         token_usage: TokenUsage = {}
-        res = process_stream(self.llm.stream(self.sql_message), token_usage)
+        res = self._iter_llm_stream(
+            _session,
+            self.sql_message,
+            token_usage,
+            OperationEnum.GENERATE_SQL,
+        )
         for chunk in res:
             full_sql_text += _chunk_content_text(chunk)
             full_thinking_text += _chunk_reasoning_text(chunk)
@@ -1312,7 +1377,12 @@ class LLMService:
         full_thinking_text = ""
         full_dynamic_text = ""
         token_usage: TokenUsage = {}
-        res = process_stream(self.llm.stream(dynamic_sql_msg), token_usage)
+        res = self._iter_llm_stream(
+            session,
+            dynamic_sql_msg,
+            token_usage,
+            OperationEnum.GENERATE_DYNAMIC_SQL,
+        )
         for chunk in res:
             full_dynamic_text += _chunk_content_text(chunk)
             full_thinking_text += _chunk_reasoning_text(chunk)
@@ -1387,7 +1457,12 @@ class LLMService:
         full_thinking_text = ""
         full_filter_text = ""
         token_usage: TokenUsage = {}
-        res = process_stream(self.llm.stream(permission_sql_msg), token_usage)
+        res = self._iter_llm_stream(
+            session,
+            permission_sql_msg,
+            token_usage,
+            OperationEnum.GENERATE_SQL_WITH_PERMISSIONS,
+        )
         for chunk in res:
             full_filter_text += _chunk_content_text(chunk)
             full_thinking_text += _chunk_reasoning_text(chunk)
@@ -1456,7 +1531,12 @@ class LLMService:
         full_thinking_text = ""
         full_chart_text = ""
         token_usage: TokenUsage = {}
-        res = process_stream(self.llm.stream(self.chart_message), token_usage)
+        res = self._iter_llm_stream(
+            _session,
+            self.chart_message,
+            token_usage,
+            OperationEnum.GENERATE_CHART,
+        )
         for chunk in res:
             full_chart_text += _chunk_content_text(chunk)
             full_thinking_text += _chunk_reasoning_text(chunk)
