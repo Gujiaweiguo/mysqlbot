@@ -313,6 +313,7 @@ template:
       
       ### 响应, 请根据上述要求直接返回JSON结果:
       ```json
+      ```
 
     user: |
       <background-infos>
@@ -480,6 +481,7 @@ template:
       
       ### 响应, 请根据上述要求直接返回JSON结果:
       ```json
+      ```
 
     user: |
       <user-question>
@@ -595,6 +597,7 @@ template:
       
       ### 响应, 请根据上述要求直接返回JSON结果:
       ```json
+      ```
       
     user: |
       <fields>
@@ -619,6 +622,7 @@ template:
       
       ### 响应, 请直接返回JSON结果:
       ```json
+      ```
     user: |
       ### 数据源列表:
       {data}
@@ -686,6 +690,7 @@ template:
       
       ### 响应, 请根据上述要求直接返回JSON结果:
       ```json
+      ```
     user: |
       <sql>
       {sql}
@@ -714,6 +719,7 @@ template:
 
       ### 响应, 请直接返回JSON结果:
       ```json
+      ```
 
     user: |
       ### sql:

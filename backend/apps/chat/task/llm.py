@@ -1,6 +1,7 @@
 import concurrent.futures
 import json
 import os
+import re
 import traceback
 import urllib.parse
 import warnings
@@ -73,7 +74,7 @@ from apps.datasource.crud.datasource import get_table_schema
 from apps.datasource.crud.permission import get_row_permission_filters, is_normal_user
 from apps.datasource.embedding.ds_embedding import get_ds_embedding
 from apps.datasource.models.datasource import CoreDatasource
-from apps.db.db import check_connection, exec_sql, get_version
+from apps.db.db import check_connection, check_sql_read, exec_sql, get_version
 from apps.system.crud.assistant import (
     AssistantOutDs,
     AssistantOutDsFactory,
@@ -174,7 +175,138 @@ def _lowercase_mapping_value(mapping: ObjectDict, key: str) -> None:
 
 def _get_bool(mapping: ObjectDict, key: str) -> bool | None:
     value = mapping.get(key)
-    return value if isinstance(value, bool) else None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes"}:
+            return True
+        if normalized in {"false", "0", "no"}:
+            return False
+    return None
+
+
+def _has_non_empty_sql_field(mapping: ObjectDict) -> bool:
+    sql_value = _get_str(mapping, "sql")
+    return bool(sql_value and sql_value.strip())
+
+
+def _has_non_empty_message_field(mapping: ObjectDict) -> bool:
+    message_value = _get_str(mapping, "message")
+    return bool(message_value and message_value.strip())
+
+
+def _is_successful_sql_payload(mapping: ObjectDict) -> bool:
+    success = _get_bool(mapping, "success")
+    if success is False:
+        return False
+
+    has_sql = _has_non_empty_sql_field(mapping)
+    if success is True:
+        return has_sql
+
+    if "success" in mapping:
+        return False
+
+    if not has_sql:
+        return False
+
+    return not _has_non_empty_message_field(mapping)
+
+
+def _extract_json_object_candidates(text: str) -> list[str]:
+    stack: list[str] = []
+    start_index = -1
+    results: list[str] = []
+
+    for i, char in enumerate(text):
+        if char == "{":
+            if not stack:
+                start_index = i
+            stack.append(char)
+        elif char == "}":
+            if stack and stack[-1] == "{":
+                stack.pop()
+                if not stack and start_index >= 0:
+                    json_str = text[start_index : i + 1]
+                    try:
+                        parsed = _parse_json_object(json_str)
+                    except Exception:
+                        parsed = None
+                    if parsed is not None:
+                        results.append(json_str)
+            else:
+                stack = []
+                start_index = -1
+
+    return results
+
+
+def _looks_like_sql_answer_payload(mapping: ObjectDict) -> bool:
+    return any(
+        key in mapping
+        for key in ("sql", "success", "message", "tables", "chart-type", "brief")
+    )
+
+
+def _extract_sql_answer_payload(text: str) -> tuple[str | None, ObjectDict | None]:
+    candidates = _extract_json_object_candidates(text)
+    if not candidates:
+        fallback_json = extract_nested_json(text)
+        if fallback_json is None:
+            return None, None
+        candidates = [fallback_json]
+
+    for candidate in reversed(candidates):
+        try:
+            data = _parse_json_object(candidate)
+        except Exception:
+            data = None
+        if data is not None and _looks_like_sql_answer_payload(data):
+            return candidate, data
+
+    return None, None
+
+
+def _extract_sql_fallback_candidate(text: str) -> str | None:
+    stripped = text.strip()
+    if stripped == "":
+        return None
+
+    fenced_match = re.fullmatch(
+        r"```sql\s*(?P<sql>[\s\S]*?)\s*```", stripped, flags=re.IGNORECASE
+    )
+    if fenced_match is not None:
+        candidate = fenced_match.group("sql").strip()
+        return candidate if candidate != "" else None
+
+    if stripped.startswith("```"):
+        return None
+
+    if re.match(r"(?is)^(select|with)\b", stripped) is None:
+        return None
+
+    return stripped
+
+
+def _is_safe_sql_fallback_candidate(
+    sql: str, ds: CoreDatasource | AssistantOutDsSchema | None
+) -> bool:
+    if ds is None:
+        return False
+
+    statements = [
+        statement.strip() for statement in sqlparse.split(sql) if statement.strip()
+    ]
+    if len(statements) != 1:
+        return False
+
+    try:
+        return check_sql_read(statements[0], ds)
+    except Exception:
+        return False
 
 
 def _parse_json_object(raw_json: str) -> ObjectDict | None:
@@ -1348,11 +1480,17 @@ class LLMService:
     def check_sql(
         self, session: Session, res: str, operate: OperationEnum
     ) -> tuple[str, list[str] | None]:
-        json_str = extract_nested_json(res)
+        json_str, data = _extract_sql_answer_payload(res)
 
         log = self.current_logs[operate]
 
-        if json_str is None:
+        if json_str is None or data is None:
+            fallback_sql = _extract_sql_fallback_candidate(res)
+            if fallback_sql is not None and _is_safe_sql_fallback_candidate(
+                fallback_sql, self.ds
+            ):
+                return fallback_sql, None
+
             _ = trigger_log_error(session, log)
             raise SingleMessageError(
                 orjson.dumps(
@@ -1364,18 +1502,21 @@ class LLMService:
             )
         sql: str
         try:
-            data = _parse_json_object(json_str)
-            if data is None:
-                raise ValueError("SQL payload is not a valid object")
+            success = _get_bool(data, "success")
+            sql_value = _get_str(data, "sql")
+            message = _get_str(data, "message")
 
-            if _get_bool(data, "success"):
-                sql_value = _get_str(data, "sql")
+            if success is False:
+                raise SingleMessageError(message or "Cannot parse sql from answer")
+
+            if _is_successful_sql_payload(data):
                 if sql_value is None:
                     raise ValueError("SQL field is missing")
                 sql = sql_value
+            elif success is True:
+                raise ValueError("SQL field is missing")
             else:
-                message = _get_str(data, "message") or "Cannot parse sql from answer"
-                raise SingleMessageError(message)
+                raise SingleMessageError(message or "Cannot parse sql from answer")
         except SingleMessageError as e:
             _ = trigger_log_error(session, log)
             raise e
@@ -1398,15 +1539,12 @@ class LLMService:
 
     @staticmethod
     def get_chart_type_from_sql_answer(res: str) -> str | None:
-        json_str = extract_nested_json(res)
-        if json_str is None:
+        _, data = _extract_sql_answer_payload(res)
+        if data is None:
             return None
 
         try:
-            data = _parse_json_object(json_str)
-            if data is None:
-                return None
-            if _get_bool(data, "success"):
+            if _is_successful_sql_payload(data):
                 return _get_str(data, "chart-type")
             return None
         except Exception:
@@ -1414,15 +1552,12 @@ class LLMService:
 
     @staticmethod
     def get_brief_from_sql_answer(res: str) -> str | None:
-        json_str = extract_nested_json(res)
-        if json_str is None:
+        _, data = _extract_sql_answer_payload(res)
+        if data is None:
             return None
 
         try:
-            data = _parse_json_object(json_str)
-            if data is None:
-                return None
-            if _get_bool(data, "success"):
+            if _is_successful_sql_payload(data):
                 return _get_str(data, "brief")
             return None
         except Exception:
