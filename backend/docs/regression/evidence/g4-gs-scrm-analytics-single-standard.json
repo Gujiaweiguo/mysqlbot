@@ -1,0 +1,191 @@
+{
+  "report_id": "g4-gs-scrm-analytics-20260317-195703",
+  "created_at": "2026-03-17T19:57:03.212927",
+  "base_url": "http://127.0.0.1:8000",
+  "schema": "gs_scrm",
+  "datasource_id": 3,
+  "profile": "standard",
+  "standard": {
+    "case_count": 8,
+    "passed_count": 0,
+    "overall_passed": false,
+    "cases": [
+      {
+        "case_id": "member-growth-daily",
+        "question": "请统计最近30天会员注册人数的按日变化趋势。",
+        "expectation": "Daily member registration trend should return grouped rows by date.",
+        "passed": false,
+        "chat_id": 109,
+        "record_count": 2,
+        "has_sql": false,
+        "has_data": false,
+        "event_count": 3,
+        "event_types": [
+          "error",
+          "id",
+          "question"
+        ],
+        "errors": [
+          "{\"message\":\"Error code: 403 - {'id': 'cf5cf847da7545113fb14ddf95bbab6b', 'error': {'message': 'not enough quota, please refer to the following docs. coding plan：https://cloud.tencent.com/document/product/1772/128947 post-payment：https://cloud.tencent.com/document/product/1772/111127', 'type': 'runtime_error', 'param': None, 'code': '20031'}}\",\"traceback\":\"Traceback (most recent call last):\\n  File \\\"/opt/sqlbot/app/apps/chat/task/llm.py\\\", line 1897, in run_task\\n    for chunk in sql_res:\\nopenai.PermissionDeniedError: Error code: 403 - {'id': 'cf5cf847da7545113fb14ddf95bbab6b', 'error': {'message': 'not enough quota, please refer to the following docs. coding plan：https://cloud.tencent.com/document/product/1772/128947 post-payment：https://cloud.tencent.com/document/product/1772/111127', 'type': 'runtime_error', 'param': None, 'code': '20031'}}\\n\"}"
+        ],
+        "sample_sql": null,
+        "sample_data": null,
+        "sse_sql_fragments": []
+      },
+      {
+        "case_id": "member-channel",
+        "question": "请统计各会员注册渠道的人数分布，并按人数从高到低排序。",
+        "expectation": "Member registration channel distribution should return grouped counts.",
+        "passed": false,
+        "chat_id": 111,
+        "record_count": 2,
+        "has_sql": false,
+        "has_data": false,
+        "event_count": 3,
+        "event_types": [
+          "error",
+          "id",
+          "question"
+        ],
+        "errors": [
+          "{\"message\":\"Error code: 403 - {'id': '72275d87cf4efd2f5925b028ec1ede33', 'error': {'message': 'not enough quota, please refer to the following docs. coding plan：https://cloud.tencent.com/document/product/1772/128947 post-payment：https://cloud.tencent.com/document/product/1772/111127', 'type': 'runtime_error', 'param': None, 'code': '20031'}}\",\"traceback\":\"Traceback (most recent call last):\\n  File \\\"/opt/sqlbot/app/apps/chat/task/llm.py\\\", line 1897, in run_task\\n    for chunk in sql_res:\\nopenai.PermissionDeniedError: Error code: 403 - {'id': '72275d87cf4efd2f5925b028ec1ede33', 'error': {'message': 'not enough quota, please refer to the following docs. coding plan：https://cloud.tencent.com/document/product/1772/128947 post-payment：https://cloud.tencent.com/document/product/1772/111127', 'type': 'runtime_error', 'param': None, 'code': '20031'}}\\n\"}"
+        ],
+        "sample_sql": null,
+        "sample_data": null,
+        "sse_sql_fragments": []
+      },
+      {
+        "case_id": "member-grade-structure",
+        "question": "请统计各会员等级的人数及占比。",
+        "expectation": "Member grade structure should return grouped counts and percentages.",
+        "passed": false,
+        "chat_id": 113,
+        "record_count": 2,
+        "has_sql": false,
+        "has_data": false,
+        "event_count": 3,
+        "event_types": [
+          "error",
+          "id",
+          "question"
+        ],
+        "errors": [
+          "{\"message\":\"Error code: 403 - {'id': '2a4cdfe3f7cf1650ecc9212a3369b217', 'error': {'message': 'not enough quota, please refer to the following docs. coding plan：https://cloud.tencent.com/document/product/1772/128947 post-payment：https://cloud.tencent.com/document/product/1772/111127', 'type': 'runtime_error', 'param': None, 'code': '20031'}}\",\"traceback\":\"Traceback (most recent call last):\\n  File \\\"/opt/sqlbot/app/apps/chat/task/llm.py\\\", line 1897, in run_task\\n    for chunk in sql_res:\\nopenai.PermissionDeniedError: Error code: 403 - {'id': '2a4cdfe3f7cf1650ecc9212a3369b217', 'error': {'message': 'not enough quota, please refer to the following docs. coding plan：https://cloud.tencent.com/document/product/1772/128947 post-payment：https://cloud.tencent.com/document/product/1772/111127', 'type': 'runtime_error', 'param': None, 'code': '20031'}}\\n\"}"
+        ],
+        "sample_sql": null,
+        "sample_data": null,
+        "sse_sql_fragments": []
+      },
+      {
+        "case_id": "member-active-trend",
+        "question": "请统计最近30天活跃会员人数的变化趋势。",
+        "expectation": "Active member trend should return grouped rows by day.",
+        "passed": false,
+        "chat_id": 115,
+        "record_count": 2,
+        "has_sql": false,
+        "has_data": false,
+        "event_count": 3,
+        "event_types": [
+          "error",
+          "id",
+          "question"
+        ],
+        "errors": [
+          "{\"message\":\"Error code: 403 - {'id': '37c7b184546dcdda1b1130aa010cb4cf', 'error': {'message': 'not enough quota, please refer to the following docs. coding plan：https://cloud.tencent.com/document/product/1772/128947 post-payment：https://cloud.tencent.com/document/product/1772/111127', 'type': 'runtime_error', 'param': None, 'code': '20031'}}\",\"traceback\":\"Traceback (most recent call last):\\n  File \\\"/opt/sqlbot/app/apps/chat/task/llm.py\\\", line 1897, in run_task\\n    for chunk in sql_res:\\nopenai.PermissionDeniedError: Error code: 403 - {'id': '37c7b184546dcdda1b1130aa010cb4cf', 'error': {'message': 'not enough quota, please refer to the following docs. coding plan：https://cloud.tencent.com/document/product/1772/128947 post-payment：https://cloud.tencent.com/document/product/1772/111127', 'type': 'runtime_error', 'param': None, 'code': '20031'}}\\n\"}"
+        ],
+        "sample_sql": null,
+        "sample_data": null,
+        "sse_sql_fragments": []
+      },
+      {
+        "case_id": "activity-applies",
+        "question": "请统计各会员活动的报名人数，并按报名人数从高到低排序。",
+        "expectation": "Activity apply counts should return grouped rows.",
+        "passed": false,
+        "chat_id": 117,
+        "record_count": 2,
+        "has_sql": false,
+        "has_data": false,
+        "event_count": 3,
+        "event_types": [
+          "error",
+          "id",
+          "question"
+        ],
+        "errors": [
+          "{\"message\":\"Error code: 403 - {'id': '6b0e4dbcab150f4400281a654c6cbf12', 'error': {'message': 'not enough quota, please refer to the following docs. coding plan：https://cloud.tencent.com/document/product/1772/128947 post-payment：https://cloud.tencent.com/document/product/1772/111127', 'type': 'runtime_error', 'param': None, 'code': '20031'}}\",\"traceback\":\"Traceback (most recent call last):\\n  File \\\"/opt/sqlbot/app/apps/chat/task/llm.py\\\", line 1897, in run_task\\n    for chunk in sql_res:\\nopenai.PermissionDeniedError: Error code: 403 - {'id': '6b0e4dbcab150f4400281a654c6cbf12', 'error': {'message': 'not enough quota, please refer to the following docs. coding plan：https://cloud.tencent.com/document/product/1772/128947 post-payment：https://cloud.tencent.com/document/product/1772/111127', 'type': 'runtime_error', 'param': None, 'code': '20031'}}\\n\"}"
+        ],
+        "sample_sql": null,
+        "sample_data": null,
+        "sse_sql_fragments": []
+      },
+      {
+        "case_id": "marketing-effect-v2",
+        "question": "请基于营销计划日志统计各营销计划的触发次数、触发金额和发放积分，并显示营销计划名称。",
+        "expectation": "Marketing effect should join marketing plan logs and plan names.",
+        "passed": false,
+        "chat_id": 119,
+        "record_count": 2,
+        "has_sql": false,
+        "has_data": false,
+        "event_count": 3,
+        "event_types": [
+          "error",
+          "id",
+          "question"
+        ],
+        "errors": [
+          "{\"message\":\"Error code: 403 - {'id': '0a5dc75ff912129a311cfda0f3fef29a', 'error': {'message': 'not enough quota, please refer to the following docs. coding plan：https://cloud.tencent.com/document/product/1772/128947 post-payment：https://cloud.tencent.com/document/product/1772/111127', 'type': 'runtime_error', 'param': None, 'code': '20031'}}\",\"traceback\":\"Traceback (most recent call last):\\n  File \\\"/opt/sqlbot/app/apps/chat/task/llm.py\\\", line 1897, in run_task\\n    for chunk in sql_res:\\nopenai.PermissionDeniedError: Error code: 403 - {'id': '0a5dc75ff912129a311cfda0f3fef29a', 'error': {'message': 'not enough quota, please refer to the following docs. coding plan：https://cloud.tencent.com/document/product/1772/128947 post-payment：https://cloud.tencent.com/document/product/1772/111127', 'type': 'runtime_error', 'param': None, 'code': '20031'}}\\n\"}"
+        ],
+        "sample_sql": null,
+        "sample_data": null,
+        "sse_sql_fragments": []
+      },
+      {
+        "case_id": "shop-consume-aov-v2",
+        "question": "请基于交易表和核销记录，按核销店铺统计会员消费金额、消费人数和客单价，并显示店铺名称。",
+        "expectation": "Shop consumption should join trades, writeoff records, and shops.",
+        "passed": false,
+        "chat_id": 121,
+        "record_count": 2,
+        "has_sql": false,
+        "has_data": false,
+        "event_count": 3,
+        "event_types": [
+          "error",
+          "id",
+          "question"
+        ],
+        "errors": [
+          "{\"message\":\"Error code: 403 - {'id': '1343ffbb2a5737f281c0f782dfba606d', 'error': {'message': 'not enough quota, please refer to the following docs. coding plan：https://cloud.tencent.com/document/product/1772/128947 post-payment：https://cloud.tencent.com/document/product/1772/111127', 'type': 'runtime_error', 'param': None, 'code': '20031'}}\",\"traceback\":\"Traceback (most recent call last):\\n  File \\\"/opt/sqlbot/app/apps/chat/task/llm.py\\\", line 1897, in run_task\\n    for chunk in sql_res:\\nopenai.PermissionDeniedError: Error code: 403 - {'id': '1343ffbb2a5737f281c0f782dfba606d', 'error': {'message': 'not enough quota, please refer to the following docs. coding plan：https://cloud.tencent.com/document/product/1772/128947 post-payment：https://cloud.tencent.com/document/product/1772/111127', 'type': 'runtime_error', 'param': None, 'code': '20031'}}\\n\"}"
+        ],
+        "sample_sql": null,
+        "sample_data": null,
+        "sse_sql_fragments": []
+      },
+      {
+        "case_id": "member-frequency-v2",
+        "question": "请以 TRADE_FINISHED 状态的交易为准，统计消费频率最高的会员，显示会员ID、消费次数和消费总额。",
+        "expectation": "Frequency ranking should use TRADE_FINISHED and grouped member metrics.",
+        "passed": false,
+        "chat_id": 123,
+        "record_count": 2,
+        "has_sql": false,
+        "has_data": false,
+        "event_count": 3,
+        "event_types": [
+          "error",
+          "id",
+          "question"
+        ],
+        "errors": [
+          "{\"message\":\"Error code: 403 - {'id': '1cb553154b2cec6f9e1b19ee8eaf4144', 'error': {'message': 'not enough quota, please refer to the following docs. coding plan：https://cloud.tencent.com/document/product/1772/128947 post-payment：https://cloud.tencent.com/document/product/1772/111127', 'type': 'runtime_error', 'param': None, 'code': '20031'}}\",\"traceback\":\"Traceback (most recent call last):\\n  File \\\"/opt/sqlbot/app/apps/chat/task/llm.py\\\", line 1897, in run_task\\n    for chunk in sql_res:\\nopenai.PermissionDeniedError: Error code: 403 - {'id': '1cb553154b2cec6f9e1b19ee8eaf4144', 'error': {'message': 'not enough quota, please refer to the following docs. coding plan：https://cloud.tencent.com/document/product/1772/128947 post-payment：https://cloud.tencent.com/document/product/1772/111127', 'type': 'runtime_error', 'param': None, 'code': '20031'}}\\n\"}"
+        ],
+        "sample_sql": null,
+        "sample_data": null,
+        "sse_sql_fragments": []
+      }
+    ]
+  }
+}

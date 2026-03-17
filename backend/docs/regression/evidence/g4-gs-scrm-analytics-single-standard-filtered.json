@@ -1,0 +1,40 @@
+{
+  "report_id": "g4-gs-scrm-analytics-20260317-200032",
+  "created_at": "2026-03-17T20:00:32.762940",
+  "base_url": "http://127.0.0.1:8000",
+  "schema": "gs_scrm",
+  "datasource_id": 3,
+  "profile": "standard",
+  "selected_case_ids": [
+    "member-growth-daily"
+  ],
+  "standard": {
+    "case_count": 1,
+    "passed_count": 0,
+    "overall_passed": false,
+    "cases": [
+      {
+        "case_id": "member-growth-daily",
+        "question": "请统计最近30天会员注册人数的按日变化趋势。",
+        "expectation": "Daily member registration trend should return grouped rows by date.",
+        "passed": false,
+        "chat_id": 128,
+        "record_count": 2,
+        "has_sql": false,
+        "has_data": false,
+        "event_count": 3,
+        "event_types": [
+          "error",
+          "id",
+          "question"
+        ],
+        "errors": [
+          "{\"message\":\"Error code: 403 - {'id': 'b80e924eabfdb3dea22c1d58eb672e3a', 'error': {'message': 'not enough quota, please refer to the following docs. coding plan：https://cloud.tencent.com/document/product/1772/128947 post-payment：https://cloud.tencent.com/document/product/1772/111127', 'type': 'runtime_error', 'param': None, 'code': '20031'}}\",\"traceback\":\"Traceback (most recent call last):\\n  File \\\"/opt/sqlbot/app/apps/chat/task/llm.py\\\", line 1897, in run_task\\n    for chunk in sql_res:\\nopenai.PermissionDeniedError: Error code: 403 - {'id': 'b80e924eabfdb3dea22c1d58eb672e3a', 'error': {'message': 'not enough quota, please refer to the following docs. coding plan：https://cloud.tencent.com/document/product/1772/128947 post-payment：https://cloud.tencent.com/document/product/1772/111127', 'type': 'runtime_error', 'param': None, 'code': '20031'}}\\n\"}"
+        ],
+        "sample_sql": null,
+        "sample_data": null,
+        "sse_sql_fragments": []
+      }
+    ]
+  }
+}
