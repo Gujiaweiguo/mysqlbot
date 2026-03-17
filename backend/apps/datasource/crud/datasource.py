@@ -26,7 +26,7 @@ from common.utils.embedding_threads import (
     run_save_ds_embeddings,
     run_save_table_embeddings,
 )
-from common.utils.utils import SQLBotLogUtil, deepcopy_ignore_extra
+from common.utils.utils import SQLBotLogUtil
 
 from ..crud.field import delete_field_by_ds_id, update_field
 from ..crud.table import delete_table_by_ds_id, update_table
@@ -37,9 +37,11 @@ from ..models.datasource import (
     CoreTable,
     CreateDatasource,
     DatasourceConf,
+    SelectedTablePayload,
     TableAndFields,
     TableObj,
     TableSchema,
+    UpdateDatasource,
 )
 from .table import get_tables_by_ds_id
 
@@ -96,6 +98,19 @@ def _get_sheet_table_names(conf: DatasourceConf) -> list[str]:
         if isinstance(table_name, str):
             table_names.append(table_name)
     return table_names
+
+
+def _quote_identifier(identifier: str, ds_type: str) -> str:
+    db = DB.get_db(ds_type, default_if_none=True)
+    return f"{db.prefix}{identifier}{db.suffix}"
+
+
+def _format_table_reference(schema: str, table_name: str, ds_type: str) -> str:
+    quoted_table = _quote_identifier(table_name, ds_type)
+    if ds_type == "mysql" or ds_type == "es":
+        return quoted_table
+    quoted_schema = _quote_identifier(schema, ds_type)
+    return f"{quoted_schema}.{quoted_table}"
 
 
 def _get_ds_rules_model() -> type[DsRulesModelProtocol]:
@@ -225,15 +240,21 @@ def check_status(
 
 
 def check_name(
-    session: SessionDep, trans: Trans, user: CurrentUser, ds: CoreDatasource
+    session: SessionDep,
+    trans: Trans,
+    user: CurrentUser,
+    ds: CoreDatasource | UpdateDatasource,
 ) -> None:
     ds_id = cast(object, getattr(ds, "id", None))
+    ds_name = cast(object, getattr(ds, "name", None))
+    if not isinstance(ds_name, str):
+        raise HTTPException(status_code=500, detail=trans("i18n_ds_invalid"))
     if isinstance(ds_id, int):
         ds_list = list(
             session.exec(
                 select(CoreDatasource).where(
                     and_(
-                        col(CoreDatasource.name) == ds.name,
+                        col(CoreDatasource.name) == ds_name,
                         col(CoreDatasource.id) != ds_id,
                         col(CoreDatasource.oid) == user.oid,
                     )
@@ -247,7 +268,7 @@ def check_name(
             session.exec(
                 select(CoreDatasource).where(
                     and_(
-                        col(CoreDatasource.name) == ds.name,
+                        col(CoreDatasource.name) == ds_name,
                         col(CoreDatasource.oid) == user.oid,
                     )
                 )
@@ -265,7 +286,8 @@ def check_name(
 async def create_ds(
     session: SessionDep, trans: Trans, user: CurrentUser, create_ds: CreateDatasource
 ) -> CoreDatasource:
-    ds = CoreDatasource.model_construct(
+    record = CoreDatasource(
+        id=None,
         name=create_ds.name,
         description=create_ds.description,
         type=create_ds.type,
@@ -280,25 +302,22 @@ async def create_ds(
         embedding="",
         recommended_config=create_ds.recommended_config,
     )
-    deepcopy_ignore_extra(create_ds, ds)
-    check_name(session, trans, user, ds)
+    check_name(session, trans, user, record)
     # status = check_status(session, ds)
-    ds.type_name = DB.get_db(ds.type).db_name
-    record = CoreDatasource.model_validate(ds.model_dump())
+    record.type_name = DB.get_db(record.type).db_name
     session.add(record)
     session.flush()
     session.refresh(record)
-    ds.id = record.id
     session.commit()
 
     # save tables and fields
-    sync_table(session, ds, create_ds.tables)
-    updateNum(session, ds)
-    return ds
+    sync_table(session, record, create_ds.tables)
+    updateNum(session, record)
+    return record
 
 
 def chooseTables(
-    session: SessionDep, trans: Trans, id: int, tables: list[CoreTable]
+    session: SessionDep, trans: Trans, id: int, tables: list[SelectedTablePayload]
 ) -> None:
     ds = session.exec(
         select(CoreDatasource).where(col(CoreDatasource.id) == id)
@@ -311,7 +330,7 @@ def chooseTables(
 
 
 def update_ds(
-    session: SessionDep, trans: Trans, user: CurrentUser, ds: CoreDatasource
+    session: SessionDep, trans: Trans, user: CurrentUser, ds: UpdateDatasource
 ) -> CoreDatasource:
     ds_id = cast(object, ds.id)
     if not isinstance(ds_id, int):
@@ -332,7 +351,7 @@ def update_ds(
     session.commit()
 
     run_save_ds_embeddings([ds.id])
-    return ds
+    return record
 
 
 def update_ds_recommended_config(
@@ -435,48 +454,54 @@ def sync_single_fields(session: SessionDep, trans: Trans, id: int) -> None:
 
 
 def sync_table(
-    session: SessionDep, ds: CoreDatasource, tables: list[CoreTable]
+    session: SessionDep, ds: CoreDatasource, tables: list[SelectedTablePayload]
 ) -> None:
+    ds_id = cast(object, ds.id)
+    if not isinstance(ds_id, int):
+        raise HTTPException(status_code=500, detail="datasource not found")
+    ds_id_int = ds_id
     id_list: list[int] = []
     for item in tables:
         statement = select(CoreTable).where(
             and_(
-                col(CoreTable.ds_id) == ds.id,
+                col(CoreTable.ds_id) == ds_id_int,
                 col(CoreTable.table_name) == item.table_name,
             )
         )
         record = session.exec(statement).first()
         # update exist table, only update table_comment
         if record is not None:
-            item.id = record.id
             id_list.append(record.id)
 
             record.table_comment = item.table_comment
             session.add(record)
             session.commit()
+            current_table = record
         else:
             # save new table
-            table = CoreTable.model_construct(
-                ds_id=ds.id,
+            table = CoreTable(
+                id=0,
+                ds_id=ds_id_int,
                 checked=True,
                 table_name=item.table_name,
                 table_comment=item.table_comment,
                 custom_comment=item.table_comment,
                 embedding="",
             )
+            object.__setattr__(table, "id", None)
             session.add(table)
             session.flush()
             session.refresh(table)
             table_id = cast(object, getattr(table, "id", None))
             if not isinstance(table_id, int):
                 raise HTTPException(status_code=500, detail="table create failed")
-            item.id = table_id
             id_list.append(table_id)
             session.commit()
+            current_table = table
 
         # sync field
         fields = getFieldsByDs(session, ds, item.table_name)
-        sync_fields(session, ds, item, fields)
+        sync_fields(session, ds, current_table, fields)
 
     if len(id_list) > 0:
         _ = session.exec(
@@ -510,6 +535,10 @@ def sync_fields(
     table: CoreTable,
     fields: list[ColumnSchema],
 ) -> None:
+    ds_id = cast(object, ds.id)
+    if not isinstance(ds_id, int):
+        raise HTTPException(status_code=500, detail="datasource not found")
+    ds_id_int = ds_id
     table_id = cast(object, getattr(table, "id", None))
     if not isinstance(table_id, int):
         return
@@ -531,8 +560,9 @@ def sync_fields(
             session.add(record)
             session.commit()
         else:
-            field = CoreField.model_construct(
-                ds_id=ds.id,
+            field = CoreField(
+                id=0,
+                ds_id=ds_id_int,
                 table_id=table_id,
                 checked=True,
                 field_name=item.fieldName,
@@ -541,6 +571,7 @@ def sync_fields(
                 custom_comment=item.fieldComment or "",
                 field_index=index,
             )
+            object.__setattr__(field, "id", None)
             session.add(field)
             session.flush()
             session.refresh(field)
@@ -815,9 +846,9 @@ def get_table_schema(
 
         schema_table = ""
         schema_table += (
-            f"# Table: {db_name}.{obj.table.table_name}"
+            f"# Table: {_format_table_reference(db_name, obj.table.table_name, ds.type)}"
             if ds.type != "mysql" and ds.type != "es"
-            else f"# Table: {obj.table.table_name}"
+            else f"# Table: {_format_table_reference(db_name, obj.table.table_name, ds.type)}"
         )
         table_comment = ""
         if obj.table.custom_comment:
@@ -834,10 +865,12 @@ def get_table_schema(
                 if field.custom_comment:
                     field_comment = field.custom_comment.strip()
                 if field_comment == "":
-                    field_list.append(f"({field.field_name}:{field.field_type})")
+                    field_list.append(
+                        f"({_quote_identifier(field.field_name, ds.type)}:{field.field_type})"
+                    )
                 else:
                     field_list.append(
-                        f"({field.field_name}:{field.field_type}, {field_comment})"
+                        f"({_quote_identifier(field.field_name, ds.type)}:{field.field_type}, {field_comment})"
                     )
             schema_table += ",\n".join(field_list)
         schema_table += "\n]\n"

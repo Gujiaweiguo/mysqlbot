@@ -54,8 +54,10 @@ from ..models.datasource import (
     CreateDatasource,
     FieldObj,
     PreviewResponse,
+    SelectedTablePayload,
     TableObj,
     TableSchemaResponse,
+    UpdateDatasource,
 )
 
 router = APIRouter(tags=["Datasource"], prefix="/datasource")
@@ -161,7 +163,7 @@ async def add(
 async def choose_tables(
     session: SessionDep,
     trans: Trans,
-    tables: list[CoreTable],
+    tables: list[SelectedTablePayload],
     id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_id"),
 ) -> None:
     def inner() -> None:
@@ -184,7 +186,7 @@ async def choose_tables(
     )
 )
 async def update(
-    session: SessionDep, trans: Trans, user: CurrentUser, ds: CoreDatasource
+    session: SessionDep, trans: Trans, user: CurrentUser, ds: UpdateDatasource
 ) -> CoreDatasource:
     def inner() -> CoreDatasource:
         return update_ds(session, trans, user, ds)

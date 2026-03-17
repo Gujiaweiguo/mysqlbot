@@ -81,6 +81,11 @@ class CoreField(SQLModel, table=True):
     field_index: int = Field(sa_column=Column(BigInteger()))
 
 
+class SelectedTablePayload(BaseModel):
+    table_name: str
+    table_comment: str = ""
+
+
 # datasource create obj
 class CreateDatasource(BaseModel):
     id: int | None = None
@@ -93,7 +98,24 @@ class CreateDatasource(BaseModel):
     status: str = ""
     num: str = ""
     oid: int = 1
-    tables: list[CoreTable] = []
+    tables: list[SelectedTablePayload] = []
+    recommended_config: int = 1
+
+
+class UpdateDatasource(BaseModel):
+    id: int
+    name: str = ""
+    description: str = ""
+    type: str = ""
+    type_name: str | None = None
+    configuration: str = ""
+    create_time: datetime | None = None
+    create_by: int = 0
+    status: str = ""
+    num: str = ""
+    oid: int = 1
+    table_relation: list[Any] = []
+    embedding: str | None = None
     recommended_config: int = 1
 
 
