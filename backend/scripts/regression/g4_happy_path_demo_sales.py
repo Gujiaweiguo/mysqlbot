@@ -22,7 +22,7 @@ class PromptCase:
     expectation: str
 
 
-PROMPT_CASES: tuple[PromptCase, ...] = (
+DEMO_SALES_PROMPT_CASES: tuple[PromptCase, ...] = (
     PromptCase(
         "g4-aggregation",
         "最近订单总金额是多少？",
@@ -40,6 +40,92 @@ PROMPT_CASES: tuple[PromptCase, ...] = (
     ),
 )
 
+MALLCRE_PROMPT_CASES: tuple[PromptCase, ...] = (
+    PromptCase(
+        "g4-mallcre-overview",
+        "请统计星河购物中心2024年6月应收总额、已收总额、未收总额。",
+        "Project-level receivable summary returns receivable, received, and outstanding totals",
+    ),
+    PromptCase(
+        "g4-mallcre-vacancy-detail",
+        "请列出星河购物中心当前空置铺位的楼层、铺位名称和面积。只关注空置铺位明细。",
+        "Vacancy detail rows are returned with floor, location name, and area",
+    ),
+    PromptCase(
+        "g4-mallcre-collection-rate",
+        "请统计星河购物中心2024年6月各费用科目的应收总额、已收总额、未收总额。",
+        "Financial aggregate returns receivable, received, outstanding, and collection rate",
+    ),
+    PromptCase(
+        "g4-mallcre-arrears-top5",
+        "请列出星河购物中心2024年6月欠款金额最高的5个商户，显示商户名称、欠款金额和费用科目。",
+        "Top arrears tenants are ranked by outstanding amount",
+    ),
+    PromptCase(
+        "g4-mallcre-overdue-bills",
+        "请列出星河购物中心2024年6月已到最后缴款日但仍未收清的账单，显示商户、应收金额、已收金额、未收金额和最后缴款日。",
+        "Overdue receivable rows are returned with tenant, amounts, and last pay date",
+    ),
+    PromptCase(
+        "g4-mallcre-sales-ranking",
+        "请按销售额对星河购物中心商户进行排名，列出2024年6月销售额最高的5个商户。",
+        "Tenant sales ranking returns grouped rows ordered by sales amount descending",
+    ),
+    PromptCase(
+        "g4-mallcre-vacancy-floor",
+        "请统计星河购物中心空置铺位在各楼层的数量分布，并按空置数量从高到低排序。",
+        "Vacancy distribution is grouped by floor and sorted by vacancy count",
+    ),
+    PromptCase(
+        "g4-mallcre-payment-method",
+        "请统计星河购物中心2024年6月各付款方式的收款金额，并按金额从高到低排序。",
+        "Payment method aggregation returns amount distribution by method",
+    ),
+    PromptCase(
+        "g4-mallcre-high-risk",
+        "请列出星河购物中心2024年6月存在欠款且已逾期的商户，并显示欠款金额。",
+        "High-risk tenant list is filtered to overdue accounts with outstanding balances",
+    ),
+    PromptCase(
+        "g4-mallcre-floor-sales",
+        "请按楼层统计星河购物中心2024年6月销售额，并按销售额从高到低排序。",
+        "Floor sales summary is grouped and sorted by sales descending",
+    ),
+)
+
+PROMPT_CASE_SETS: dict[str, tuple[PromptCase, ...]] = {
+    "demo_sales": DEMO_SALES_PROMPT_CASES,
+    "mallcre": MALLCRE_PROMPT_CASES,
+}
+
+
+def _select_prompt_cases(schema: str) -> tuple[PromptCase, ...]:
+    normalized_schema = schema.strip().lower()
+    prompt_cases = PROMPT_CASE_SETS.get(normalized_schema)
+    if prompt_cases is not None:
+        return prompt_cases
+    return DEMO_SALES_PROMPT_CASES
+
+
+def _filter_prompt_cases(
+    prompt_cases: tuple[PromptCase, ...],
+    *,
+    case_ids: list[str] | None,
+    max_cases: int | None,
+) -> tuple[PromptCase, ...]:
+    filtered_cases = prompt_cases
+    if case_ids:
+        selected_ids = {
+            case_id.strip() for case_id in case_ids if case_id.strip() != ""
+        }
+        filtered_cases = tuple(
+            case for case in filtered_cases if case.case_id in selected_ids
+        )
+    if max_cases is not None and max_cases >= 0:
+        filtered_cases = filtered_cases[:max_cases]
+    return filtered_cases
+
+
 _runtime_root = Path(__file__).resolve().parents[2] / ".runtime"
 os.environ.setdefault("BASE_DIR", str(_runtime_root))
 os.environ.setdefault("UPLOAD_DIR", str(_runtime_root / "data" / "file"))
@@ -48,12 +134,13 @@ os.environ.setdefault("LOG_DIR", str(_runtime_root / "logs"))
 
 def _parse_args() -> argparse.Namespace:
     repo_root = Path(__file__).resolve().parents[3]
+    default_schema = "demo_sales"
     default_output = (
         repo_root
         / "docs"
         / "regression"
         / "evidence"
-        / f"g4-happy-path-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+        / f"g4-happy-path-{default_schema}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
     )
 
     parser = argparse.ArgumentParser(
@@ -70,7 +157,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--username", default="admin", help="Login username")
     parser.add_argument("--password", default="mySQLBot@123456", help="Login password")
     parser.add_argument(
-        "--schema", default="demo_sales", help="Target datasource schema"
+        "--schema", default=default_schema, help="Target datasource schema"
     )
     parser.add_argument(
         "--datasource-id",
@@ -83,6 +170,36 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--output", default=str(default_output), help="Evidence JSON output path"
+    )
+    parser.add_argument(
+        "--case-id",
+        action="append",
+        default=None,
+        help="Optional case_id filter; repeat flag to run multiple specific cases",
+    )
+    parser.add_argument(
+        "--max-cases",
+        type=int,
+        default=None,
+        help="Optional limit for number of prompt cases to execute",
+    )
+    parser.add_argument(
+        "--case-delay-seconds",
+        type=float,
+        default=2.0,
+        help="Delay between prompt cases to reduce upstream rate limiting",
+    )
+    parser.add_argument(
+        "--rate-limit-retries",
+        type=int,
+        default=2,
+        help="Retry count when the upstream model returns a rate-limit error",
+    )
+    parser.add_argument(
+        "--rate-limit-backoff-seconds",
+        type=float,
+        default=5.0,
+        help="Initial backoff seconds before retrying a rate-limited case",
     )
     return parser.parse_args()
 
@@ -241,6 +358,16 @@ def _extract_sql_like_fragments(events: list[dict[str, object]]) -> list[str]:
     return fragments
 
 
+def _is_rate_limit_error(message: str) -> bool:
+    normalized = message.lower()
+    return (
+        "429" in normalized
+        or "rate limit" in normalized
+        or "速率限制" in message
+        or "请求频率" in message
+    )
+
+
 async def _ask_question_sse(
     client: httpx.AsyncClient,
     token_header: dict[str, str],
@@ -294,6 +421,35 @@ async def _ask_question_sse(
     }
 
 
+async def _ask_question_with_retry(
+    client: httpx.AsyncClient,
+    token_header: dict[str, str],
+    chat_id: int,
+    question: str,
+    *,
+    retries: int,
+    backoff_seconds: float,
+) -> dict[str, object]:
+    attempt = 0
+    delay_seconds = max(0.0, backoff_seconds)
+    while True:
+        sse_result = await _ask_question_sse(client, token_header, chat_id, question)
+        errors = sse_result.get("errors")
+        error_messages = (
+            [str(item) for item in errors] if isinstance(errors, list) else []
+        )
+        if error_messages and any(
+            _is_rate_limit_error(message) for message in error_messages
+        ):
+            if attempt >= retries:
+                return sse_result
+            await asyncio.sleep(delay_seconds)
+            attempt += 1
+            delay_seconds = max(delay_seconds * 2, delay_seconds + 1, 1.0)
+            continue
+        return sse_result
+
+
 def _truncate(value: str, limit: int = 280) -> str:
     text = value.strip()
     if len(text) <= limit:
@@ -301,7 +457,38 @@ def _truncate(value: str, limit: int = 280) -> str:
     return f"{text[:limit]}..."
 
 
+def _serialize_sample_data(payload: object) -> str | None:
+    if payload is None:
+        return None
+    try:
+        return json.dumps(payload, ensure_ascii=False)
+    except TypeError:
+        return str(payload)
+
+
+def _has_meaningful_data(payload: object) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    rows = payload.get("data")
+    if not isinstance(rows, list) or not rows:
+        return False
+    for row in rows:
+        if isinstance(row, dict):
+            if any(value not in (None, "", [], {}) for value in row.values()):
+                return True
+        elif row not in (None, "", [], {}):
+            return True
+    return False
+
+
 async def _run(args: argparse.Namespace) -> int:
+    prompt_cases = _filter_prompt_cases(
+        _select_prompt_cases(args.schema),
+        case_ids=cast(list[str] | None, args.case_id),
+        max_cases=cast(int | None, args.max_cases),
+    )
+    if not prompt_cases:
+        raise RuntimeError("no prompt cases selected for the requested filters")
     timeout = httpx.Timeout(args.timeout)
     async with httpx.AsyncClient(
         base_url=args.base_url.rstrip("/"), timeout=timeout
@@ -316,10 +503,17 @@ async def _run(args: argparse.Namespace) -> int:
 
         case_results: list[dict[str, object]] = []
 
-        for case in PROMPT_CASES:
+        for index, case in enumerate(prompt_cases):
+            if index > 0 and args.case_delay_seconds > 0:
+                await asyncio.sleep(args.case_delay_seconds)
             records_before = await _get_chat_records(client, token_header, chat_id)
-            sse_result = await _ask_question_sse(
-                client, token_header, chat_id, case.question
+            sse_result = await _ask_question_with_retry(
+                client,
+                token_header,
+                chat_id,
+                case.question,
+                retries=args.rate_limit_retries,
+                backoff_seconds=args.rate_limit_backoff_seconds,
             )
             records_after = await _get_chat_records(client, token_header, chat_id)
 
@@ -334,8 +528,9 @@ async def _run(args: argparse.Namespace) -> int:
             has_error = bool(sse_result["errors"])
             new_record_count = max(0, len(records_after) - len(records_before))
             has_sql = isinstance(latest_sql, str) and latest_sql.strip() != ""
-            has_data = isinstance(latest_data, str) and latest_data.strip() != ""
-            passed = (not has_error) and new_record_count > 0 and has_sql
+            has_data = _has_meaningful_data(latest_data)
+            passed = (not has_error) and new_record_count > 0 and has_sql and has_data
+            serialized_data = _serialize_sample_data(latest_data)
 
             case_results.append(
                 {
@@ -352,8 +547,8 @@ async def _run(args: argparse.Namespace) -> int:
                     "sample_sql": _truncate(latest_sql)
                     if isinstance(latest_sql, str)
                     else None,
-                    "sample_data": _truncate(latest_data)
-                    if isinstance(latest_data, str)
+                    "sample_data": _truncate(serialized_data)
+                    if isinstance(serialized_data, str)
                     else None,
                     "sse_sql_fragments": sse_result["sql_fragments"],
                 }
@@ -365,6 +560,7 @@ async def _run(args: argparse.Namespace) -> int:
         "created_at": datetime.now().isoformat(),
         "base_url": args.base_url,
         "schema": args.schema,
+        "case_count": len(prompt_cases),
         "datasource_id": datasource_id,
         "chat_id": chat_id,
         "overall_passed": overall_passed,
