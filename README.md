@@ -63,6 +63,7 @@ docker compose -f docker-compose.yaml -f docker-compose.redis.yaml up -d
 
 - 代码质量门禁：`.github/workflows/quality-check.yml`
 - 运行时与回归门禁：`.github/workflows/integration-test.yml`
+- 拼写门禁说明：`docs/typos-gate.md`
 - 发布门禁说明：`docs/regression/release-gates.md`
 - Required checks 落地清单：`docs/regression/required-checks-rollout.md`
 - 全量回归执行手册：`docs/regression/full-regression-playbook.md`
