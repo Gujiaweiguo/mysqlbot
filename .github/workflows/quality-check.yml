@@ -44,7 +44,7 @@ jobs:
 
       - name: Run startup smoke
         run: |
-          uv run pytest tests/test_startup_smoke.py -v
+          uv run --no-sync pytest tests/test_startup_smoke.py -v
 
       - name: Get changed Python files
         id: changed-files
