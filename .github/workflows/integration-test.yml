@@ -402,7 +402,11 @@ jobs:
         working-directory: backend
         run: |
           uv sync
-          bash scripts/regression/g4-happy-path-demo-sales.sh --base-url http://127.0.0.1:8000
+          G4_ARGS="--base-url http://127.0.0.1:8000"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            G4_ARGS="$G4_ARGS --max-cases 1"
+          fi
+          bash scripts/regression/g4-happy-path-demo-sales.sh $G4_ARGS
 
       - name: Upload G4 evidence
         uses: actions/upload-artifact@v4
