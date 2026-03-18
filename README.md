@@ -59,6 +59,14 @@ docker compose -f docker-compose.yaml -f docker-compose.redis.yaml up -d
 - 用户名: admin
 - 密码: mySQLBot@123456
 
+## 质量与发布门禁
+
+- 代码质量门禁：`.github/workflows/quality-check.yml`
+- 运行时与回归门禁：`.github/workflows/integration-test.yml`
+- 发布门禁说明：`docs/regression/release-gates.md`
+- Required checks 落地清单：`docs/regression/required-checks-rollout.md`
+- 全量回归执行手册：`docs/regression/full-regression-playbook.md`
+
 ### 联系我们
 
 如你有更多问题，可以与我们交流。
