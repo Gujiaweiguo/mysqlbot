@@ -7,6 +7,11 @@
 uv sync
 ```
 
+### Setup with local embedding runtime
+```bash
+uv sync --extra cpu
+```
+
 ### Run Development Server
 ```bash
 uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload

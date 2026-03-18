@@ -1,6 +1,7 @@
 # Build sqlbot
 FROM ghcr.io/1panel-dev/maxkb-vector-model:v1.0.1 AS vector-model
 FROM --platform=${BUILDPLATFORM} sqlbot-base:ubuntu24 AS sqlbot-ui-builder
+ARG SQLBOT_EMBEDDING_RUNTIME=remote
 ENV SQLBOT_HOME=/opt/sqlbot
 ENV APP_HOME=${SQLBOT_HOME}/app
 ENV UI_HOME=${SQLBOT_HOME}/frontend
@@ -13,6 +14,7 @@ RUN cd /tmp/frontend && npm install && npm run build && mv dist ${UI_HOME}/dist
 
 
 FROM sqlbot-base:ubuntu24 AS sqlbot-builder
+ARG SQLBOT_EMBEDDING_RUNTIME=remote
 # Set build environment variables
 ENV PYTHONUNBUFFERED=1
 ENV SQLBOT_HOME=/opt/sqlbot
@@ -35,13 +37,13 @@ RUN test -f "./uv.lock" && \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=backend/uv.lock,target=uv.lock \
     --mount=type=bind,source=backend/pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-install-project || echo "uv.lock file not found, skipping intermediate-layers"
+    if [ "$SQLBOT_EMBEDDING_RUNTIME" = "local" ]; then uv sync --frozen --no-install-project --extra cpu; else uv sync --frozen --no-install-project; fi || echo "uv.lock file not found, skipping intermediate-layers"
 
 COPY ./backend ${APP_HOME}
 
 # Final sync to ensure all dependencies are installed
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --extra cpu
+    if [ "$SQLBOT_EMBEDDING_RUNTIME" = "local" ]; then uv sync --extra cpu; else uv sync; fi
 
 # Build g2-ssr
 FROM sqlbot-base:ubuntu24 AS ssr-builder
