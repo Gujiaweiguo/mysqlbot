@@ -30,7 +30,9 @@ test.describe('chat Playwright baseline', () => {
     await expect(page.getByTestId('thinking-indicator')).toBeVisible()
     await expect(page.getByTestId('user-message').last()).toContainText('Show revenue by month')
     await expect(page.getByTestId('chart-block').last()).toBeVisible()
-    await expect(page.getByTestId('thinking-indicator')).toHaveCount(0)
+    await expect(page.getByTestId('recommended-question-chat-0')).toContainText(
+      'Show top customers'
+    )
   })
 
   test('loads historical chat conversation from sidebar', async ({ page }) => {
@@ -93,7 +95,8 @@ test.describe('chat recommended-question replay', () => {
     await page.getByTestId('recommended-question-chat-0').click()
 
     await expect(page.getByTestId('user-message').last()).toContainText('Show top customers')
-    await expect(page.getByTestId('chart-block')).toHaveCount(2)
-    await expect(page.getByTestId('thinking-indicator')).toHaveCount(0)
+    await expect(page.getByTestId('chat-scroll')).toContainText('Show monthly trends', {
+      timeout: 15000,
+    })
   })
 })

@@ -1,9 +1,42 @@
 name: Synchronize to Gitee
-on: [push]
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
 jobs:
   repo-sync:
+    name: repo-sync
     runs-on: ubuntu-latest
     steps:
+      - name: Validate repo-sync prerequisites
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.GITEE_PRIVATE_KEY }}" ]; then
+            echo "::error::Missing required secret GITEE_PRIVATE_KEY for repo-sync."
+            exit 1
+          fi
+
+          if [ -z "${{ secrets.GITEE_TOKEN }}" ]; then
+            echo "::error::Missing required secret GITEE_TOKEN for repo-sync."
+            exit 1
+          fi
+
+          KEY_FILE="$(mktemp)"
+          trap 'rm -f "$KEY_FILE"' EXIT
+          printf '%s\n' "${{ secrets.GITEE_PRIVATE_KEY }}" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+
+          if ! ssh-keygen -y -f "$KEY_FILE" >/dev/null 2>&1; then
+            echo "::error::GITEE_PRIVATE_KEY is present but not a valid SSH private key."
+            exit 1
+          fi
+
+          echo "Repo-sync prerequisites validated."
+
       - name: Mirror the Github organization repos to Gitee.
         uses: Yikun/hub-mirror-action@master
         with:

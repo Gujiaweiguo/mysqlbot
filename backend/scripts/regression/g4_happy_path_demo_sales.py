@@ -14,6 +14,8 @@ from typing import cast
 
 import httpx
 
+from common.utils.crypto import sqlbot_encrypt
+
 
 @dataclass(frozen=True)
 class PromptCase:
@@ -243,9 +245,12 @@ async def _login_token(
     if isinstance(token_override, str) and token_override.strip():
         return token_override.strip()
 
+    encrypted_username = await sqlbot_encrypt(username)
+    encrypted_password = await sqlbot_encrypt(password)
+
     response = await client.post(
-        "/api/v1/mcp/mcp_start",
-        json={"username": username, "password": password},
+        "/api/v1/login/access-token",
+        data={"username": encrypted_username, "password": encrypted_password},
     )
     response.raise_for_status()
     payload = _expect_dict(_unwrap_payload(response.json()), "login response")
