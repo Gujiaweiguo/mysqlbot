@@ -30,6 +30,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Build local sqlbot base image
+        run: |
+          docker build -t sqlbot-base:ubuntu24 -f Dockerfile-base .
+
       - name: Start services
         run: |
           docker compose up -d
@@ -95,6 +99,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Build local sqlbot base image
+        run: |
+          docker build -t sqlbot-base:ubuntu24 -f Dockerfile-base .
+
       - name: Start services
         run: |
           docker compose up -d
@@ -159,6 +167,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Build local sqlbot base image
+        run: |
+          docker build -t sqlbot-base:ubuntu24 -f Dockerfile-base .
+
       - name: Start services
         run: |
           docker compose up -d
@@ -209,6 +221,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Build local sqlbot base image
+        run: |
+          docker build -t sqlbot-base:ubuntu24 -f Dockerfile-base .
 
       - name: Start services
         run: |
