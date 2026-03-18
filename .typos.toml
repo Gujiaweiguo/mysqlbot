@@ -1,6 +1,21 @@
 [default.extend-words]
 sibing = "sibing"
+mySQLBot = "mySQLBot"
+gosqlbot = "gosqlbot"
+xpack = "xpack"
+ChatBI = "ChatBI"
+DataEase = "DataEase"
+
 [default.extend-identifiers]
 maintain_column_froms = "maintain_column_froms"
+mySQLBot = "mySQLBot"
+gosqlbot = "gosqlbot"
+xpack = "xpack"
+
 [files]
-extend-exclude = ["frontend/public", "backend/alembic/versions"]
+extend-exclude = [
+  "frontend/public",
+  "backend/alembic/versions",
+  "frontend/package-lock.json",
+  "openspec/changes/archive",
+]

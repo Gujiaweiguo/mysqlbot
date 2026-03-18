@@ -1,13 +1,65 @@
 name: Typos Check
-on: [push, pull_request]
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: Typos scan scope
+        required: true
+        default: full
+        type: choice
+        options:
+          - full
+          - changed
 
 jobs:
   run:
     name: Spell Check with Typos
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout Actions Repository
-      uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Check spelling
-      uses: crate-ci/typos@master
+      - name: Collect changed text files
+        id: changed-files
+        if: github.event_name == 'pull_request' || inputs.scope == 'changed'
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          else
+            BASE_SHA="$(git rev-parse HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)"
+            HEAD_SHA="$(git rev-parse HEAD)"
+          fi
+
+          FILES="$(git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" | grep -E '\.(txt|py|sh|js|jsx|ts|tsx|vue|json|ya?ml|toml|cjs|mjs|css|less|html)$' || true)"
+
+          if [ -n "$FILES" ]; then
+            {
+              echo 'has_files=true'
+              echo 'files<<EOF'
+              printf '%s\n' "$FILES"
+              echo 'EOF'
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo 'has_files=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check changed files only
+        if: (github.event_name == 'pull_request' || inputs.scope == 'changed') && steps.changed-files.outputs.has_files == 'true'
+        uses: crate-ci/typos@v1.44.0
+        with:
+          files: ${{ steps.changed-files.outputs.files }}
+
+      - name: Skip when no supported text files changed
+        if: (github.event_name == 'pull_request' || inputs.scope == 'changed') && steps.changed-files.outputs.has_files != 'true'
+        run: |
+          echo "No supported text files changed; skipping scoped typos scan."
+
+      - name: Check full repository spelling
+        if: github.event_name == 'workflow_dispatch' && inputs.scope == 'full'
+        uses: crate-ci/typos@v1.44.0
