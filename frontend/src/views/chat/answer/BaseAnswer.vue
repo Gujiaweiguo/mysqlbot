@@ -74,7 +74,12 @@ onMounted(() => {
 
 <template>
   <div class="base-answer-block">
-    <el-button v-if="message.isTyping || hasReasoning" class="thinking-btn" @click="clickShow">
+    <el-button
+      v-if="message.isTyping || hasReasoning"
+      data-testid="thinking-indicator"
+      class="thinking-btn"
+      @click="clickShow"
+    >
       <div class="thinking-btn-inner">
         <span v-if="message.isTyping">{{ t('qa.thinking') }}</span>
         <span v-else>{{ t('qa.thinking_step') }}</span>

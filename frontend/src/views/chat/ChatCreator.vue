@@ -158,6 +158,7 @@ defineExpose({
   <div v-loading.body.fullscreen.lock="loading || statusLoading">
     <el-drawer
       v-model="datasourceConfigVisible"
+      data-testid="datasource-drawer"
       :close-on-click-modal="false"
       :size="drawerHeight"
       modal-class="datasource-drawer-chat"
@@ -170,6 +171,7 @@ defineExpose({
         <div class="flex-center" style="width: 100%; margin-right: 32px">
           <el-input
             v-model="keywords"
+            data-testid="datasource-search-input"
             clearable
             style="width: 320px; max-width: calc(100% - 32px)"
             :placeholder="$t('datasource.search')"
@@ -239,6 +241,7 @@ defineExpose({
             $t('common.cancel')
           }}</el-button>
           <el-button
+            data-testid="confirm-datasource-button"
             :type="loading || statusLoading || innerDs === undefined ? 'info' : 'primary'"
             :disabled="loading || statusLoading || innerDs === undefined"
             @click="confirmSelectDs"

@@ -39,7 +39,7 @@ const copyCode = () => {
 </script>
 
 <template>
-  <div class="question">
+  <div data-testid="user-message" class="question">
     <span v-if="message?.record?.analysis_record_id" class="prefix-title" @click="clickAnalysis">
       {{ t('qa.data_analysis') }}
     </span>

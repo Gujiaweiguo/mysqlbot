@@ -111,7 +111,11 @@
           'assistant-chat-main': !isCompletePage && !pageEmbedded,
         }"
       >
-        <div v-if="computedMessages.length == 0 && !loading" class="welcome-content-block">
+        <div
+          v-if="computedMessages.length == 0 && !loading"
+          data-testid="chat-welcome"
+          class="welcome-content-block"
+        >
           <div class="welcome-content">
             <template v-if="isCompletePage">
               <div class="greeting">
@@ -181,6 +185,7 @@
         <el-scrollbar
           v-if="computedMessages.length > 0"
           ref="chatListRef"
+          data-testid="chat-scroll"
           class="no-horizontal"
           @scroll="handleScroll"
         >
@@ -412,6 +417,7 @@
           <el-input
             ref="inputRef"
             v-model="inputMessage"
+            data-testid="chat-input"
             :disabled="isTyping"
             clearable
             class="input-area"
@@ -426,6 +432,7 @@
           <el-button
             circle
             type="primary"
+            data-testid="send-button"
             class="input-icon"
             :disabled="isTyping"
             @click.stop="($event: any) => sendMessage(undefined, $event)"
