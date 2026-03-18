@@ -272,7 +272,7 @@ jobs:
     name: G4 Happy Path Regression
     runs-on: ubuntu-latest
     needs: [runtime-health, fixture-check]
-    if: github.event_name != 'workflow_dispatch' || inputs.run_e2e
+    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_e2e)
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -420,7 +420,7 @@ jobs:
     name: G5 Failure Path Regression
     runs-on: ubuntu-latest
     needs: [runtime-health, fixture-check, e2e-tests]
-    if: github.event_name != 'workflow_dispatch' || inputs.run_e2e
+    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.run_e2e)
     timeout-minutes: 30
     steps:
       - name: Checkout

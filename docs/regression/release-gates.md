@@ -35,9 +35,10 @@
 
 其中：
 
-- PR 与定时巡检会执行 G4
-- PR 与定时巡检会在 G4 之后执行 G5
+- 定时巡检会执行 G4
+- 定时巡检会在 G4 之后执行 G5
 - 手动触发时可通过 `run_e2e` 控制是否执行 G4 / G5
+- 普通 PR 默认执行到 G3；G4 / G5 作为更重的运行时回归保留给定时巡检与手动触发
 - `quality-check.yml` 会执行 frontend lint/build，并额外执行 Playwright smoke
 
 > 注意：workflow 失败是否真正阻塞 PR 合并，还取决于 GitHub branch protection 是否将对应检查（通常是 `Quality Summary` 与 `Test Summary`）设为 required status check。具体 rollout 步骤见 `docs/regression/required-checks-rollout.md`。
@@ -69,6 +70,7 @@
 - G3 失败时，G4 的行为结论不可信
 - G4 失败时，才优先判断主链路是否真实回归
 - G5 结论只在 G4 已通过时才有意义
+- 在普通 PR 上，G4 / G5 为 `SKIPPED` 属于预期行为，表示重型回归未在该上下文执行
 
 ## 证据位置
 
