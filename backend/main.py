@@ -98,6 +98,12 @@ def _should_setup_mcp() -> bool:
     return os.getenv("SKIP_MCP_SETUP", "false").lower() not in {"1", "true", "yes"}
 
 
+def _should_run_embedding_startup_backfill() -> bool:
+    if settings.EMBEDDING_PROVIDER != "remote":
+        return True
+    return settings.EMBEDDING_STARTUP_BACKFILL_POLICY == "eager"
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if not _should_run_startup_tasks():
@@ -109,10 +115,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     run_migrations()
     init_sqlbot_cache()
     init_dynamic_cors(app)
-    init_terminology_embedding_data()
-    init_data_training_embedding_data()
+    if _should_run_embedding_startup_backfill():
+        init_terminology_embedding_data()
+        init_data_training_embedding_data()
+    else:
+        SQLBotLogUtil.info("⏭️ Skipping startup embedding backfill for remote provider")
     init_default_internal_datasource()
-    init_table_and_ds_embedding()
+    if _should_run_embedding_startup_backfill():
+        init_table_and_ds_embedding()
     SQLBotLogUtil.info("✅ SQLBot 初始化完成")
     await xpack_core.clean_xpack_cache()
     await async_model_info()  # 异步加密已有模型的密钥和地址
