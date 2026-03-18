@@ -63,6 +63,7 @@ docker compose -f docker-compose.yaml -f docker-compose.redis.yaml up -d
 
 - 代码质量门禁：`.github/workflows/quality-check.yml`
 - 运行时与回归门禁：`.github/workflows/integration-test.yml`
+- Embedding provider 说明：`docs/embedding-provider.md`
 - 拼写门禁说明：`docs/typos-gate.md`
 - 仓库同步门禁说明：`docs/repo-sync-gate.md`
 - 发布门禁说明：`docs/regression/release-gates.md`
