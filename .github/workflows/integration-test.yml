@@ -404,7 +404,7 @@ jobs:
           uv sync
           G4_ARGS="--base-url http://127.0.0.1:8000"
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            G4_ARGS="$G4_ARGS --max-cases 1"
+            G4_ARGS="$G4_ARGS --max-cases 1 --timeout 45 --rate-limit-retries 0 --case-delay-seconds 0"
           fi
           bash scripts/regression/g4-happy-path-demo-sales.sh $G4_ARGS
 
