@@ -53,9 +53,29 @@ jobs:
             exit 1
           fi
 
+          echo "Waiting for login API readiness..."
+          for i in {1..24}; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/api/v1/system/parameter/login || true)
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Login API is ready"
+              break
+            fi
+            sleep 5
+          done
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Login API did not become ready (last HTTP code: $HTTP_CODE)"
+            exit 1
+          fi
+
       - name: Check login page
         run: |
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/#/login)
+          for i in {1..12}; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/#/login || true)
+            if [ "$HTTP_CODE" = "200" ]; then
+              break
+            fi
+            sleep 5
+          done
           if [ "$HTTP_CODE" != "200" ]; then
             echo "::error::Login page returned $HTTP_CODE"
             exit 1
@@ -116,6 +136,18 @@ jobs:
           done
           if [ "$POSTGRES_STATUS" != "healthy" ] || [ "$APP_STATUS" != "running" ]; then
             echo "::error::Services did not reach ready state (postgresql=$POSTGRES_STATUS, app=$APP_STATUS)"
+            exit 1
+          fi
+
+          for i in {1..24}; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/api/v1/system/parameter/login || true)
+            if [ "$HTTP_CODE" = "200" ]; then
+              break
+            fi
+            sleep 5
+          done
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Login API did not become ready (last HTTP code: $HTTP_CODE)"
             exit 1
           fi
 
@@ -187,6 +219,18 @@ jobs:
             exit 1
           fi
 
+          for i in {1..24}; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/api/v1/system/parameter/login || true)
+            if [ "$HTTP_CODE" = "200" ]; then
+              break
+            fi
+            sleep 5
+          done
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Login API did not become ready (last HTTP code: $HTTP_CODE)"
+            exit 1
+          fi
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -239,6 +283,18 @@ jobs:
           done
           if [ "$POSTGRES_STATUS" != "healthy" ] || [ "$APP_STATUS" != "running" ]; then
             echo "::error::Services did not reach ready state (postgresql=$POSTGRES_STATUS, app=$APP_STATUS)"
+            exit 1
+          fi
+
+          for i in {1..24}; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/api/v1/system/parameter/login || true)
+            if [ "$HTTP_CODE" = "200" ]; then
+              break
+            fi
+            sleep 5
+          done
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Login API did not become ready (last HTTP code: $HTTP_CODE)"
             exit 1
           fi
 
