@@ -151,6 +151,85 @@ jobs:
             exit 1
           fi
 
+      - name: Prepare demo_sales fixture and datasource metadata
+        run: |
+          docker exec -i postgresql psql -U root -d sqlbot <<'SQL'
+          CREATE SCHEMA IF NOT EXISTS demo_sales;
+          CREATE TABLE IF NOT EXISTS demo_sales.customers (
+            customer_id BIGINT PRIMARY KEY,
+            customer_name TEXT NOT NULL
+          );
+          CREATE TABLE IF NOT EXISTS demo_sales.orders (
+            order_id BIGINT PRIMARY KEY,
+            customer_id BIGINT NOT NULL,
+            order_status TEXT NOT NULL,
+            order_amount NUMERIC(12,2) NOT NULL
+          );
+          TRUNCATE TABLE demo_sales.orders, demo_sales.customers RESTART IDENTITY;
+          INSERT INTO demo_sales.customers (customer_id, customer_name) VALUES
+            (1, 'Acme Corp'),
+            (2, 'Globex'),
+            (3, 'Initech');
+          INSERT INTO demo_sales.orders (order_id, customer_id, order_status, order_amount) VALUES
+            (1, 1, 'paid', 120.50),
+            (2, 1, 'pending', 88.00),
+            (3, 2, 'paid', 340.10),
+            (4, 3, 'cancelled', 12.50);
+          SQL
+
+          docker exec -i gosqlbot-app python - <<'PY'
+          import json
+          from sqlalchemy import delete
+          from sqlmodel import Session, select
+
+          from apps.datasource.crud.datasource import DEFAULT_INTERNAL_DS_NAME, _get_datasource_conf
+          from apps.datasource.models.datasource import CoreDatasource, CoreField, CoreTable
+          from apps.datasource.utils.utils import aes_encrypt
+          from common.core.db import engine
+
+          with Session(engine) as session:
+              ds = session.exec(
+                  select(CoreDatasource).where(CoreDatasource.name == DEFAULT_INTERNAL_DS_NAME)
+              ).first()
+              if ds is None:
+                  raise RuntimeError('internal datasource not found')
+
+              conf = _get_datasource_conf(ds)
+              conf.dbSchema = 'demo_sales'
+              ds.configuration = aes_encrypt(json.dumps(conf.to_dict())).decode('utf-8')
+              ds.num = '2/2'
+              session.add(ds)
+              session.commit()
+              session.refresh(ds)
+
+              session.exec(delete(CoreField).where(CoreField.ds_id == ds.id))
+              session.exec(delete(CoreTable).where(CoreTable.ds_id == ds.id))
+              session.commit()
+
+              customers = CoreTable(id=0, ds_id=ds.id, checked=True, table_name='customers', table_comment='customers table', custom_comment='customers table', embedding='')
+              orders = CoreTable(id=0, ds_id=ds.id, checked=True, table_name='orders', table_comment='orders table', custom_comment='orders table', embedding='')
+              object.__setattr__(customers, 'id', None)
+              object.__setattr__(orders, 'id', None)
+              session.add(customers)
+              session.add(orders)
+              session.commit()
+              session.refresh(customers)
+              session.refresh(orders)
+
+              fields = [
+                  CoreField(id=0, ds_id=ds.id, table_id=customers.id, checked=True, field_name='customer_id', field_type='bigint', field_comment='customer id', custom_comment='customer id', field_index=0),
+                  CoreField(id=0, ds_id=ds.id, table_id=customers.id, checked=True, field_name='customer_name', field_type='text', field_comment='customer name', custom_comment='customer name', field_index=1),
+                  CoreField(id=0, ds_id=ds.id, table_id=orders.id, checked=True, field_name='order_id', field_type='bigint', field_comment='order id', custom_comment='order id', field_index=0),
+                  CoreField(id=0, ds_id=ds.id, table_id=orders.id, checked=True, field_name='customer_id', field_type='bigint', field_comment='customer id', custom_comment='customer id', field_index=1),
+                  CoreField(id=0, ds_id=ds.id, table_id=orders.id, checked=True, field_name='order_status', field_type='text', field_comment='order status', custom_comment='order status', field_index=2),
+                  CoreField(id=0, ds_id=ds.id, table_id=orders.id, checked=True, field_name='order_amount', field_type='numeric', field_comment='order amount', custom_comment='order amount', field_index=3),
+              ]
+              for field in fields:
+                  object.__setattr__(field, 'id', None)
+                  session.add(field)
+              session.commit()
+          PY
+
       - name: Check demo_sales schema
         run: |
           SCHEMA=$(docker exec postgresql psql -U root -d sqlbot -t -A -c "SELECT nspname FROM pg_namespace WHERE nspname='demo_sales';")
@@ -231,6 +310,83 @@ jobs:
             exit 1
           fi
 
+      - name: Prepare demo_sales fixture and datasource metadata
+        run: |
+          docker exec -i postgresql psql -U root -d sqlbot <<'SQL'
+          CREATE SCHEMA IF NOT EXISTS demo_sales;
+          CREATE TABLE IF NOT EXISTS demo_sales.customers (
+            customer_id BIGINT PRIMARY KEY,
+            customer_name TEXT NOT NULL
+          );
+          CREATE TABLE IF NOT EXISTS demo_sales.orders (
+            order_id BIGINT PRIMARY KEY,
+            customer_id BIGINT NOT NULL,
+            order_status TEXT NOT NULL,
+            order_amount NUMERIC(12,2) NOT NULL
+          );
+          TRUNCATE TABLE demo_sales.orders, demo_sales.customers RESTART IDENTITY;
+          INSERT INTO demo_sales.customers (customer_id, customer_name) VALUES
+            (1, 'Acme Corp'),
+            (2, 'Globex'),
+            (3, 'Initech');
+          INSERT INTO demo_sales.orders (order_id, customer_id, order_status, order_amount) VALUES
+            (1, 1, 'paid', 120.50),
+            (2, 1, 'pending', 88.00),
+            (3, 2, 'paid', 340.10),
+            (4, 3, 'cancelled', 12.50);
+          SQL
+
+          docker exec -i gosqlbot-app python - <<'PY'
+          import json
+          from sqlalchemy import delete
+          from sqlmodel import Session, select
+
+          from apps.datasource.crud.datasource import DEFAULT_INTERNAL_DS_NAME, _get_datasource_conf
+          from apps.datasource.models.datasource import CoreDatasource, CoreField, CoreTable
+          from apps.datasource.utils.utils import aes_encrypt
+          from common.core.db import engine
+
+          with Session(engine) as session:
+              ds = session.exec(select(CoreDatasource).where(CoreDatasource.name == DEFAULT_INTERNAL_DS_NAME)).first()
+              if ds is None:
+                  raise RuntimeError('internal datasource not found')
+
+              conf = _get_datasource_conf(ds)
+              conf.dbSchema = 'demo_sales'
+              ds.configuration = aes_encrypt(json.dumps(conf.to_dict())).decode('utf-8')
+              ds.num = '2/2'
+              session.add(ds)
+              session.commit()
+              session.refresh(ds)
+
+              session.exec(delete(CoreField).where(CoreField.ds_id == ds.id))
+              session.exec(delete(CoreTable).where(CoreTable.ds_id == ds.id))
+              session.commit()
+
+              customers = CoreTable(id=0, ds_id=ds.id, checked=True, table_name='customers', table_comment='customers table', custom_comment='customers table', embedding='')
+              orders = CoreTable(id=0, ds_id=ds.id, checked=True, table_name='orders', table_comment='orders table', custom_comment='orders table', embedding='')
+              object.__setattr__(customers, 'id', None)
+              object.__setattr__(orders, 'id', None)
+              session.add(customers)
+              session.add(orders)
+              session.commit()
+              session.refresh(customers)
+              session.refresh(orders)
+
+              fields = [
+                  CoreField(id=0, ds_id=ds.id, table_id=customers.id, checked=True, field_name='customer_id', field_type='bigint', field_comment='customer id', custom_comment='customer id', field_index=0),
+                  CoreField(id=0, ds_id=ds.id, table_id=customers.id, checked=True, field_name='customer_name', field_type='text', field_comment='customer name', custom_comment='customer name', field_index=1),
+                  CoreField(id=0, ds_id=ds.id, table_id=orders.id, checked=True, field_name='order_id', field_type='bigint', field_comment='order id', custom_comment='order id', field_index=0),
+                  CoreField(id=0, ds_id=ds.id, table_id=orders.id, checked=True, field_name='customer_id', field_type='bigint', field_comment='customer id', custom_comment='customer id', field_index=1),
+                  CoreField(id=0, ds_id=ds.id, table_id=orders.id, checked=True, field_name='order_status', field_type='text', field_comment='order status', custom_comment='order status', field_index=2),
+                  CoreField(id=0, ds_id=ds.id, table_id=orders.id, checked=True, field_name='order_amount', field_type='numeric', field_comment='order amount', custom_comment='order amount', field_index=3),
+              ]
+              for field in fields:
+                  object.__setattr__(field, 'id', None)
+                  session.add(field)
+              session.commit()
+          PY
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -297,6 +453,83 @@ jobs:
             echo "::error::Login API did not become ready (last HTTP code: $HTTP_CODE)"
             exit 1
           fi
+
+      - name: Prepare demo_sales fixture and datasource metadata
+        run: |
+          docker exec -i postgresql psql -U root -d sqlbot <<'SQL'
+          CREATE SCHEMA IF NOT EXISTS demo_sales;
+          CREATE TABLE IF NOT EXISTS demo_sales.customers (
+            customer_id BIGINT PRIMARY KEY,
+            customer_name TEXT NOT NULL
+          );
+          CREATE TABLE IF NOT EXISTS demo_sales.orders (
+            order_id BIGINT PRIMARY KEY,
+            customer_id BIGINT NOT NULL,
+            order_status TEXT NOT NULL,
+            order_amount NUMERIC(12,2) NOT NULL
+          );
+          TRUNCATE TABLE demo_sales.orders, demo_sales.customers RESTART IDENTITY;
+          INSERT INTO demo_sales.customers (customer_id, customer_name) VALUES
+            (1, 'Acme Corp'),
+            (2, 'Globex'),
+            (3, 'Initech');
+          INSERT INTO demo_sales.orders (order_id, customer_id, order_status, order_amount) VALUES
+            (1, 1, 'paid', 120.50),
+            (2, 1, 'pending', 88.00),
+            (3, 2, 'paid', 340.10),
+            (4, 3, 'cancelled', 12.50);
+          SQL
+
+          docker exec -i gosqlbot-app python - <<'PY'
+          import json
+          from sqlalchemy import delete
+          from sqlmodel import Session, select
+
+          from apps.datasource.crud.datasource import DEFAULT_INTERNAL_DS_NAME, _get_datasource_conf
+          from apps.datasource.models.datasource import CoreDatasource, CoreField, CoreTable
+          from apps.datasource.utils.utils import aes_encrypt
+          from common.core.db import engine
+
+          with Session(engine) as session:
+              ds = session.exec(select(CoreDatasource).where(CoreDatasource.name == DEFAULT_INTERNAL_DS_NAME)).first()
+              if ds is None:
+                  raise RuntimeError('internal datasource not found')
+
+              conf = _get_datasource_conf(ds)
+              conf.dbSchema = 'demo_sales'
+              ds.configuration = aes_encrypt(json.dumps(conf.to_dict())).decode('utf-8')
+              ds.num = '2/2'
+              session.add(ds)
+              session.commit()
+              session.refresh(ds)
+
+              session.exec(delete(CoreField).where(CoreField.ds_id == ds.id))
+              session.exec(delete(CoreTable).where(CoreTable.ds_id == ds.id))
+              session.commit()
+
+              customers = CoreTable(id=0, ds_id=ds.id, checked=True, table_name='customers', table_comment='customers table', custom_comment='customers table', embedding='')
+              orders = CoreTable(id=0, ds_id=ds.id, checked=True, table_name='orders', table_comment='orders table', custom_comment='orders table', embedding='')
+              object.__setattr__(customers, 'id', None)
+              object.__setattr__(orders, 'id', None)
+              session.add(customers)
+              session.add(orders)
+              session.commit()
+              session.refresh(customers)
+              session.refresh(orders)
+
+              fields = [
+                  CoreField(id=0, ds_id=ds.id, table_id=customers.id, checked=True, field_name='customer_id', field_type='bigint', field_comment='customer id', custom_comment='customer id', field_index=0),
+                  CoreField(id=0, ds_id=ds.id, table_id=customers.id, checked=True, field_name='customer_name', field_type='text', field_comment='customer name', custom_comment='customer name', field_index=1),
+                  CoreField(id=0, ds_id=ds.id, table_id=orders.id, checked=True, field_name='order_id', field_type='bigint', field_comment='order id', custom_comment='order id', field_index=0),
+                  CoreField(id=0, ds_id=ds.id, table_id=orders.id, checked=True, field_name='customer_id', field_type='bigint', field_comment='customer id', custom_comment='customer id', field_index=1),
+                  CoreField(id=0, ds_id=ds.id, table_id=orders.id, checked=True, field_name='order_status', field_type='text', field_comment='order status', custom_comment='order status', field_index=2),
+                  CoreField(id=0, ds_id=ds.id, table_id=orders.id, checked=True, field_name='order_amount', field_type='numeric', field_comment='order amount', custom_comment='order amount', field_index=3),
+              ]
+              for field in fields:
+                  object.__setattr__(field, 'id', None)
+                  session.add(field)
+              session.commit()
+          PY
 
       - name: Set up Python
         uses: actions/setup-python@v5
