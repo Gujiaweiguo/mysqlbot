@@ -26,6 +26,10 @@ from apps.swagger.i18n import (
 )
 from apps.system.crud.aimodel_manage import async_model_info
 from apps.system.crud.assistant import init_dynamic_cors
+from apps.system.crud.embedding_admin import (
+    embedding_runtime_enabled,
+    get_effective_embedding_config,
+)
 from apps.system.middleware.auth import TokenMiddleware
 from apps.system.models.system_model import WorkspaceModel
 from apps.system.schemas.permission import RequestContextMiddleware
@@ -99,9 +103,12 @@ def _should_setup_mcp() -> bool:
 
 
 def _should_run_embedding_startup_backfill() -> bool:
-    if settings.EMBEDDING_PROVIDER != "remote":
+    if not embedding_runtime_enabled():
+        return False
+    config = get_effective_embedding_config()
+    if config.provider != "remote":
         return True
-    return settings.EMBEDDING_STARTUP_BACKFILL_POLICY == "eager"
+    return config.startup_backfill_policy == "eager"
 
 
 @asynccontextmanager

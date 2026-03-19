@@ -7,6 +7,7 @@ from typing import Any, TypedDict
 
 from apps.ai_model.embedding import EmbeddingModelCache
 from apps.datasource.embedding.utils import cosine_similarity
+from apps.system.crud.embedding_admin import embedding_runtime_enabled
 from common.core.config import settings
 from common.utils.utils import SQLBotLogUtil
 
@@ -35,6 +36,15 @@ def _to_int_or_none(value: Any) -> int | None:
 def get_table_embedding(
     tables: list[dict[str, Any]], question: str
 ) -> list[TableScoreItem]:
+    if not embedding_runtime_enabled():
+        return [
+            {
+                "id": _to_int_or_none(table.get("id")),
+                "schema_table": str(table.get("schema_table") or ""),
+                "cosine_similarity": 0.0,
+            }
+            for table in tables
+        ]
     _list: list[TableScoreItem] = []
     for table in tables:
         table_id = table.get("id")
@@ -76,6 +86,20 @@ def get_table_embedding(
 def calc_table_embedding(
     tables: list[dict[str, Any]], question: str
 ) -> list[TableEmbeddingItem]:
+    if not embedding_runtime_enabled():
+        return [
+            {
+                "id": _to_int_or_none(table.get("id")),
+                "schema_table": str(table.get("schema_table") or ""),
+                "embedding": (
+                    str(table.get("embedding"))
+                    if table.get("embedding") is not None
+                    else None
+                ),
+                "cosine_similarity": 0.0,
+            }
+            for table in tables
+        ]
     _list: list[TableEmbeddingItem] = []
     for table in tables:
         table_id = table.get("id")

@@ -13,6 +13,7 @@ from sqlmodel import col
 
 from apps.ai_model.embedding import EmbeddingModelCache
 from apps.datasource.models.datasource import CoreDatasource
+from apps.system.crud.embedding_admin import embedding_runtime_enabled
 from apps.template.generate_chart.generator import get_base_terminology_template
 from apps.terminology.models.terminology_model import Terminology, TerminologyInfo
 from common.core.config import settings
@@ -812,7 +813,7 @@ def enable_terminology(
 
 def run_fill_empty_embeddings(session_maker: SessionMakerProtocol) -> None:
     try:
-        if not settings.EMBEDDING_ENABLED:
+        if not settings.EMBEDDING_ENABLED or not embedding_runtime_enabled():
             return
         session = session_maker()
         stmt1 = select(col(Terminology.id)).where(
@@ -838,7 +839,7 @@ def run_fill_empty_embeddings(session_maker: SessionMakerProtocol) -> None:
 
 
 def save_embeddings(session_maker: SessionMakerProtocol, ids: list[int]) -> None:
-    if not settings.EMBEDDING_ENABLED:
+    if not settings.EMBEDDING_ENABLED or not embedding_runtime_enabled():
         return
 
     if not ids or len(ids) == 0:
@@ -974,7 +975,7 @@ def select_terminology_by_word(
             )
         )
 
-    if settings.EMBEDDING_ENABLED:
+    if settings.EMBEDDING_ENABLED and embedding_runtime_enabled():
         with session.begin_nested():
             try:
                 model = EmbeddingModelCache.get_model()

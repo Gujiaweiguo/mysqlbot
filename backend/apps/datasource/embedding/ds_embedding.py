@@ -9,6 +9,7 @@ from apps.ai_model.embedding import EmbeddingModelCache
 from apps.datasource.embedding.utils import cosine_similarity
 from apps.datasource.models.datasource import CoreDatasource
 from apps.system.crud.assistant import AssistantOutDs
+from apps.system.crud.embedding_admin import embedding_runtime_enabled
 from common.core.config import settings
 from common.core.deps import CurrentAssistant, CurrentUser, SessionDep
 from common.utils.utils import SQLBotLogUtil
@@ -23,6 +24,8 @@ def get_ds_embedding(
     current_assistant: CurrentAssistant | None = None,
 ) -> list[dict[str, Any]]:
     _ = current_user
+    if not embedding_runtime_enabled():
+        return _ds_list
     _list: list[dict[str, Any]] = []
     if current_assistant and current_assistant.type == 1:
         if out_ds.ds_list:

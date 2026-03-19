@@ -18,6 +18,7 @@ from apps.data_training.models.data_training_model import (
 )
 from apps.datasource.models.datasource import CoreDatasource
 from apps.system.models.system_model import AssistantModel
+from apps.system.crud.embedding_admin import embedding_runtime_enabled
 from apps.template.generate_chart.generator import get_base_data_training_template
 from common.core.config import settings
 from common.core.deps import SessionDep, Trans
@@ -595,7 +596,7 @@ def enable_training(session: SessionDep, id: int, enabled: bool, trans: Trans) -
 
 def run_fill_empty_embeddings(session_maker: SessionMakerProtocol) -> None:
     try:
-        if not settings.EMBEDDING_ENABLED:
+        if not settings.EMBEDDING_ENABLED or not embedding_runtime_enabled():
             return
 
         session = session_maker()
@@ -610,7 +611,7 @@ def run_fill_empty_embeddings(session_maker: SessionMakerProtocol) -> None:
 
 
 def save_embeddings(session_maker: SessionMakerProtocol, ids: list[int]) -> None:
-    if not settings.EMBEDDING_ENABLED:
+    if not settings.EMBEDDING_ENABLED or not embedding_runtime_enabled():
         return
 
     if not ids or len(ids) == 0:
@@ -725,7 +726,7 @@ def select_training_by_question(
             )
         )
 
-    if settings.EMBEDDING_ENABLED:
+    if settings.EMBEDDING_ENABLED and embedding_runtime_enabled():
         with session.begin_nested():
             try:
                 model = EmbeddingModelCache.get_model()

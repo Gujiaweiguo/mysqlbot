@@ -6,6 +6,7 @@ from typing import Any
 from sqlmodel import col, select, update
 
 from apps.ai_model.embedding import EmbeddingModelCache
+from apps.system.crud.embedding_admin import embedding_runtime_enabled
 from common.core.config import settings
 from common.core.deps import SessionDep
 from common.utils.utils import SQLBotLogUtil
@@ -40,7 +41,7 @@ def update_table(session: SessionDep, item: CoreTable) -> None:
 
 
 def run_fill_empty_table_and_ds_embedding(session_maker: Any) -> None:
-    if not settings.TABLE_EMBEDDING_ENABLED:
+    if not settings.TABLE_EMBEDDING_ENABLED or not embedding_runtime_enabled():
         return
 
     try:
@@ -66,7 +67,7 @@ def run_fill_empty_table_and_ds_embedding(session_maker: Any) -> None:
 
 
 def save_table_embedding(session_maker: Any, ids: list[int]) -> None:
-    if not settings.TABLE_EMBEDDING_ENABLED:
+    if not settings.TABLE_EMBEDDING_ENABLED or not embedding_runtime_enabled():
         return
 
     if not ids:
@@ -129,7 +130,7 @@ def save_table_embedding(session_maker: Any, ids: list[int]) -> None:
 
 
 def save_ds_embedding(session_maker: Any, ids: list[int]) -> None:
-    if not settings.TABLE_EMBEDDING_ENABLED:
+    if not settings.TABLE_EMBEDDING_ENABLED or not embedding_runtime_enabled():
         return
 
     if not ids:
