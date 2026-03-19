@@ -24,6 +24,13 @@ EMBEDDING_ADMIN_VAR_TYPE = "embedding"
 SUPPORTED_OPENAI_COMPATIBLE_SUPPLIERS = {1, 3, 10, 15}
 GENERIC_OPENAI_SUPPLIER_ID = 15
 
+EMBEDDING_MODELS_BY_SUPPLIER: dict[int, list[str]] = {
+    1: ["text-embedding-v3", "text-embedding-v2", "text-embedding-v1"],
+    3: [],
+    10: ["doubao-embedding", "doubao-embedding-large"],
+    15: ["text-embedding-3-small", "text-embedding-3-large", "text-embedding-ada-002"],
+}
+
 
 def _supplier_id_from_base_url(base_url: str | None) -> int:
     if base_url == "https://dashscope.aliyuncs.com/compatible-mode/v1":
@@ -441,3 +448,9 @@ def disable_embedding(session: Session) -> EmbeddingStatusPayload:
     payload["status"] = status
     _persist_payload(session, payload)
     return EmbeddingStatusPayload.model_validate(status)
+
+
+def get_embedding_models(supplier_id: int) -> list[str]:
+    if supplier_id not in SUPPORTED_OPENAI_COMPATIBLE_SUPPLIERS:
+        return []
+    return EMBEDDING_MODELS_BY_SUPPLIER.get(supplier_id, [])

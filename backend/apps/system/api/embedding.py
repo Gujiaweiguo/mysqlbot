@@ -5,12 +5,15 @@ from apps.system.crud.embedding_admin import (
     enable_embedding,
     get_embedding_admin_config,
     get_embedding_admin_config_unmasked,
+    get_embedding_models,
     save_embedding_admin_config,
     validate_embedding_config,
 )
 from apps.system.schemas.embedding_schema import (
     EmbeddingConfigResponse,
     EmbeddingConfigUpdateRequest,
+    EmbeddingModelOption,
+    EmbeddingModelsResponse,
     EmbeddingToggleResponse,
     EmbeddingValidateRequest,
     EmbeddingValidateResponse,
@@ -74,4 +77,14 @@ async def disable_config(session: SessionDep) -> EmbeddingToggleResponse:
     status = disable_embedding(session)
     return EmbeddingToggleResponse(
         success=True, state=status.state, message="Embedding has been disabled"
+    )
+
+
+@router.get("/models", response_model=EmbeddingModelsResponse)
+@require_permissions(permission=SqlbotPermission(role=["admin"]))
+async def get_models(supplier_id: int) -> EmbeddingModelsResponse:
+    model_names = get_embedding_models(supplier_id)
+    return EmbeddingModelsResponse(
+        supplier_id=supplier_id,
+        models=[EmbeddingModelOption(name=m) for m in model_names],
     )

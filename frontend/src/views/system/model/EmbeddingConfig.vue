@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus-secondary'
 import { embeddingApi } from '@/api/embedding'
 import { useI18n } from 'vue-i18n'
+import { get_supplier, supplierList } from '@/entity/supplier'
 
 type EmbeddingState =
   | 'disabled'
@@ -14,44 +15,18 @@ type EmbeddingState =
 
 type EmbeddingProviderType = 'openai_compatible' | 'local'
 
-interface EmbeddingSupplier {
-  id: number
+interface EmbeddingModelOption {
   name: string
-  i18nKey: string
-  base_url: string
 }
 
-const SUPPORTED_SUPPLIERS: EmbeddingSupplier[] = [
-  {
-    id: 1,
-    name: '阿里云百炼',
-    i18nKey: 'supplier.alibaba_cloud_bailian',
-    base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-  },
-  {
-    id: 3,
-    name: 'DeepSeek',
-    i18nKey: 'supplier.deepseek',
-    base_url: 'https://api.deepseek.com',
-  },
-  {
-    id: 10,
-    name: '火山引擎',
-    i18nKey: 'supplier.volcano_engine',
-    base_url: 'https://ark.cn-beijing.volces.com/api/v3',
-  },
-  {
-    id: 15,
-    name: '通用OpenAI',
-    i18nKey: 'supplier.generic_openai',
-    base_url: 'http://127.0.0.1:8000/v1',
-  },
-]
+const EMBEDDING_SUPPLIER_IDS = [1, 3, 10, 15]
 
 const loading = ref(false)
 const saving = ref(false)
 const validating = ref(false)
 const toggling = ref(false)
+const modelLoading = ref(false)
+const modelOptions = ref<EmbeddingModelOption[]>([])
 const { t } = useI18n()
 
 const form = reactive({
@@ -63,7 +38,7 @@ const form = reactive({
   api_key_configured: false,
   timeout_seconds: 30,
   local_model: '',
-  startup_backfill_policy: 'deferred',
+  startup_backfill_policy: 'deferred' as const,
 })
 
 const status = reactive({
@@ -85,6 +60,15 @@ const canEnable = computed(
   () => status.state === 'validated_disabled' && !status.reindex_required
 )
 
+const filteredSuppliers = computed(() =>
+  supplierList.filter((s) => EMBEDDING_SUPPLIER_IDS.includes(s.id))
+)
+
+const currentSupplier = computed(() => {
+  if (!form.supplier_id) return null
+  return get_supplier(form.supplier_id)
+})
+
 const stateLabelMap: Record<EmbeddingState, string> = {
   disabled: t('model.embedding_state_disabled'),
   configured_unverified: t('model.embedding_state_configured_unverified'),
@@ -94,13 +78,33 @@ const stateLabelMap: Record<EmbeddingState, string> = {
   validation_failed: t('model.embedding_state_validation_failed'),
 }
 
+const fetchModels = async () => {
+  if (!form.supplier_id) {
+    modelOptions.value = []
+    return
+  }
+  modelLoading.value = true
+  try {
+    const res = await embeddingApi.getModels(form.supplier_id)
+    modelOptions.value = res.models || []
+  } catch {
+    modelOptions.value = []
+  } finally {
+    modelLoading.value = false
+  }
+}
+
 watch(
   () => form.supplier_id,
   (newSupplierId) => {
-    const supplier = SUPPORTED_SUPPLIERS.find((s) => s.id === newSupplierId)
+    const supplier = supplierList.find((s) => s.id === newSupplierId)
     if (supplier) {
-      form.base_url = supplier.base_url
+      const config = supplier.model_config[0]
+      if (config) {
+        form.base_url = config.api_domain
+      }
     }
+    fetchModels()
   }
 )
 
@@ -113,9 +117,12 @@ watch(
       form.model_name = ''
     } else if (!form.supplier_id) {
       form.supplier_id = 15
-      const supplier = SUPPORTED_SUPPLIERS.find((s) => s.id === 15)
+      const supplier = supplierList.find((s) => s.id === 15)
       if (supplier) {
-        form.base_url = supplier.base_url
+        const config = supplier.model_config[0]
+        if (config) {
+          form.base_url = config.api_domain
+        }
       }
     }
   }
@@ -280,13 +287,18 @@ onMounted(() => {
 
       <template v-if="providerIsOpenAICompatible">
         <el-form-item :label="t('model.embedding_supplier')">
-          <el-select v-model="form.supplier_id" style="width: 100%">
+          <el-select v-model="form.supplier_id" style="width: 100%" filterable>
             <el-option
-              v-for="supplier in SUPPORTED_SUPPLIERS"
+              v-for="supplier in filteredSuppliers"
               :key="supplier.id"
               :label="t(supplier.i18nKey)"
               :value="supplier.id"
-            />
+            >
+              <div style="display: flex; align-items: center; gap: 8px">
+                <img :src="supplier.icon" width="20" height="20" style="border-radius: 4px" />
+                <span>{{ t(supplier.i18nKey) }}</span>
+              </div>
+            </el-option>
           </el-select>
         </el-form-item>
 
@@ -298,10 +310,21 @@ onMounted(() => {
         </el-form-item>
 
         <el-form-item :label="t('model.embedding_model_name')">
-          <el-input
+          <el-select
             v-model="form.model_name"
             :placeholder="t('model.embedding_model_name_placeholder')"
-          />
+            filterable
+            allow-create
+            :loading="modelLoading"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in modelOptions"
+              :key="item.name"
+              :label="item.name"
+              :value="item.name"
+            />
+          </el-select>
         </el-form-item>
 
         <el-form-item :label="t('model.embedding_api_key')">

@@ -78,3 +78,12 @@ class EmbeddingToggleResponse(BaseModel):
     success: bool
     state: EmbeddingState
     message: str | None = None
+
+
+class EmbeddingModelOption(BaseModel):
+    name: str
+
+
+class EmbeddingModelsResponse(BaseModel):
+    supplier_id: int
+    models: list[EmbeddingModelOption]
