@@ -7,6 +7,7 @@ from apps.datasource.api import datasource, recommended_problem, table_relation
 from apps.mcp import mcp
 from apps.settings.api import base
 from apps.system.api import (
+    embedding,
     aimodel,
     apikey,
     assistant,
@@ -27,6 +28,7 @@ api_router.include_router(user.router)
 api_router.include_router(workspace.router)
 api_router.include_router(assistant.router)
 api_router.include_router(aimodel.router)
+api_router.include_router(embedding.router)
 api_router.include_router(base.router)
 api_router.include_router(terminology.router)
 api_router.include_router(data_training.router)
