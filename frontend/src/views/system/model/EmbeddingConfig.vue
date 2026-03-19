@@ -13,13 +13,14 @@ type EmbeddingState =
   | 'reindex_required'
   | 'validation_failed'
 
-type EmbeddingProviderType = 'openai_compatible' | 'local'
+type EmbeddingProviderType = 'openai_compatible' | 'local' | 'tencent_cloud'
 
 interface EmbeddingModelOption {
   name: string
 }
 
-const EMBEDDING_SUPPLIER_IDS = [1, 3, 10, 15]
+const OPENAI_COMPATIBLE_SUPPLIER_IDS = [1, 3, 10, 15]
+const TENCENT_CLOUD_SUPPLIER_ID = 9
 
 const loading = ref(false)
 const saving = ref(false)
@@ -39,6 +40,10 @@ const form = reactive({
   timeout_seconds: 30,
   local_model: '',
   startup_backfill_policy: 'deferred' as const,
+  tencent_secret_id: '',
+  tencent_secret_key: '',
+  tencent_secret_key_configured: false,
+  tencent_region: 'ap-guangzhou',
 })
 
 const status = reactive({
@@ -56,13 +61,28 @@ const status = reactive({
 const providerIsOpenAICompatible = computed(
   () => form.provider_type === 'openai_compatible'
 )
+const providerIsTencentCloud = computed(
+  () => form.provider_type === 'tencent_cloud'
+)
 const canEnable = computed(
   () => status.state === 'validated_disabled' && !status.reindex_required
 )
 
 const filteredSuppliers = computed(() =>
-  supplierList.filter((s) => EMBEDDING_SUPPLIER_IDS.includes(s.id))
+  supplierList.filter((s) => OPENAI_COMPATIBLE_SUPPLIER_IDS.includes(s.id))
 )
+
+const tencentCloudSupplier = computed(() =>
+  supplierList.find((s) => s.id === TENCENT_CLOUD_SUPPLIER_ID)
+)
+
+const TENCENT_CLOUD_REGIONS = [
+  { value: 'ap-guangzhou', label: '广州' },
+  { value: 'ap-shanghai', label: '上海' },
+  { value: 'ap-beijing', label: '北京' },
+  { value: 'ap-chengdu', label: '成都' },
+  { value: 'ap-hongkong', label: '香港' },
+]
 
 const stateLabelMap: Record<EmbeddingState, string> = {
   disabled: t('model.embedding_state_disabled'),
@@ -74,14 +94,17 @@ const stateLabelMap: Record<EmbeddingState, string> = {
 }
 
 const fetchModels = async () => {
-  if (!form.supplier_id) {
+  if (!form.supplier_id && form.provider_type !== 'tencent_cloud') {
     modelOptions.value = []
     return
   }
   modelLoading.value = true
   try {
-    const res = await embeddingApi.getModels(form.supplier_id)
-    modelOptions.value = res.models || []
+    const supplierId = form.provider_type === 'tencent_cloud' ? TENCENT_CLOUD_SUPPLIER_ID : form.supplier_id
+    if (supplierId) {
+      const res = await embeddingApi.getModels(supplierId)
+      modelOptions.value = res.models || []
+    }
   } catch {
     modelOptions.value = []
   } finally {
@@ -92,6 +115,7 @@ const fetchModels = async () => {
 watch(
   () => form.supplier_id,
   (newSupplierId) => {
+    if (form.provider_type !== 'openai_compatible') return
     const supplier = supplierList.find((s) => s.id === newSupplierId)
     if (supplier) {
       const config = supplier.model_config[0]
@@ -110,6 +134,11 @@ watch(
       form.supplier_id = null
       form.base_url = ''
       form.model_name = ''
+      modelOptions.value = []
+    } else if (newType === 'tencent_cloud') {
+      form.supplier_id = null
+      form.base_url = ''
+      fetchModels()
     } else if (!form.supplier_id) {
       form.supplier_id = 15
       const supplier = supplierList.find((s) => s.id === 15)
@@ -119,6 +148,7 @@ watch(
           form.base_url = config.api_domain
         }
       }
+      fetchModels()
     }
   }
 )
@@ -137,6 +167,10 @@ const loadConfig = async () => {
     form.timeout_seconds = config.timeout_seconds || 30
     form.local_model = config.local_model || ''
     form.startup_backfill_policy = config.startup_backfill_policy || 'deferred'
+    form.tencent_secret_id = config.tencent_secret_id || ''
+    form.tencent_secret_key = config.tencent_secret_key || ''
+    form.tencent_secret_key_configured = config.tencent_secret_key_configured || false
+    form.tencent_region = config.tencent_region || 'ap-guangzhou'
     Object.assign(status, res.status)
   } finally {
     loading.value = false
@@ -155,6 +189,27 @@ const buildConfigPayload = () => {
       timeout_seconds: 30,
       local_model: form.local_model || null,
       startup_backfill_policy: form.startup_backfill_policy,
+      tencent_secret_id: null,
+      tencent_secret_key: '',
+      tencent_secret_key_configured: false,
+      tencent_region: 'ap-guangzhou',
+    }
+  }
+  if (form.provider_type === 'tencent_cloud') {
+    return {
+      provider_type: 'tencent_cloud',
+      supplier_id: TENCENT_CLOUD_SUPPLIER_ID,
+      model_name: form.model_name || null,
+      base_url: null,
+      api_key: '',
+      api_key_configured: false,
+      timeout_seconds: 30,
+      local_model: null,
+      startup_backfill_policy: form.startup_backfill_policy,
+      tencent_secret_id: form.tencent_secret_id || null,
+      tencent_secret_key: form.tencent_secret_key,
+      tencent_secret_key_configured: !!form.tencent_secret_key || form.tencent_secret_key_configured,
+      tencent_region: form.tencent_region,
     }
   }
   return {
@@ -167,6 +222,10 @@ const buildConfigPayload = () => {
     timeout_seconds: form.timeout_seconds,
     local_model: null,
     startup_backfill_policy: form.startup_backfill_policy,
+    tencent_secret_id: null,
+    tencent_secret_key: '',
+    tencent_secret_key_configured: false,
+    tencent_region: 'ap-guangzhou',
   }
 }
 
@@ -185,6 +244,10 @@ const saveConfig = async () => {
     form.api_key_configured = config.api_key_configured || false
     form.timeout_seconds = config.timeout_seconds || 30
     form.local_model = config.local_model || ''
+    form.tencent_secret_id = config.tencent_secret_id || ''
+    form.tencent_secret_key = config.tencent_secret_key || ''
+    form.tencent_secret_key_configured = config.tencent_secret_key_configured || false
+    form.tencent_region = config.tencent_region || 'ap-guangzhou'
     Object.assign(status, res.status)
     ElMessage.success(t('common.save_success'))
   } finally {
@@ -276,6 +339,10 @@ onMounted(() => {
             :label="t('model.embedding_provider_openai_compatible')"
             value="openai_compatible"
           />
+          <el-option
+            :label="t('model.embedding_provider_tencent_cloud')"
+            value="tencent_cloud"
+          />
           <el-option :label="t('model.embedding_provider_local')" value="local" />
         </el-select>
       </el-form-item>
@@ -337,6 +404,69 @@ onMounted(() => {
 
         <el-form-item :label="t('model.embedding_timeout_seconds')">
           <el-input-number v-model="form.timeout_seconds" :min="1" :max="300" />
+        </el-form-item>
+      </template>
+
+      <template v-else-if="providerIsTencentCloud">
+        <el-form-item :label="t('model.embedding_supplier')">
+          <div v-if="tencentCloudSupplier" style="display: flex; align-items: center; gap: 8px">
+            <img
+              :src="tencentCloudSupplier.icon"
+              width="20"
+              height="20"
+              style="border-radius: 4px"
+            />
+            <span>{{ t(tencentCloudSupplier.i18nKey) }}</span>
+          </div>
+        </el-form-item>
+
+        <el-form-item :label="t('model.embedding_tencent_secret_id')">
+          <el-input
+            v-model="form.tencent_secret_id"
+            :placeholder="t('model.embedding_tencent_secret_id_placeholder')"
+          />
+        </el-form-item>
+
+        <el-form-item :label="t('model.embedding_tencent_secret_key')">
+          <el-input
+            v-model="form.tencent_secret_key"
+            type="password"
+            show-password
+            :placeholder="
+              form.tencent_secret_key_configured
+                ? t('model.embedding_tencent_secret_key_keep_placeholder')
+                : ''
+            "
+          />
+        </el-form-item>
+
+        <el-form-item :label="t('model.embedding_tencent_region')">
+          <el-select v-model="form.tencent_region" style="width: 100%">
+            <el-option
+              v-for="region in TENCENT_CLOUD_REGIONS"
+              :key="region.value"
+              :label="region.label"
+              :value="region.value"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item :label="t('model.embedding_model_name')">
+          <el-select
+            v-model="form.model_name"
+            :placeholder="t('model.embedding_model_name_placeholder')"
+            filterable
+            allow-create
+            :loading="modelLoading"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in modelOptions"
+              :key="item.name"
+              :label="item.name"
+              :value="item.name"
+            />
+          </el-select>
         </el-form-item>
       </template>
 

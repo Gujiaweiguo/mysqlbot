@@ -29,6 +29,13 @@ class RemoteEmbeddingModelInfo(BaseModel):
     timeout_seconds: int = 30
 
 
+class TencentCloudEmbeddingModelInfo(BaseModel):
+    secret_id: str
+    secret_key: str
+    region: str = "ap-guangzhou"
+    model: str
+
+
 local_embedding_model = EmbeddingModelInfo(
     folder=settings.LOCAL_MODEL_PATH,
     name=os.path.join(
@@ -136,6 +143,34 @@ class RemoteEmbeddingProvider:
         return self._create_embeddings(texts)
 
 
+class TencentCloudEmbeddingProvider:
+    def __init__(self, config: TencentCloudEmbeddingModelInfo):
+        from tencentcloud.common import credential
+        from tencentcloud.lkeap.v20240522 import lkeap_client
+
+        cred = credential.Credential(config.secret_id, config.secret_key)
+        self._client = lkeap_client.LkeapClient(cred, config.region)
+        self._model = config.model
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._create_embedding(text)
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [self._create_embedding(text) for text in texts]
+
+    def _create_embedding(self, text: str) -> list[float]:
+        from tencentcloud.lkeap.v20240522 import models
+
+        req = models.GetEmbeddingRequest()
+        req.Query = text.replace("\n", " ")
+        req.Model = self._model
+
+        resp = self._client.GetEmbedding(req)
+        if not resp.Embedding or not isinstance(resp.Embedding, list):
+            raise ValueError("Tencent Cloud embedding response missing embedding list")
+        return list(resp.Embedding)
+
+
 class EmbeddingModelCache:
     @staticmethod
     def _get_remote_config() -> RemoteEmbeddingModelInfo:
@@ -156,12 +191,34 @@ class EmbeddingModelCache:
         )
 
     @staticmethod
+    def _get_tencent_cloud_config() -> TencentCloudEmbeddingModelInfo:
+        config = get_effective_embedding_config()
+        if not config.tencent_secret_id:
+            raise ValueError(
+                "tencent_secret_id is required when provider_type=tencent_cloud"
+            )
+        if not config.tencent_secret_key:
+            raise ValueError(
+                "tencent_secret_key is required when provider_type=tencent_cloud"
+            )
+        if not config.model_name:
+            raise ValueError("model_name is required when provider_type=tencent_cloud")
+        return TencentCloudEmbeddingModelInfo(
+            secret_id=config.tencent_secret_id,
+            secret_key=config.tencent_secret_key,
+            region=config.tencent_region,
+            model=config.model_name,
+        )
+
+    @staticmethod
     def _get_cache_key(key: str | None = None) -> str:
         config = get_effective_embedding_config()
         if config.provider_type == EmbeddingProviderType.OPENAI_COMPATIBLE:
             remote_model = config.model_name or ""
             remote_url = config.base_url or ""
             return key or f"remote:{remote_url}:{remote_model}"
+        if config.provider_type == EmbeddingProviderType.TENCENT_CLOUD:
+            return key or f"tencent:{config.tencent_region}:{config.model_name}"
         return key or f"local:{config.local_model or settings.DEFAULT_EMBEDDING_MODEL}"
 
     @staticmethod
@@ -171,6 +228,10 @@ class EmbeddingModelCache:
         runtime_config = get_effective_embedding_config()
         if runtime_config.provider_type == EmbeddingProviderType.OPENAI_COMPATIBLE:
             return RemoteEmbeddingProvider(EmbeddingModelCache._get_remote_config())
+        if runtime_config.provider_type == EmbeddingProviderType.TENCENT_CLOUD:
+            return TencentCloudEmbeddingProvider(
+                EmbeddingModelCache._get_tencent_cloud_config()
+            )
         local_config = EmbeddingModelInfo(
             folder=config.folder,
             name=runtime_config.local_model or config.name,

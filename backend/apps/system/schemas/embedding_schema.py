@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 class EmbeddingProviderType(str, Enum):
     OPENAI_COMPATIBLE = "openai_compatible"
     LOCAL = "local"
+    TENCENT_CLOUD = "tencent_cloud"
 
 
 class EmbeddingStartupBackfillPolicy(str, Enum):
@@ -35,6 +36,10 @@ class EmbeddingConfigPayload(BaseModel):
     startup_backfill_policy: EmbeddingStartupBackfillPolicy = (
         EmbeddingStartupBackfillPolicy.DEFERRED
     )
+    tencent_secret_id: str | None = None
+    tencent_secret_key: str = ""
+    tencent_secret_key_configured: bool = False
+    tencent_region: str = "ap-guangzhou"
 
 
 class EmbeddingValidationInfo(BaseModel):

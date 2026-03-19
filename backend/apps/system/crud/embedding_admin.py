@@ -22,11 +22,13 @@ from common.core.db import engine
 EMBEDDING_ADMIN_CONFIG_NAME = "embedding_admin_config"
 EMBEDDING_ADMIN_VAR_TYPE = "embedding"
 SUPPORTED_OPENAI_COMPATIBLE_SUPPLIERS = {1, 3, 10, 15}
+SUPPORTED_TENCENT_CLOUD_SUPPLIER = {9}
 GENERIC_OPENAI_SUPPLIER_ID = 15
 
 EMBEDDING_MODELS_BY_SUPPLIER: dict[int, list[str]] = {
     1: ["text-embedding-v3", "text-embedding-v2", "text-embedding-v1"],
     3: [],
+    9: ["lke-text-embedding-v1", "lke-text-embedding-v2", "youtu-embedding-llm-v1"],
     10: ["doubao-embedding", "doubao-embedding-large"],
     15: ["text-embedding-3-small", "text-embedding-3-large", "text-embedding-ada-002"],
 }
@@ -369,12 +371,42 @@ def validate_embedding_config(
         if persist_result:
             _persist_validation_result(session, response)
         return response
+    if config.provider_type == EmbeddingProviderType.TENCENT_CLOUD:
+        if not config.tencent_secret_id:
+            response = _make_validation_response(
+                False,
+                EmbeddingState.VALIDATION_FAILED,
+                "腾讯云模式必须配置 SecretId。",
+            )
+            if persist_result:
+                _persist_validation_result(session, response)
+            return response
+        if not config.tencent_secret_key and not config.tencent_secret_key_configured:
+            response = _make_validation_response(
+                False,
+                EmbeddingState.VALIDATION_FAILED,
+                "腾讯云模式必须配置 SecretKey。",
+            )
+            if persist_result:
+                _persist_validation_result(session, response)
+            return response
+        if not config.model_name:
+            response = _make_validation_response(
+                False,
+                EmbeddingState.VALIDATION_FAILED,
+                "腾讯云模式必须配置模型名称。",
+            )
+            if persist_result:
+                _persist_validation_result(session, response)
+            return response
 
     from apps.ai_model.embedding import (
         LocalEmbeddingProvider,
         RemoteEmbeddingProvider,
+        TencentCloudEmbeddingProvider,
         EmbeddingModelInfo,
         RemoteEmbeddingModelInfo,
+        TencentCloudEmbeddingModelInfo,
         local_embedding_model,
     )
 
@@ -385,6 +417,19 @@ def validate_embedding_config(
                 api_key=config.api_key or None,
                 model=cast(str, config.model_name),
                 timeout_seconds=config.timeout_seconds,
+            )
+        )
+    elif config.provider_type == EmbeddingProviderType.TENCENT_CLOUD:
+        effective_secret_key = config.tencent_secret_key or ""
+        if config.tencent_secret_key_configured and not config.tencent_secret_key:
+            existing = get_embedding_admin_config_unmasked(session)
+            effective_secret_key = existing.config.tencent_secret_key or ""
+        provider = TencentCloudEmbeddingProvider(
+            TencentCloudEmbeddingModelInfo(
+                secret_id=config.tencent_secret_id or "",
+                secret_key=effective_secret_key,
+                region=config.tencent_region,
+                model=config.model_name or "",
             )
         )
     else:
@@ -408,11 +453,12 @@ def validate_embedding_config(
             validated_at=validated_at,
         )
     except Exception as exc:
-        message = (
-            _format_remote_validation_error(config, exc)
-            if config.provider_type == EmbeddingProviderType.OPENAI_COMPATIBLE
-            else f"本地嵌入配置验证失败：{exc}"
-        )
+        if config.provider_type == EmbeddingProviderType.OPENAI_COMPATIBLE:
+            message = _format_remote_validation_error(config, exc)
+        elif config.provider_type == EmbeddingProviderType.TENCENT_CLOUD:
+            message = f"腾讯云嵌入配置验证失败：{exc}"
+        else:
+            message = f"本地嵌入配置验证失败：{exc}"
         response = EmbeddingValidateResponse(
             success=False,
             state=EmbeddingState.VALIDATION_FAILED,
@@ -451,6 +497,9 @@ def disable_embedding(session: Session) -> EmbeddingStatusPayload:
 
 
 def get_embedding_models(supplier_id: int) -> list[str]:
-    if supplier_id not in SUPPORTED_OPENAI_COMPATIBLE_SUPPLIERS:
+    if (
+        supplier_id not in SUPPORTED_OPENAI_COMPATIBLE_SUPPLIERS
+        and supplier_id not in SUPPORTED_TENCENT_CLOUD_SUPPLIER
+    ):
         return []
     return EMBEDDING_MODELS_BY_SUPPLIER.get(supplier_id, [])
