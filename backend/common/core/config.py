@@ -102,13 +102,15 @@ class Settings(BaseSettings):
     SERVER_IMAGE_TIMEOUT: int = 15
 
     LOCAL_MODEL_PATH: str = "/opt/sqlbot/models"
-    EMBEDDING_PROVIDER: Literal["local", "remote"] = "local"
+    EMBEDDING_PROVIDER: Literal["local", "remote"] = "remote"
     DEFAULT_EMBEDDING_MODEL: str = "shibing624/text2vec-base-chinese"
     REMOTE_EMBEDDING_BASE_URL: str | None = None
     REMOTE_EMBEDDING_API_KEY: str | None = None
     REMOTE_EMBEDDING_MODEL: str | None = None
     REMOTE_EMBEDDING_TIMEOUT_SECONDS: int = 30
-    EMBEDDING_STARTUP_BACKFILL_POLICY: Literal["eager", "deferred", "manual"] = "eager"
+    EMBEDDING_STARTUP_BACKFILL_POLICY: Literal["eager", "deferred", "manual"] = (
+        "deferred"
+    )
     EMBEDDING_ENABLED: bool = True
     EMBEDDING_DEFAULT_SIMILARITY: float = 0.4
     EMBEDDING_TERMINOLOGY_SIMILARITY: float = EMBEDDING_DEFAULT_SIMILARITY
