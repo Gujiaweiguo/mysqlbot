@@ -12,7 +12,7 @@ Recommended deployment strategy:
 - **remote-default** for normal deployments
 - **local-fallback** for offline or private deployments that need in-process embeddings
 
-For backward compatibility, the application configuration still defaults to `EMBEDDING_PROVIDER=local`. Remote-first deployment means setting `EMBEDDING_PROVIDER=remote` explicitly in your environment or deployment manifest.
+The application configuration now defaults to `EMBEDDING_PROVIDER=remote` with `EMBEDDING_STARTUP_BACKFILL_POLICY=deferred`.
 
 ## Configuration
 

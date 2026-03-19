@@ -33,11 +33,10 @@ WORKDIR ${APP_HOME}
 
 COPY  --from=sqlbot-ui-builder ${UI_HOME} ${UI_HOME}
 # Install dependencies
-RUN test -f "./uv.lock" && \
-    --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=backend/uv.lock,target=uv.lock \
     --mount=type=bind,source=backend/pyproject.toml,target=pyproject.toml \
-    if [ "$SQLBOT_EMBEDDING_RUNTIME" = "local" ]; then uv sync --frozen --no-install-project --extra cpu; else uv sync --frozen --no-install-project; fi || echo "uv.lock file not found, skipping intermediate-layers"
+    sh -c 'if test -f "./uv.lock"; then if [ "$SQLBOT_EMBEDDING_RUNTIME" = "local" ]; then uv sync --frozen --no-install-project --extra cpu; else uv sync --frozen --no-install-project; fi; else echo "uv.lock file not found, skipping intermediate-layers"; fi'
 
 COPY ./backend ${APP_HOME}
 
