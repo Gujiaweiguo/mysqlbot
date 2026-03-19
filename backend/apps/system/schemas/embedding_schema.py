@@ -1,10 +1,10 @@
 from enum import Enum
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 
-class EmbeddingProvider(str, Enum):
-    REMOTE = "remote"
+class EmbeddingProviderType(str, Enum):
+    OPENAI_COMPATIBLE = "openai_compatible"
     LOCAL = "local"
 
 
@@ -24,27 +24,17 @@ class EmbeddingState(str, Enum):
 
 
 class EmbeddingConfigPayload(BaseModel):
-    provider: EmbeddingProvider
-    remote_base_url: str | None = None
-    remote_api_key: str = ""
-    remote_api_key_configured: bool = False
-    remote_model: str | None = None
-    remote_timeout_seconds: int = Field(default=30, ge=1)
+    provider_type: EmbeddingProviderType
+    supplier_id: int | None = None
+    model_name: str | None = None
+    base_url: str | None = None
+    api_key: str = ""
+    api_key_configured: bool = False
+    timeout_seconds: int = Field(default=30, ge=1)
     local_model: str | None = None
     startup_backfill_policy: EmbeddingStartupBackfillPolicy = (
         EmbeddingStartupBackfillPolicy.DEFERRED
     )
-
-    @model_validator(mode="after")
-    def validate_provider_specific_fields(self) -> "EmbeddingConfigPayload":
-        if self.provider == EmbeddingProvider.REMOTE:
-            if not self.remote_base_url:
-                raise ValueError("remote_base_url is required for remote provider")
-            if not self.remote_model:
-                raise ValueError("remote_model is required for remote provider")
-        if self.provider == EmbeddingProvider.LOCAL and not self.local_model:
-            raise ValueError("local_model is required for local provider")
-        return self
 
 
 class EmbeddingValidationInfo(BaseModel):

@@ -373,7 +373,7 @@ const submit = (item: any) => {
           <template #icon>
             <icon_set></icon_set>
           </template>
-          Embedding Config
+          {{ t('model.embedding_configuration') }}
         </el-button>
       </div>
     </div>
@@ -431,7 +431,7 @@ const submit = (item: any) => {
       size="680px"
       :show-close="true"
       :close-on-click-modal="false"
-      title="Embedding Configuration"
+      :title="t('model.embedding_configuration')"
       append-to-body
       :before-close="closeEmbeddingConfig"
     >

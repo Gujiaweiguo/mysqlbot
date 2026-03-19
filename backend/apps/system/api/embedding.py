@@ -4,6 +4,7 @@ from apps.system.crud.embedding_admin import (
     disable_embedding,
     enable_embedding,
     get_embedding_admin_config,
+    get_embedding_admin_config_unmasked,
     save_embedding_admin_config,
     validate_embedding_config,
 )
@@ -42,7 +43,7 @@ async def validate_config(
     session: SessionDep, request: EmbeddingValidateRequest
 ) -> EmbeddingValidateResponse:
     if request.use_saved_config:
-        current = get_embedding_admin_config(session)
+        current = get_embedding_admin_config_unmasked(session)
         return validate_embedding_config(session, current.config, persist_result=True)
     if request.config is None:
         raise HTTPException(

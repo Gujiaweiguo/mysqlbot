@@ -9,6 +9,7 @@ from langchain_core.embeddings import Embeddings
 from pydantic import BaseModel
 
 from apps.system.crud.embedding_admin import get_effective_embedding_config
+from apps.system.schemas.embedding_schema import EmbeddingProviderType
 
 from common.core.config import settings
 
@@ -139,27 +140,27 @@ class EmbeddingModelCache:
     @staticmethod
     def _get_remote_config() -> RemoteEmbeddingModelInfo:
         config = get_effective_embedding_config()
-        if not config.remote_base_url:
+        if not config.base_url:
             raise ValueError(
-                "REMOTE_EMBEDDING_BASE_URL is required when EMBEDDING_PROVIDER=remote"
+                "base_url is required when provider_type=openai_compatible"
             )
-        if not config.remote_model:
+        if not config.model_name:
             raise ValueError(
-                "REMOTE_EMBEDDING_MODEL is required when EMBEDDING_PROVIDER=remote"
+                "model_name is required when provider_type=openai_compatible"
             )
         return RemoteEmbeddingModelInfo(
-            base_url=config.remote_base_url,
-            model=config.remote_model,
-            api_key=config.remote_api_key or None,
-            timeout_seconds=config.remote_timeout_seconds,
+            base_url=config.base_url,
+            model=config.model_name,
+            api_key=config.api_key or None,
+            timeout_seconds=config.timeout_seconds,
         )
 
     @staticmethod
     def _get_cache_key(key: str | None = None) -> str:
         config = get_effective_embedding_config()
-        if config.provider == "remote":
-            remote_model = config.remote_model or ""
-            remote_url = config.remote_base_url or ""
+        if config.provider_type == EmbeddingProviderType.OPENAI_COMPATIBLE:
+            remote_model = config.model_name or ""
+            remote_url = config.base_url or ""
             return key or f"remote:{remote_url}:{remote_model}"
         return key or f"local:{config.local_model or settings.DEFAULT_EMBEDDING_MODEL}"
 
@@ -168,7 +169,7 @@ class EmbeddingModelCache:
         config: EmbeddingModelInfo = local_embedding_model,
     ) -> EmbeddingProvider:
         runtime_config = get_effective_embedding_config()
-        if runtime_config.provider == "remote":
+        if runtime_config.provider_type == EmbeddingProviderType.OPENAI_COMPATIBLE:
             return RemoteEmbeddingProvider(EmbeddingModelCache._get_remote_config())
         local_config = EmbeddingModelInfo(
             folder=config.folder,

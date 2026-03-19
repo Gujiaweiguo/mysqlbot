@@ -30,6 +30,7 @@ from apps.system.crud.embedding_admin import (
     embedding_runtime_enabled,
     get_effective_embedding_config,
 )
+from apps.system.schemas.embedding_schema import EmbeddingProviderType
 from apps.system.middleware.auth import TokenMiddleware
 from apps.system.models.system_model import WorkspaceModel
 from apps.system.schemas.permission import RequestContextMiddleware
@@ -106,7 +107,7 @@ def _should_run_embedding_startup_backfill() -> bool:
     if not embedding_runtime_enabled():
         return False
     config = get_effective_embedding_config()
-    if config.provider != "remote":
+    if config.provider_type != EmbeddingProviderType.OPENAI_COMPATIBLE:
         return True
     return config.startup_backfill_policy == "eager"
 
