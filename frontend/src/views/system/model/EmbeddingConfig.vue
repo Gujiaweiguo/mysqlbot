@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus-secondary'
 import { embeddingApi } from '@/api/embedding'
 import { useI18n } from 'vue-i18n'
-import { get_supplier, supplierList } from '@/entity/supplier'
+import { supplierList } from '@/entity/supplier'
 
 type EmbeddingState =
   | 'disabled'
@@ -63,11 +63,6 @@ const canEnable = computed(
 const filteredSuppliers = computed(() =>
   supplierList.filter((s) => EMBEDDING_SUPPLIER_IDS.includes(s.id))
 )
-
-const currentSupplier = computed(() => {
-  if (!form.supplier_id) return null
-  return get_supplier(form.supplier_id)
-})
 
 const stateLabelMap: Record<EmbeddingState, string> = {
   disabled: t('model.embedding_state_disabled'),
