@@ -7,9 +7,11 @@ import icon_add_outlined from '@/assets/svg/icon_add_outlined.svg'
 import EmptyBackground from '@/views/dashboard/common/EmptyBackground.vue'
 import icon_done_outlined from '@/assets/svg/icon_done_outlined.svg'
 import icon_close_outlined from '@/assets/svg/operate/ope-close.svg'
+import icon_set from '@/assets/svg/menu/icon-setting.svg'
 import ModelList from './ModelList.vue'
 import ModelListSide from './ModelListSide.vue'
 import ModelForm from './ModelForm.vue'
+import EmbeddingConfig from './EmbeddingConfig.vue'
 import { modelApi } from '@/api/system'
 import Card from './Card.vue'
 import { getModelTypeName } from '@/entity/CommonEntity.ts'
@@ -30,6 +32,7 @@ const { t } = useI18n()
 const keywords = ref('')
 const defaultModelKeywords = ref('')
 const modelConfigvVisible = ref(false)
+const embeddingConfigVisible = ref(false)
 const searchLoading = ref(false)
 const editModel = ref(false)
 const activeStep = ref(0)
@@ -59,6 +62,9 @@ const modelListWithSearch = computed(() => {
 })
 const beforeClose = () => {
   modelConfigvVisible.value = false
+}
+const closeEmbeddingConfig = () => {
+  embeddingConfigVisible.value = false
 }
 const defaultModelListWithSearch = computed(() => {
   let tempModelList = modelList.value
@@ -363,6 +369,12 @@ const submit = (item: any) => {
           </template>
           {{ t('model.add_model') }}
         </el-button>
+        <el-button secondary @click="embeddingConfigVisible = true">
+          <template #icon>
+            <icon_set></icon_set>
+          </template>
+          Embedding Config
+        </el-button>
       </div>
     </div>
     <EmptyBackground
@@ -414,6 +426,17 @@ const submit = (item: any) => {
         </el-button>
       </div>
     </template>
+    <el-drawer
+      v-model="embeddingConfigVisible"
+      size="680px"
+      :show-close="true"
+      :close-on-click-modal="false"
+      title="Embedding Configuration"
+      append-to-body
+      :before-close="closeEmbeddingConfig"
+    >
+      <EmbeddingConfig />
+    </el-drawer>
     <el-drawer
       v-model="modelConfigvVisible"
       :close-on-click-modal="false"
