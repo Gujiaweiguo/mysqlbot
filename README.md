@@ -44,6 +44,15 @@ docker compose -f docker-compose.yaml -f docker-compose.redis.yaml up -d
 
 > 如果你使用安装器产物中的 Compose 文件，则默认继续走预构建镜像模式；仓库根目录 Compose 更偏向源码构建与开发调试。
 
+#### 服务端口
+
+| 服务 | 皴露端口 | 用途 |
+|------|---------|------|
+| gosqlbot-app | 8000 | FastAPI 应用 (Web UI) |
+| gosqlbot-app | 8001 | MCP 服务 |
+| postgresql | 5432 | PostgreSQL 数据库 |
+| redis | 6379 | Redis 缓存（可选） |
+
 #### 数据目录
 
 - `./data/sqlbot/excel` → Excel 文件
@@ -51,13 +60,41 @@ docker compose -f docker-compose.yaml -f docker-compose.redis.yaml up -d
 - `./data/sqlbot/images` → 图片与嵌入资源
 - `./data/sqlbot/logs` → 应用日志
 - `./data/postgresql` → PostgreSQL 数据
-- `./data/redis` → Redis 数据（仅 Redis 模式）
+- `./data/redis` → Redis 数据（仅 Redis 模式)
 
-### 访问方式
+#### 配置环境变量
 
-- 在浏览器中打开: http://<你的服务器IP>:8000/
-- 用户名: admin
-- 密码: mySQLBot@123456
+常用环境变量（可通过 `.env` 或 `docker-compose.yaml` 默认值）：
+
+| 变量 | 默认值 | 说明 |
+|-----|---------|------|
+| `SQLBOT_PG_DB` | `sqlbot` | PostgreSQL 数据库名 |
+| `SQLBOT_PG_USER` | `root` | PostgreSQL 用户名 |
+| `SQLBOT_PG_PASSWORD` | `Password123@pg` | PostgreSQL 密码 |
+| `SQLBOT_PG_PORT` | `5432` | PostgreSQL 端口 |
+| `SQLBOT_CACHE_TYPE` | `memory` | 缓存类型 (`memory` 或 `redis`) |
+| `SQLBOT_CACHE_REDIS_URL` | `redis://redis:6379/0` | Redis URL（仅 Redis 模式) |
+| `SQLBOT_DATA_DIR` | `./data/sqlbot` | 应用数据目录 |
+| `SQLBOT_PG_DATA_DIR` | `./data/postgresql` | PostgreSQL 数据目录 |
+| `SQLBOT_REDIS_DATA_DIR` | `./data/redis` | Redis 数据目录（仅 Redis 模式) |
+
+#### 回滚策略
+
+如需回退到旧的捆绑部署模式：
+- 使用安装器提供的预构建镜像和 Compose 文件
+- 保持 `./data/postgresql` 数据目录不变
+
+#### 迁移现有数据
+
+如需从旧的捆绑部署迁移到新的分离部署模式
+
+1. 停止现有容器：`docker compose down`
+2. 备份 PostgreSQL 数据目录： `cp -r ./data/postgresql ./data/postgresql-backup`
+3. 使用新的 Compose 配置启动：
+```bash
+docker compose up -d
+```
+4. 数据将自动保留在 `./data/postgresql` 目录中
 
 ## 质量与发布门禁
 
