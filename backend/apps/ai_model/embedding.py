@@ -8,6 +8,8 @@ import httpx
 from langchain_core.embeddings import Embeddings
 from pydantic import BaseModel
 
+from apps.system.crud.embedding_admin import get_effective_embedding_config
+
 from common.core.config import settings
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -136,36 +138,44 @@ class RemoteEmbeddingProvider:
 class EmbeddingModelCache:
     @staticmethod
     def _get_remote_config() -> RemoteEmbeddingModelInfo:
-        if not settings.REMOTE_EMBEDDING_BASE_URL:
+        config = get_effective_embedding_config()
+        if not config.remote_base_url:
             raise ValueError(
                 "REMOTE_EMBEDDING_BASE_URL is required when EMBEDDING_PROVIDER=remote"
             )
-        if not settings.REMOTE_EMBEDDING_MODEL:
+        if not config.remote_model:
             raise ValueError(
                 "REMOTE_EMBEDDING_MODEL is required when EMBEDDING_PROVIDER=remote"
             )
         return RemoteEmbeddingModelInfo(
-            base_url=settings.REMOTE_EMBEDDING_BASE_URL,
-            model=settings.REMOTE_EMBEDDING_MODEL,
-            api_key=settings.REMOTE_EMBEDDING_API_KEY,
-            timeout_seconds=settings.REMOTE_EMBEDDING_TIMEOUT_SECONDS,
+            base_url=config.remote_base_url,
+            model=config.remote_model,
+            api_key=config.remote_api_key or None,
+            timeout_seconds=config.remote_timeout_seconds,
         )
 
     @staticmethod
     def _get_cache_key(key: str | None = None) -> str:
-        if settings.EMBEDDING_PROVIDER == "remote":
-            remote_model = settings.REMOTE_EMBEDDING_MODEL or ""
-            remote_url = settings.REMOTE_EMBEDDING_BASE_URL or ""
+        config = get_effective_embedding_config()
+        if config.provider == "remote":
+            remote_model = config.remote_model or ""
+            remote_url = config.remote_base_url or ""
             return key or f"remote:{remote_url}:{remote_model}"
-        return key or f"local:{settings.DEFAULT_EMBEDDING_MODEL}"
+        return key or f"local:{config.local_model or settings.DEFAULT_EMBEDDING_MODEL}"
 
     @staticmethod
     def _new_instance(
         config: EmbeddingModelInfo = local_embedding_model,
     ) -> EmbeddingProvider:
-        if settings.EMBEDDING_PROVIDER == "remote":
+        runtime_config = get_effective_embedding_config()
+        if runtime_config.provider == "remote":
             return RemoteEmbeddingProvider(EmbeddingModelCache._get_remote_config())
-        return LocalEmbeddingProvider(config)
+        local_config = EmbeddingModelInfo(
+            folder=config.folder,
+            name=runtime_config.local_model or config.name,
+            device=config.device,
+        )
+        return LocalEmbeddingProvider(local_config)
 
     @staticmethod
     def _get_lock(key: str | None = None) -> threading.Lock:
