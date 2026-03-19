@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+from types import SimpleNamespace
 from typing import cast
 
 import pytest
@@ -57,6 +58,17 @@ def test_startup_lifespan_runs_expected_hooks(
 
     async def fake_async_model_info() -> None:
         startup_calls.append("async_model_info")
+
+    monkeypatch.setattr(main_module.settings, "EMBEDDING_PROVIDER", "local")
+    monkeypatch.setattr(
+        main_module.settings, "EMBEDDING_STARTUP_BACKFILL_POLICY", "eager"
+    )
+    monkeypatch.setattr(main_module, "embedding_runtime_enabled", lambda: True)
+    monkeypatch.setattr(
+        main_module,
+        "get_effective_embedding_config",
+        lambda: SimpleNamespace(provider="local", startup_backfill_policy="eager"),
+    )
 
     monkeypatch.setattr(main_module, "run_migrations", fake_run_migrations)
     monkeypatch.setattr(main_module, "init_sqlbot_cache", fake_init_sqlbot_cache)
@@ -146,6 +158,12 @@ def test_startup_lifespan_skips_embedding_backfill_for_remote_deferred(
     monkeypatch.setattr(main_module.settings, "EMBEDDING_PROVIDER", "remote")
     monkeypatch.setattr(
         main_module.settings, "EMBEDDING_STARTUP_BACKFILL_POLICY", "deferred"
+    )
+    monkeypatch.setattr(main_module, "embedding_runtime_enabled", lambda: True)
+    monkeypatch.setattr(
+        main_module,
+        "get_effective_embedding_config",
+        lambda: SimpleNamespace(provider="remote", startup_backfill_policy="deferred"),
     )
     monkeypatch.setattr(main_module, "run_migrations", fake_run_migrations)
     monkeypatch.setattr(main_module, "init_sqlbot_cache", fake_init_sqlbot_cache)

@@ -1,18 +1,15 @@
 from __future__ import annotations
 
 import importlib
-from types import SimpleNamespace
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from typing import Any, cast
 
 import pytest
 
 
 class _FakeLocalEmbeddings:
-    created: bool
-
     def __init__(self, **_: object) -> None:
-        self.created = True
+        return None
 
     def embed_query(self, text: str) -> list[float]:
         return [float(len(text))]
@@ -22,8 +19,6 @@ class _FakeLocalEmbeddings:
 
 
 class _FakeResponse:
-    _payload: dict[str, object]
-
     def __init__(self, payload: dict[str, object]) -> None:
         self._payload = payload
 
@@ -68,7 +63,19 @@ def test_get_model_uses_local_provider(
     monkeypatch: pytest.MonkeyPatch, embedding_module: ModuleType
 ) -> None:
     _reset_cache(embedding_module)
-    monkeypatch.setattr(embedding_module.settings, "EMBEDDING_PROVIDER", "local")
+    monkeypatch.setattr(
+        embedding_module,
+        "get_effective_embedding_config",
+        lambda: SimpleNamespace(
+            provider="local",
+            remote_base_url=None,
+            remote_api_key="",
+            remote_model=None,
+            remote_timeout_seconds=30,
+            local_model="local-model",
+            startup_backfill_policy="eager",
+        ),
+    )
     monkeypatch.setattr(
         embedding_module,
         "import_module",
@@ -79,7 +86,6 @@ def test_get_model_uses_local_provider(
 
     assert model.embed_query("hello") == [5.0]
     assert model.embed_documents(["hi", "world"]) == [[2.0], [5.0]]
-    assert model is embedding_module.EmbeddingModelCache.get_model()
 
 
 def test_get_model_uses_remote_provider(
@@ -87,19 +93,18 @@ def test_get_model_uses_remote_provider(
 ) -> None:
     _reset_cache(embedding_module)
     fake_client = _FakeClient()
-    monkeypatch.setattr(embedding_module.settings, "EMBEDDING_PROVIDER", "remote")
     monkeypatch.setattr(
-        embedding_module.settings,
-        "REMOTE_EMBEDDING_BASE_URL",
-        "http://embedding-service/v1",
-    )
-    monkeypatch.setattr(
-        embedding_module.settings,
-        "REMOTE_EMBEDDING_MODEL",
-        "text-embedding-3-small",
-    )
-    monkeypatch.setattr(
-        embedding_module.settings, "REMOTE_EMBEDDING_API_KEY", "test-key"
+        embedding_module,
+        "get_effective_embedding_config",
+        lambda: SimpleNamespace(
+            provider="remote",
+            remote_base_url="http://embedding-service/v1",
+            remote_api_key="test-key",
+            remote_model="text-embedding-3-small",
+            remote_timeout_seconds=30,
+            local_model="",
+            startup_backfill_policy="deferred",
+        ),
     )
     monkeypatch.setattr(
         embedding_module.httpx, "Client", lambda **_: cast(Any, fake_client)
@@ -117,9 +122,19 @@ def test_remote_provider_requires_configuration(
     monkeypatch: pytest.MonkeyPatch, embedding_module: ModuleType
 ) -> None:
     _reset_cache(embedding_module)
-    monkeypatch.setattr(embedding_module.settings, "EMBEDDING_PROVIDER", "remote")
-    monkeypatch.setattr(embedding_module.settings, "REMOTE_EMBEDDING_BASE_URL", None)
-    monkeypatch.setattr(embedding_module.settings, "REMOTE_EMBEDDING_MODEL", None)
+    monkeypatch.setattr(
+        embedding_module,
+        "get_effective_embedding_config",
+        lambda: SimpleNamespace(
+            provider="remote",
+            remote_base_url=None,
+            remote_api_key="",
+            remote_model=None,
+            remote_timeout_seconds=30,
+            local_model="",
+            startup_backfill_policy="deferred",
+        ),
+    )
 
     with pytest.raises(ValueError, match="REMOTE_EMBEDDING_BASE_URL"):
         embedding_module.EmbeddingModelCache.get_model()

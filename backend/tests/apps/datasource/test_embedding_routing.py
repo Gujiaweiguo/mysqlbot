@@ -97,6 +97,9 @@ def test_get_table_embedding_uses_provider_interface(
 ) -> None:
     provider = _FakeEmbeddingProvider()
     monkeypatch.setattr(
+        table_embedding_module, "embedding_runtime_enabled", lambda: True
+    )
+    monkeypatch.setattr(
         table_embedding_module.EmbeddingModelCache,
         "get_model",
         staticmethod(lambda: provider),
@@ -119,6 +122,7 @@ def test_save_table_embedding_uses_provider_interface(
     fake_session = _FakeSession()
     fake_session_maker = _FakeSessionMaker(fake_session)
     monkeypatch.setattr(table_crud.settings, "TABLE_EMBEDDING_ENABLED", True)
+    monkeypatch.setattr(table_crud, "embedding_runtime_enabled", lambda: True)
     monkeypatch.setattr(
         table_crud.EmbeddingModelCache,
         "get_model",
