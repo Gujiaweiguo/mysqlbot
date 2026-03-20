@@ -1,6 +1,5 @@
 from collections.abc import Callable
 from datetime import timedelta
-from importlib import import_module
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -15,20 +14,13 @@ from common.core.deps import SessionDep, Trans
 from common.core.schemas import Token
 from common.core.security import create_access_token
 from common.utils.crypto import sqlbot_decrypt
+from common.xpack_compat import auth as compat_auth
 
 from ..crud.user import authenticate
 
 router = APIRouter(tags=["login"], prefix="/login")
 
 typed_system_log = cast(Callable[[LogConfig], Callable[..., Any]], system_log)
-
-
-async def _xpack_logout(
-    session: SessionDep, request: Request, dto: LogoutSchema
-) -> Any:
-    module = import_module("sqlbot_xpack.authentication.manage")
-    logout = module.logout
-    return await logout(session, request, dto)
 
 
 @router.post("/access-token")
@@ -74,4 +66,4 @@ async def local_login(
 @router.post("/logout")
 async def logout(session: SessionDep, request: Request, dto: LogoutSchema) -> None:
     if dto.origin != 0:
-        await _xpack_logout(session, request, dto)
+        await compat_auth.logout(session, request, dto)

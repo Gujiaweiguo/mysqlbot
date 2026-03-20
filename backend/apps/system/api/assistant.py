@@ -2,8 +2,7 @@ import json
 import os
 from collections.abc import Iterator
 from datetime import timedelta
-from importlib import import_module
-from typing import Annotated, Protocol, cast
+from typing import Annotated, Any, cast
 
 from fastapi import (
     APIRouter,
@@ -42,28 +41,16 @@ from common.core.config import settings
 from common.core.deps import CurrentAssistant, CurrentUser, SessionDep, Trans
 from common.core.security import create_access_token
 from common.core.sqlbot_cache import clear_cache
+from common.xpack_compat.file_utils import (
+    check_file,
+    delete_file,
+    get_file_path,
+    split_filename_and_flag,
+    upload,
+)
 from common.utils.utils import get_origin_from_referer, origin_match_domain
 
 router = APIRouter(tags=["system_assistant"], prefix="/system/assistant")
-
-
-class SQLBotFileUtilsProtocol(Protocol):
-    @staticmethod
-    def get_file_path(*, file_id: str) -> str: ...
-
-    @staticmethod
-    def split_filename_and_flag(filename: str | None) -> tuple[str, str]: ...
-
-    @staticmethod
-    def check_file(
-        *, file: UploadFile, file_types: list[str], limit_file_size: int
-    ) -> None: ...
-
-    @staticmethod
-    def delete_file(file_id: str) -> None: ...
-
-    @staticmethod
-    async def upload(file: UploadFile) -> str: ...
 
 
 def _parse_json_object(raw_json: str) -> dict[str, object]:
@@ -82,11 +69,6 @@ def _get_int_list(mapping: dict[str, object], key: str) -> list[int]:
         return []
     value_list = cast(list[object], value)
     return [item for item in value_list if isinstance(item, int)]
-
-
-def _get_sqlbot_file_utils() -> SQLBotFileUtilsProtocol:
-    module = import_module("sqlbot_xpack.file_utils")
-    return cast(SQLBotFileUtilsProtocol, module.SQLBotFileUtils)
 
 
 @router.get("/info/{id}", include_in_schema=False)
@@ -178,8 +160,7 @@ async def validator(
 async def picture(
     file_id: Annotated[str, Path(description="file_id")],
 ) -> StreamingResponse:
-    file_utils = _get_sqlbot_file_utils()
-    file_path = file_utils.get_file_path(file_id=file_id)
+    file_path = get_file_path(file_id=file_id)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -220,7 +201,6 @@ async def ui(
     db_model = session.get(AssistantModel, id)
     if not db_model:
         raise ValueError(f"AssistantModel with id {id} not found")
-    file_utils = _get_sqlbot_file_utils()
     configuration = db_model.configuration
     config_obj = _parse_json_object(configuration) if configuration else {}
 
@@ -228,12 +208,12 @@ async def ui(
     if files:
         for file in files:
             origin_file_name = file.filename
-            file_name, flag_name = file_utils.split_filename_and_flag(origin_file_name)
+            file_name, flag_name = split_filename_and_flag(origin_file_name)
             file.filename = file_name
             if flag_name == "logo" or flag_name == "float_icon":
                 try:
-                    file_utils.check_file(
-                        file=file,
+                    check_file(
+                        file=cast(Any, file),
                         file_types=[".jpg", ".png", ".svg"],
                         limit_file_size=(10 * 1024 * 1024),
                     )
@@ -245,8 +225,8 @@ async def ui(
                         raise e
                 existing_file_id = config_obj.get(flag_name)
                 if isinstance(existing_file_id, str):
-                    file_utils.delete_file(existing_file_id)
-                file_id = await file_utils.upload(file)
+                    delete_file(existing_file_id)
+                file_id = await upload(cast(Any, file))
                 ui_schema_dict[flag_name] = file_id
             else:
                 raise ValueError(f"Unsupported file flag: {flag_name}")
@@ -255,7 +235,7 @@ async def ui(
         file_val = config_obj.get(flag_name)
         if isinstance(file_val, str) and not ui_schema_dict.get(flag_name):
             config_obj[flag_name] = None
-            file_utils.delete_file(file_val)
+            delete_file(file_val)
 
     for attr, value in cast(dict[str, object], ui_schema_dict).items():
         if attr != "id" and not attr.startswith("__"):

@@ -477,7 +477,7 @@ const handleEmbedded = (row: any) => {
     const script = document.createElement('script');
     script.defer = true;
     script.async = true;
-    script.src = "${origin + pathname}xpack_static/sqlbot-embedded-dynamic.umd.js";
+    script.src = "${origin + pathname}sqlbot-embedded-dynamic.umd.js";
     document.head.appendChild(script);
   })()
   let sqlbot_embedded_timer = setInterval(() => {

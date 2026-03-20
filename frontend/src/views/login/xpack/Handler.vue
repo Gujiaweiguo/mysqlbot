@@ -60,6 +60,7 @@ import Oauth2 from './Oauth2.vue'
 import QrTab from './QrTab.vue'
 import { request } from '@/utils/request'
 import { useCache } from '@/utils/useCache'
+import { getLicense } from '@/xpack-compat'
 
 import router from '@/router'
 import { useUserStore } from '@/stores/user.ts'
@@ -412,8 +413,7 @@ onMounted(() => {
     updateLoading(false, 100)
     return
   }
-  // eslint-disable-next-line no-undef
-  const obj = LicenseGenerator.getLicense()
+  const obj = getLicense()
   if (obj?.status !== 'valid') {
     updateLoading(false, 100)
     return

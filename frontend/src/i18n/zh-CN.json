@@ -511,7 +511,9 @@
     "embedding_state_validated_disabled": "已验证，未启用",
     "embedding_state_enabled": "已启用",
     "embedding_state_reindex_required": "需要重建向量",
-    "embedding_state_validation_failed": "验证失败"
+    "embedding_state_validation_failed": "验证失败",
+    "embedding_reindex_confirm_title": "确认启用",
+    "embedding_reindex_confirm_message": "检测到 Embedding 提供商或模型已更改。启用后，系统会在使用时自动为相关数据生成新的向量。是否确认启用？"
   },
   "user": {
     "workspace": "工作空间",

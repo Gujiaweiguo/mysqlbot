@@ -114,16 +114,23 @@ def embedding_admin_store(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
             )
         return response
 
-    def enable_config(_session: Any) -> EmbeddingStatusPayload:
+    def enable_config(
+        _session: Any, confirm_reindex: bool = False
+    ) -> EmbeddingStatusPayload:
         nonlocal status_store
-        if status_store.reindex_required:
+        if status_store.reindex_required and not confirm_reindex:
             raise ValueError(
                 "Embedding requires reindex review before it can be enabled"
             )
         if status_store.state != EmbeddingState.VALIDATED_DISABLED:
             raise ValueError("Embedding cannot be enabled before validation succeeds")
         status_store = status_store.model_copy(
-            update={"enabled": True, "state": EmbeddingState.ENABLED}
+            update={
+                "enabled": True,
+                "state": EmbeddingState.ENABLED,
+                "reindex_required": False,
+                "reindex_reason": None,
+            }
         )
         return status_store
 
@@ -229,6 +236,16 @@ class TestEmbeddingAdminApi:
         enable_payload = enable_response.json()["data"]
         assert enable_payload["success"] is False
         assert "reindex" in enable_payload["message"].lower()
+
+        confirmed_enable_response = test_app.post(
+            "/api/v1/system/embedding/enable",
+            headers=auth_headers,
+            json={"confirm_reindex": True},
+        )
+        assert confirmed_enable_response.status_code == 200
+        confirmed_enable_payload = confirmed_enable_response.json()["data"]
+        assert confirmed_enable_payload["success"] is True
+        assert confirmed_enable_payload["state"] == "enabled"
 
     def test_provider_change_marks_state_stale(
         self,

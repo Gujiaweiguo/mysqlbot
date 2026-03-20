@@ -135,12 +135,6 @@ class HttpService {
           /* const val = mapping[locale] || locale */
           config.headers['Accept-Language'] = locale
         }
-        if (config.url?.includes('/xpack_static/') && config.baseURL) {
-          config.baseURL = config.baseURL.replace('/api/v1', '')
-          // Skip auth for xpack_static requests
-          return config
-        }
-
         /* try {
           const request_key = LicenseGenerator.generate()
           config.headers['X-SQLBOT-KEY'] = request_key

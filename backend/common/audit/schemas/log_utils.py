@@ -7,9 +7,11 @@ from sqlalchemy.sql.elements import ColumnElement
 from sqlmodel import col, select
 
 from apps.chat.models.chat_model import Chat
+from apps.chat.models.custom_prompt_model import CustomPrompt
 from apps.dashboard.models.dashboard_model import CoreDashboard
 from apps.data_training.models.data_training_model import DataTraining
 from apps.datasource.models.datasource import CoreDatasource
+from apps.datasource.models.permission import DsPermission, DsRules
 from apps.system.models.system_model import (
     AiModelDetail,
     ApiKeyModel,
@@ -31,8 +33,8 @@ def _resource_query(
     module: str,
     from_model: type[object],
 ) -> Select[tuple[object, object, str]]:
-    id_col = cast(ColumnElement[object], col(id_column))
-    name_col = cast(ColumnElement[object], col(name_column))
+    id_col = cast(ColumnElement[object], cast(object, col(id_column)))
+    name_col = cast(ColumnElement[object], cast(object, col(name_column)))
     query = select(
         func.cast(id_col, String).label("id"),
         name_col.label("name"),
@@ -58,15 +60,9 @@ def build_resource_union_query() -> Select[tuple[object, object, object]]:
     """
     # 创建各个子查询，每个查询都包含module字段
 
-    custom_prompt_model = _load_xpack_model(
-        "sqlbot_xpack.custom_prompt.models.custom_prompt_model", "CustomPrompt"
-    )
-    ds_permission_model = _load_xpack_model(
-        "sqlbot_xpack.permissions.models.ds_permission", "DsPermission"
-    )
-    ds_rules_model = _load_xpack_model(
-        "sqlbot_xpack.permissions.models.ds_rules", "DsRules"
-    )
+    custom_prompt_model = cast(type[_NamedResourceModel], CustomPrompt)
+    ds_permission_model = cast(type[_NamedResourceModel], DsPermission)
+    ds_rules_model = cast(type[_NamedResourceModel], DsRules)
 
     # ai_model 表查询
     ai_model_query = _resource_query(

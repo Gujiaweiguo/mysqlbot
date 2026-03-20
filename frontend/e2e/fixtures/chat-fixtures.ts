@@ -154,21 +154,11 @@ export async function seedAuthenticatedUser(page: Page): Promise<void> {
 }
 
 export async function installBaseAppMocks(page: Page): Promise<void> {
-  await page.route('**/xpack_static/license-generator.umd.js*', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/javascript',
-      body: `var LicenseGenerator = {
-        init: async function () { return true },
-        getLicense: function () { return { status: 'invalid' } },
-        generateRouters: function () { return undefined },
-        sqlbotEncrypt: function (value) { return value },
-      };
-      window.LicenseGenerator = LicenseGenerator;
-      globalThis.LicenseGenerator = LicenseGenerator;`,
-    })
-  })
+  await installLicenseGeneratorMock(page)
+  await installStandardBaseAppRoutes(page)
+}
 
+async function installStandardBaseAppRoutes(page: Page): Promise<void> {
   await page.route('**/api/v1/user/info', async (route) => {
     await route.fulfill({
       status: 200,
@@ -223,6 +213,81 @@ export async function installBaseAppMocks(page: Page): Promise<void> {
       ]),
     })
   })
+}
+
+export async function installLicenseGeneratorMock(
+  page: Page,
+  options?: {
+    scriptBody?: string
+  }
+): Promise<void> {
+  const scriptBody =
+    options?.scriptBody ??
+    `var LicenseGenerator = {
+      init: async function () { return true },
+      getLicense: function () { return { status: 'invalid' } },
+      generateRouters: function () { return undefined },
+      sqlbotEncrypt: function (value) { return value },
+    };
+    window.LicenseGenerator = LicenseGenerator;
+    globalThis.LicenseGenerator = LicenseGenerator;`
+
+  await page.addInitScript(scriptBody)
+}
+
+export async function installLicenseGeneratorContractMocks(page: Page): Promise<void> {
+  await installLicenseGeneratorMock(page, {
+    scriptBody: `window.__licenseContract = {
+      initArgs: [],
+      generateRoutersCalls: 0,
+      encryptedValues: [],
+      getLicenseCalls: 0,
+    };
+    var LicenseGenerator = {
+      init: async function (baseUrl) {
+        window.__licenseContract.initArgs.push(baseUrl);
+        return true;
+      },
+      getLicense: function () {
+        window.__licenseContract.getLicenseCalls += 1;
+        return { status: 'invalid' };
+      },
+      generateRouters: function () {
+        window.__licenseContract.generateRoutersCalls += 1;
+        return undefined;
+      },
+      sqlbotEncrypt: function (value) {
+        var encrypted = 'enc::' + value;
+        window.__licenseContract.encryptedValues.push({ input: value, output: encrypted });
+        return encrypted;
+      },
+    };
+    window.LicenseGenerator = LicenseGenerator;
+    globalThis.LicenseGenerator = LicenseGenerator;`,
+  })
+
+  await page.route('**/api/v1/login/access-token', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ code: 0, data: { token: 'mock-token' } }),
+    })
+  })
+
+  await page.route('**/api/v1/system/aimodel', async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 0, data: { id: 1 } }),
+      })
+      return
+    }
+
+    await route.fallback()
+  })
+
+  await installStandardBaseAppRoutes(page)
 }
 
 export async function installChatFlowMocks(page: Page): Promise<void> {

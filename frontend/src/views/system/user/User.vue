@@ -544,6 +544,7 @@ import logo_lark from '@/assets/img/lark.png'
 import logo_wechat_work from '@/assets/img/wechat.png'
 import icon_add_outlined from '@/assets/svg/icon_add_outlined.svg'
 import { userApi } from '@/api/user'
+import { getLicense } from '@/xpack-compat'
 import { request } from '@/utils/request'
 import { workspaceList } from '@/api/workspace'
 import { variablesApi } from '@/api/variables'
@@ -1145,8 +1146,7 @@ const formatUserOrigin = (origin?: number) => {
 
 const showSyncBtn = ref(false)
 onMounted(() => {
-  // eslint-disable-next-line no-undef
-  const obj = LicenseGenerator.getLicense()
+  const obj = getLicense()
   if (obj?.status === 'valid') {
     showSyncBtn.value = true
     loadData()

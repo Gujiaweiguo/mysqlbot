@@ -1,6 +1,5 @@
 import os
 import sys
-import types
 from pathlib import Path
 
 # Add backend to path for imports
@@ -20,81 +19,6 @@ _ = os.environ.setdefault("UPLOAD_DIR", str(test_runtime_dir / "data" / "file"))
 _ = os.environ.setdefault("EXCEL_PATH", str(test_runtime_dir / "data" / "excel"))
 _ = os.environ.setdefault("LOCAL_MODEL_PATH", str(test_runtime_dir / "models"))
 _ = os.environ.setdefault("LOG_DIR", str(test_runtime_dir / "logs"))
-
-
-def _install_sqlbot_xpack_stub() -> None:
-    if "sqlbot_xpack" in sys.modules:
-        return
-
-    package = types.ModuleType("sqlbot_xpack")
-    package.__path__ = []  # type: ignore[attr-defined]
-
-    core_module = types.ModuleType("sqlbot_xpack.core")
-
-    async def clean_xpack_cache() -> None:
-        return None
-
-    async def monitor_app(_app: object) -> None:
-        return None
-
-    async def sqlbot_decrypt(text: str) -> str:
-        return text
-
-    async def sqlbot_encrypt(text: str) -> str:
-        return text
-
-    setattr(core_module, "clean_xpack_cache", clean_xpack_cache)
-    setattr(core_module, "monitor_app", monitor_app)
-    setattr(core_module, "sqlbot_decrypt", sqlbot_decrypt)
-    setattr(core_module, "sqlbot_encrypt", sqlbot_encrypt)
-
-    aes_utils_module = types.ModuleType("sqlbot_xpack.aes_utils")
-
-    class SecureEncryption:
-        @staticmethod
-        def encrypt_to_single_string(text: str, _key: str) -> str:
-            return text
-
-        @staticmethod
-        def decrypt_from_single_string(text: str, _key: str) -> str:
-            return text
-
-        @staticmethod
-        def simple_aes_encrypt(text: str, _key: str, _ivtext: str) -> str:
-            return text
-
-        @staticmethod
-        def simple_aes_decrypt(text: str, _key: str, _ivtext: str) -> str:
-            return text
-
-    setattr(aes_utils_module, "SecureEncryption", SecureEncryption)
-
-    authentication_module = types.ModuleType("sqlbot_xpack.authentication")
-    authentication_manage_module = types.ModuleType(
-        "sqlbot_xpack.authentication.manage"
-    )
-
-    async def logout(_session: object, _request: object, _dto: object) -> None:
-        return None
-
-    setattr(authentication_manage_module, "logout", logout)
-
-    def init_fastapi_app(_app: object) -> None:
-        return None
-
-    setattr(package, "core", core_module)
-    setattr(package, "init_fastapi_app", init_fastapi_app)
-    setattr(package, "authentication", authentication_module)
-
-    sys.modules["sqlbot_xpack"] = package
-    sys.modules["sqlbot_xpack.core"] = core_module
-    sys.modules["sqlbot_xpack.aes_utils"] = aes_utils_module
-    sys.modules["sqlbot_xpack.authentication"] = authentication_module
-    sys.modules["sqlbot_xpack.authentication.manage"] = authentication_manage_module
-
-
-_install_sqlbot_xpack_stub()
-
 from collections.abc import AsyncGenerator, Generator
 from typing import Any
 

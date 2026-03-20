@@ -88,6 +88,7 @@ import { useI18n } from 'vue-i18n'
 import { workspaceList } from '@/api/workspace'
 import { request } from '@/utils/request'
 import icon_info_outlined_1 from '@/assets/svg/icon_info_outlined_1.svg'
+import { getLicense } from '@/xpack-compat'
 
 const { t } = useI18n()
 
@@ -135,8 +136,7 @@ const queryCategoryStatus = () => {
   return request.get(url)
 }
 onMounted(async () => {
-  // eslint-disable-next-line no-undef
-  const obj = LicenseGenerator.getLicense()
+  const obj = getLicense()
   if (obj?.status !== 'valid') {
     xpackValid.value = false
     return

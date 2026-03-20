@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus-secondary'
+import { ElMessage, ElMessageBox } from 'element-plus-secondary'
 import { embeddingApi } from '@/api/embedding'
 import { useI18n } from 'vue-i18n'
 import { supplierList } from '@/entity/supplier'
@@ -65,7 +65,7 @@ const providerIsTencentCloud = computed(
   () => form.provider_type === 'tencent_cloud'
 )
 const canEnable = computed(
-  () => status.state === 'validated_disabled' && !status.reindex_required
+  () => status.state === 'validated_disabled'
 )
 
 const filteredSuppliers = computed(() =>
@@ -281,11 +281,27 @@ const validateConfig = async () => {
 }
 
 const enableEmbedding = async () => {
+  if (status.reindex_required) {
+    try {
+      await ElMessageBox.confirm(
+        t('model.embedding_reindex_confirm_message'),
+        t('model.embedding_reindex_confirm_title'),
+        {
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
+          type: 'warning',
+        }
+      )
+    } catch {
+      return
+    }
+  }
   toggling.value = true
   try {
-    const res: any = await embeddingApi.enable()
+    const res: any = await embeddingApi.enable(status.reindex_required)
     status.state = res.state
     status.enabled = !!res.success && res.state === 'enabled'
+    status.reindex_required = res.reindex_required ?? false
     if (res.success) {
       ElMessage.success(res.message || 'Embedding enabled')
     } else {

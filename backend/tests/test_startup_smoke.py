@@ -22,6 +22,34 @@ class _FakeXPackCore:
         self._calls.append("monitor_app")
 
 
+async def _record_clean_xpack_cache(startup_calls: list[str]) -> None:
+    startup_calls.append("clean_xpack_cache")
+
+
+async def _record_monitor_app(startup_calls: list[str], _app: object) -> None:
+    startup_calls.append("monitor_app")
+
+
+def test_main_import_initializes_xpack_app_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SKIP_MCP_SETUP", "true")
+
+    import main as main_module
+    import common.xpack_compat.startup as startup_module
+
+    init_calls: list[object] = []
+
+    def fake_init_fastapi_app(app: object) -> None:
+        init_calls.append(app)
+
+    monkeypatch.setattr(startup_module, "init_fastapi_app", fake_init_fastapi_app)
+
+    main_module = importlib.reload(main_module)
+
+    assert init_calls == [main_module.app]
+
+
 def test_startup_lifespan_runs_expected_hooks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -67,7 +95,10 @@ def test_startup_lifespan_runs_expected_hooks(
     monkeypatch.setattr(
         main_module,
         "get_effective_embedding_config",
-        lambda: SimpleNamespace(provider="local", startup_backfill_policy="eager"),
+        lambda: SimpleNamespace(
+            provider_type=main_module.EmbeddingProviderType.OPENAI_COMPATIBLE,
+            startup_backfill_policy="eager",
+        ),
     )
 
     monkeypatch.setattr(main_module, "run_migrations", fake_run_migrations)
@@ -96,8 +127,13 @@ def test_startup_lifespan_runs_expected_hooks(
     monkeypatch.setattr(main_module, "async_model_info", fake_async_model_info)
     monkeypatch.setattr(
         main_module,
-        "_get_xpack_core",
-        lambda: _FakeXPackCore(startup_calls),
+        "clean_xpack_cache",
+        lambda: _record_clean_xpack_cache(startup_calls),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "monitor_app",
+        lambda app: _record_monitor_app(startup_calls, app),
     )
 
     with TestClient(fastapi_app) as client:
@@ -163,7 +199,10 @@ def test_startup_lifespan_skips_embedding_backfill_for_remote_deferred(
     monkeypatch.setattr(
         main_module,
         "get_effective_embedding_config",
-        lambda: SimpleNamespace(provider="remote", startup_backfill_policy="deferred"),
+        lambda: SimpleNamespace(
+            provider_type=main_module.EmbeddingProviderType.OPENAI_COMPATIBLE,
+            startup_backfill_policy="deferred",
+        ),
     )
     monkeypatch.setattr(main_module, "run_migrations", fake_run_migrations)
     monkeypatch.setattr(main_module, "init_sqlbot_cache", fake_init_sqlbot_cache)
@@ -191,8 +230,13 @@ def test_startup_lifespan_skips_embedding_backfill_for_remote_deferred(
     monkeypatch.setattr(main_module, "async_model_info", fake_async_model_info)
     monkeypatch.setattr(
         main_module,
-        "_get_xpack_core",
-        lambda: _FakeXPackCore(startup_calls),
+        "clean_xpack_cache",
+        lambda: _record_clean_xpack_cache(startup_calls),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "monitor_app",
+        lambda app: _record_monitor_app(startup_calls, app),
     )
 
     with TestClient(fastapi_app) as client:
@@ -208,3 +252,37 @@ def test_startup_lifespan_skips_embedding_backfill_for_remote_deferred(
         "async_model_info",
         "monitor_app",
     ]
+
+
+def test_startup_lifespan_skips_all_side_effects_when_flag_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SKIP_STARTUP_TASKS", "true")
+    monkeypatch.setenv("SKIP_MCP_SETUP", "true")
+
+    import main as main_module
+
+    main_module = importlib.reload(main_module)
+    fastapi_app = cast(FastAPI, main_module.app)
+
+    def fail_run_migrations() -> None:
+        raise AssertionError("run_migrations should not be called")
+
+    async def fail_async_model_info() -> None:
+        raise AssertionError("async_model_info should not be called")
+
+    async def fail_clean_xpack_cache() -> None:
+        raise AssertionError("clean_xpack_cache should not be called")
+
+    async def fail_monitor_app(_app: object) -> None:
+        raise AssertionError("monitor_app should not be called")
+
+    monkeypatch.setattr(main_module, "run_migrations", fail_run_migrations)
+    monkeypatch.setattr(main_module, "async_model_info", fail_async_model_info)
+    monkeypatch.setattr(main_module, "clean_xpack_cache", fail_clean_xpack_cache)
+    monkeypatch.setattr(main_module, "monitor_app", fail_monitor_app)
+
+    with TestClient(fastapi_app) as client:
+        response = client.get("/openapi.json")
+
+    assert response.status_code == 200

@@ -1,13 +1,14 @@
 import os
 from collections.abc import AsyncIterator
 from importlib import import_module
+from pathlib import Path
 from typing import Any
 
 from alembic.config import Config
 from fastapi import FastAPI, Request
 from fastapi.concurrency import asynccontextmanager
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
@@ -45,6 +46,11 @@ from common.utils.embedding_threads import (
     fill_empty_terminology_embeddings,
 )
 from common.utils.utils import SQLBotLogUtil
+from common.xpack_compat.startup import (
+    clean_xpack_cache,
+    init_fastapi_app as init_xpack_fastapi_app,
+    monitor_app,
+)
 
 
 def run_migrations() -> None:
@@ -76,14 +82,6 @@ def init_default_internal_datasource() -> None:
                 session=session, oid=workspace_id, create_by=1, commit=False
             )
         session.commit()
-
-
-def _get_xpack_core() -> Any:
-    xpack_module = import_module("sqlbot_xpack")
-    xpack_core = getattr(xpack_module, "core", None)
-    if xpack_core is None:
-        raise RuntimeError("sqlbot_xpack.core is unavailable")
-    return xpack_core
 
 
 def _get_fastapi_mcp_class() -> Any:
@@ -119,7 +117,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
         return
 
-    xpack_core = _get_xpack_core()
     run_migrations()
     init_sqlbot_cache()
     init_dynamic_cors(app)
@@ -132,9 +129,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if _should_run_embedding_startup_backfill():
         init_table_and_ds_embedding()
     SQLBotLogUtil.info("✅ SQLBot 初始化完成")
-    await xpack_core.clean_xpack_cache()
+    await clean_xpack_cache()
     await async_model_info()  # 异步加密已有模型的密钥和地址
-    await xpack_core.monitor_app(app)
+    await monitor_app(app)
     yield
     SQLBotLogUtil.info("SQLBot 应用关闭")
 
@@ -223,6 +220,32 @@ def generate_openapi_for_lang(lang: str) -> dict[str, Any]:
     return openapi_schema
 
 
+def _frontend_dist_dir() -> Path | None:
+    candidates = [
+        Path(settings.BASE_DIR) / "frontend" / "dist",
+        Path(__file__).resolve().parents[2] / "frontend" / "dist",
+    ]
+    for candidate in candidates:
+        if candidate.exists() and candidate.is_dir():
+            return candidate
+    return None
+
+
+def _frontend_response(full_path: str) -> FileResponse:
+    frontend_dir = _frontend_dist_dir()
+    if frontend_dir is None:
+        raise StarletteHTTPException(status_code=404, detail="Not Found")
+
+    requested = (frontend_dir / full_path).resolve()
+    if requested.is_file() and frontend_dir in requested.parents:
+        return FileResponse(requested)
+
+    index_file = frontend_dir / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
+    raise StarletteHTTPException(status_code=404, detail="Not Found")
+
+
 # custom /openapi.json and /docs
 @app.get("/openapi.json", include_in_schema=False)
 async def custom_openapi(request: Request) -> JSONResponse:
@@ -302,7 +325,21 @@ app.add_exception_handler(Exception, exception_handler.global_exception_handler)
 if _should_setup_mcp():
     mcp.setup_server()
 
-import_module("sqlbot_xpack").init_fastapi_app(app)
+init_xpack_fastapi_app(app)
+
+
+@app.get("/", include_in_schema=False)
+async def frontend_index() -> FileResponse:
+    return _frontend_response("")
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def frontend_assets(full_path: str) -> FileResponse:
+    if full_path.startswith("api/") or full_path in {"docs", "openapi.json", "mcp"}:
+        raise StarletteHTTPException(status_code=404, detail="Not Found")
+    return _frontend_response(full_path)
+
+
 if __name__ == "__main__":
     import uvicorn
 

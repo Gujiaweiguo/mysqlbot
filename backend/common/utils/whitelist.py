@@ -27,6 +27,7 @@ wlist = [
     "*.css.map",
     "/mcp*",
     "/system/license",
+    "/system/license/version",
     "/system/config/key",
     "/images/*",
     "/sse",

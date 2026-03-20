@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Body, HTTPException
 
 from apps.system.crud.embedding_admin import (
     disable_embedding,
@@ -57,9 +57,12 @@ async def validate_config(
 
 @router.post("/enable", response_model=EmbeddingToggleResponse)
 @require_permissions(permission=SqlbotPermission(role=["admin"]))
-async def enable_config(session: SessionDep) -> EmbeddingToggleResponse:
+async def enable_config(
+    session: SessionDep,
+    confirm_reindex: bool = Body(default=False, embed=True),
+) -> EmbeddingToggleResponse:
     try:
-        status = enable_embedding(session)
+        status = enable_embedding(session, confirm_reindex=confirm_reindex)
         return EmbeddingToggleResponse(
             success=True, state=status.state, message="Embedding has been enabled"
         )

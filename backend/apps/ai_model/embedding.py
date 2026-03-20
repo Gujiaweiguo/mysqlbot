@@ -162,13 +162,18 @@ class TencentCloudEmbeddingProvider:
         from tencentcloud.lkeap.v20240522 import models
 
         req = models.GetEmbeddingRequest()
-        req.Query = text.replace("\n", " ")
+        req.Inputs = [text.replace("\n", " ")]
         req.Model = self._model
 
         resp = self._client.GetEmbedding(req)
-        if not resp.Embedding or not isinstance(resp.Embedding, list):
-            raise ValueError("Tencent Cloud embedding response missing embedding list")
-        return list(resp.Embedding)
+        if not resp.Data or not isinstance(resp.Data, list) or len(resp.Data) == 0:
+            raise ValueError("Tencent Cloud embedding response missing data list")
+        embedding_obj = resp.Data[0]
+        if not embedding_obj.Embedding or not isinstance(embedding_obj.Embedding, list):
+            raise ValueError(
+                "Tencent Cloud embedding response missing embedding vector"
+            )
+        return list(embedding_obj.Embedding)
 
 
 class EmbeddingModelCache:

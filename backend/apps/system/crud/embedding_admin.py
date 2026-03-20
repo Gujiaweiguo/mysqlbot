@@ -471,14 +471,20 @@ def validate_embedding_config(
     return response
 
 
-def enable_embedding(session: Session) -> EmbeddingStatusPayload:
+def enable_embedding(
+    session: Session, confirm_reindex: bool = False
+) -> EmbeddingStatusPayload:
     payload = _payload_from_record(_query_record(session))
     status = cast(dict[str, Any], payload["status"])
     current_state = status.get("state")
-    if status.get("reindex_required"):
+    if status.get("reindex_required") and not confirm_reindex:
         raise ValueError("Embedding requires reindex review before it can be enabled")
     if current_state != EmbeddingState.VALIDATED_DISABLED:
         raise ValueError("Embedding cannot be enabled before validation succeeds")
+    # Clear reindex_required flag when user confirms
+    if confirm_reindex:
+        status["reindex_required"] = False
+        status["reindex_reason"] = None
     status["enabled"] = True
     status["state"] = EmbeddingState.ENABLED
     payload["status"] = status

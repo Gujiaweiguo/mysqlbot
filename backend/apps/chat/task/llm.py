@@ -8,7 +8,6 @@ import warnings
 from collections.abc import Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime
-from importlib import import_module
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import httpx
@@ -27,6 +26,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlmodel import Session
 from sqlmodel import select as sqlmodel_select
 
+from apps.chat.crud.custom_prompt import find_custom_prompts, get_custom_prompt_type
 from apps.ai_model.model_factory import LLMConfig, LLMFactory, get_default_config
 from apps.chat.curd.chat import (
     end_log,
@@ -81,6 +81,7 @@ from apps.terminology.curd.terminology import get_terminology_template
 from common.core.config import settings
 from common.core.db import engine
 from common.core.deps import CurrentAssistant, CurrentUser
+from common.xpack_compat.license import is_license_valid
 from common.error import (
     ParseSQLResultError,
     SingleMessageError,
@@ -106,29 +107,6 @@ dynamic_subsql_prefix = "select * from sqlbot_dynamic_temp_table_"
 session_maker = scoped_session(sessionmaker(bind=engine, class_=Session))
 
 i18n = I18n()
-
-
-class _LicenseUtilProtocol(Protocol):
-    @staticmethod
-    def valid() -> object: ...
-
-
-class _LicenseModuleProtocol(Protocol):
-    SQLBotLicenseUtil: type[_LicenseUtilProtocol]
-
-
-class _CustomPromptModuleProtocol(Protocol):
-    @staticmethod
-    def find_custom_prompts(
-        session: Session,
-        custom_prompt_type: object,
-        oid: int | None,
-        ds_id: int | None,
-    ) -> tuple[str, list[dict[str, object]]]: ...
-
-
-class _CustomPromptEnumModuleProtocol(Protocol):
-    CustomPromptTypeEnum: type[object]
 
 
 class _ChatParamProtocol(Protocol):
@@ -409,11 +387,7 @@ def _normalize_llm_stream_error(exc: Exception) -> Exception:
 
 
 def _is_license_valid() -> bool:
-    module = cast(
-        _LicenseModuleProtocol,
-        cast(object, import_module("sqlbot_xpack.license.license_manage")),
-    )
-    return bool(module.SQLBotLicenseUtil.valid())
+    return is_license_valid()
 
 
 def _find_custom_prompts(
@@ -422,23 +396,11 @@ def _find_custom_prompts(
     oid: int | None,
     ds_id: int | None,
 ) -> tuple[str, list[dict[str, object]]]:
-    module = cast(
-        _CustomPromptModuleProtocol,
-        cast(object, import_module("sqlbot_xpack.custom_prompt.curd.custom_prompt")),
-    )
-    return module.find_custom_prompts(session, custom_prompt_type, oid, ds_id)
+    return find_custom_prompts(session, custom_prompt_type, oid, ds_id)
 
 
 def _custom_prompt_type(enum_name: str) -> object:
-    module = cast(
-        _CustomPromptEnumModuleProtocol,
-        cast(
-            object,
-            import_module("sqlbot_xpack.custom_prompt.models.custom_prompt_model"),
-        ),
-    )
-    enum_cls = module.CustomPromptTypeEnum
-    return cast(object, getattr(enum_cls, enum_name))
+    return cast(object, get_custom_prompt_type(enum_name))
 
 
 class LLMService:

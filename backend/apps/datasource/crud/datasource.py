@@ -1,6 +1,5 @@
 import datetime
 import json
-from importlib import import_module
 from typing import ClassVar, Protocol, cast
 
 from fastapi import HTTPException
@@ -13,6 +12,7 @@ from apps.datasource.crud.permission import (
     get_row_permission_filters,
     is_normal_user,
 )
+from apps.datasource.crud.permission_provider import get_ds_rules_model
 from apps.datasource.embedding.table_embedding import calc_table_embedding
 from apps.datasource.utils.utils import aes_decrypt, aes_encrypt
 from apps.db.constant import DB
@@ -111,11 +111,6 @@ def _format_table_reference(schema: str, table_name: str, ds_type: str) -> str:
         return quoted_table
     quoted_schema = _quote_identifier(schema, ds_type)
     return f"{quoted_schema}.{quoted_table}"
-
-
-def _get_ds_rules_model() -> type[DsRulesModelProtocol]:
-    module = import_module("sqlbot_xpack.permissions.models.ds_rules")
-    return cast(type[DsRulesModelProtocol], module.DsRules)
 
 
 def _decrypt_configuration(config: str | bytes | None) -> str:
@@ -652,7 +647,7 @@ def preview(
     f_list: list[CoreField] = [field for field in fields if field.checked]
     if is_normal_user(current_user):
         # column is checked, and, column permission for data.fields
-        ds_rules_model = _get_ds_rules_model()
+        ds_rules_model = cast(type[DsRulesModelProtocol], get_ds_rules_model())
         contain_rules = cast(
             list[DsRulesRecordProtocol],
             list(session.exec(select(ds_rules_model)).all()),
@@ -803,7 +798,7 @@ def get_table_obj_by_ds(
     for field in all_fields:
         fields_dict.setdefault(field.table_id, []).append(field)
 
-    ds_rules_model = _get_ds_rules_model()
+    ds_rules_model = cast(type[DsRulesModelProtocol], get_ds_rules_model())
     contain_rules = cast(
         list[DsRulesRecordProtocol],
         list(session.exec(select(ds_rules_model)).all()),

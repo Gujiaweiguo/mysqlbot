@@ -252,23 +252,33 @@ const getModelDefaultArgs = () => {
 }
 const emits = defineEmits(['submit'])
 
-const submitModel = () => {
-  modelRef.value.validate((res: any) => {
-    if (res) {
-      emits('submit', {
+const getSubmitPayload = async () => {
+  return new Promise<any | null>((resolve) => {
+    modelRef.value.validate((res: any) => {
+      if (!res) {
+        resolve(null)
+        return
+      }
+      resolve({
         ...modelForm,
-        config_list: [
-          ...advancedSetting.value.map((item) => {
-            return { key: item.key, name: item.name, val: item.val }
-          }),
-        ],
+        config_list: advancedSetting.value.map((item) => {
+          return { key: item.key, name: item.name, val: item.val }
+        }),
       })
-    }
+    })
   })
+}
+
+const submitModel = async () => {
+  const payload = await getSubmitPayload()
+  if (payload) {
+    emits('submit', payload)
+  }
 }
 
 defineExpose({
   initForm,
+  getSubmitPayload,
   submitModel,
   supplierChang,
 })

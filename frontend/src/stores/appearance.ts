@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { store } from '@/stores/index'
 // import { defaultFont, list } from '@/api/font'
 import { request } from '@/utils/request'
+import { getLicense } from '@/xpack-compat'
 
 import { setTitle, setCurrentColor } from '@/utils/utils'
 
@@ -253,7 +254,7 @@ export const useAppearanceStore = defineStore('appearanceStore', {
       // if (!isDataEaseBi) {
       //   document.title = ''
       // }
-      const obj = LicenseGenerator.getLicense()
+      const obj = getLicense()
       if (obj?.status !== 'valid') {
         setCurrentColor('#1CBA90')
         document.title = 'mySQLBot'

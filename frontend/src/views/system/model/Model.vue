@@ -42,6 +42,7 @@ const activeType = ref('')
 const modelFormRef = ref()
 const cardRefs = ref<any[]>([])
 const showCardError = ref(false) // if you don`t want card mask error, just change this to false
+const validatingModel = ref(false)
 reactive({
   form: {
     id: '',
@@ -105,12 +106,12 @@ const modelCheckHandler = async (item: any) => {
     }
   }
   if (!checkMsg) {
-    return
+    return true
   }
   console.error(checkMsg)
   if (!showCardError.value) {
     ElMessage.error(checkMsg)
-    return
+    return false
   }
   nextTick(() => {
     const index = modelListWithSearch.value.findIndex((el: any) => el.id === item.id)
@@ -119,7 +120,25 @@ const modelCheckHandler = async (item: any) => {
       currentRef?.showErrorMask(checkMsg)
     }
   })
+  return false
 }
+
+const validateModel = async () => {
+  const item = await modelFormRef.value?.getSubmitPayload?.()
+  if (!item) {
+    return
+  }
+  validatingModel.value = true
+  try {
+    const passed = await modelCheckHandler(item)
+    if (passed) {
+      ElMessage.success(t('common.operation_success'))
+    }
+  } finally {
+    validatingModel.value = false
+  }
+}
+
 const duplicateName = async (item: any) => {
   const res = await modelApi.queryAll()
   const names = res.filter((ele: any) => ele.id !== item.id).map((ele: any) => ele.name)
@@ -138,7 +157,6 @@ const duplicateName = async (item: any) => {
         type: 'success',
         message: t('workspace.add_successfully'),
       })
-      modelCheckHandler(item)
     })
     return
   }
@@ -149,7 +167,6 @@ const duplicateName = async (item: any) => {
       type: 'success',
       message: t('common.save_success'),
     })
-    modelCheckHandler(item)
   })
 }
 
@@ -486,6 +503,9 @@ const submit = (item: any) => {
         <el-button secondary @click="cancel"> {{ $t('common.cancel') }} </el-button>
         <el-button v-if="!editModel" secondary @click="preStep">
           {{ $t('ds.previous') }}
+        </el-button>
+        <el-button secondary :loading="validatingModel" @click="validateModel">
+          {{ $t('ds.test_connection') }}
         </el-button>
         <el-button type="primary" @click="saveModel"> {{ $t('common.save') }} </el-button>
       </template>

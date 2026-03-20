@@ -1,11 +1,15 @@
 import json
-from importlib import import_module
 from typing import ClassVar, Protocol, cast
 
 from sqlalchemy import and_
 from sqlmodel import col, select
 
 from apps.datasource.crud.row_permission import transFilterTree
+from apps.datasource.crud.permission_provider import (
+    get_ds_permission_model,
+    get_ds_rules_model,
+    trans_record_to_dto,
+)
 from apps.datasource.models.datasource import CoreDatasource, CoreField, CoreTable
 from common.core.deps import CurrentUser, SessionDep
 
@@ -25,10 +29,6 @@ class DsRulesRecordProtocol(Protocol):
     user_list: str
 
 
-class TransRecordToDTOProtocol(Protocol):
-    def __call__(self, session: SessionDep, permission: object) -> object: ...
-
-
 def _parse_json_list(raw_json: str) -> list[object]:
     parsed = cast(object, json.loads(raw_json))
     return cast(list[object], parsed) if isinstance(parsed, list) else []
@@ -42,22 +42,6 @@ def _parse_json_object_list(raw_json: str) -> list[dict[str, object]]:
     ]
 
 
-def _get_ds_permission_model() -> type[DsPermissionModelProtocol]:
-    module = import_module("sqlbot_xpack.permissions.models.ds_permission")
-    return cast(type[DsPermissionModelProtocol], module.DsPermission)
-
-
-def _trans_record_to_dto(session: SessionDep, permission: object) -> object:
-    module = import_module("sqlbot_xpack.permissions.api.permission")
-    trans_record_to_dto = cast(TransRecordToDTOProtocol, module.transRecord2DTO)
-    return trans_record_to_dto(session, permission)
-
-
-def _get_ds_rules_model() -> type[object]:
-    module = import_module("sqlbot_xpack.permissions.models.ds_rules")
-    return cast(type[object], module.DsRules)
-
-
 def get_row_permission_filters(
     session: SessionDep,
     current_user: CurrentUser,
@@ -65,8 +49,10 @@ def get_row_permission_filters(
     tables: list[str] | None = None,
     single_table: CoreTable | None = None,
 ) -> list[dict[str, str]]:
-    ds_rules_model = _get_ds_rules_model()
-    ds_permission_model = _get_ds_permission_model()
+    ds_rules_model = cast(type[object], get_ds_rules_model())
+    ds_permission_model = cast(
+        type[DsPermissionModelProtocol], get_ds_permission_model()
+    )
     if single_table:
         current = session.get(CoreTable, single_table.id)
         table_list = [current] if current is not None else []
@@ -116,7 +102,7 @@ def get_row_permission_filters(
                         flag = True
                         break
                 if flag:
-                    res.append(_trans_record_to_dto(session, permission))
+                    res.append(trans_record_to_dto(session, cast(object, permission)))
             where_str = transFilterTree(session, current_user, res, ds)
             if where_str:
                 filters.append({"table": table.table_name, "filter": str(where_str)})
@@ -130,7 +116,9 @@ def get_column_permission_fields(
     fields: list[CoreField],
     contain_rules: list[DsRulesRecordProtocol],
 ) -> list[CoreField]:
-    ds_permission_model = _get_ds_permission_model()
+    ds_permission_model = cast(
+        type[DsPermissionModelProtocol], get_ds_permission_model()
+    )
     if is_normal_user(current_user):
         column_permissions = cast(
             list[DsPermissionRecordProtocol],
