@@ -2,7 +2,6 @@
 
 ## Purpose
 Define a shared backend chat streaming contract so streamed content, progress updates, errors, and terminal events use one consistent serialization path across chat flows.
-
 ## Requirements
 ### Requirement: Chat streaming SHALL use a shared event serialization contract
 The system SHALL serialize backend chat streaming output through a shared contract that emits consistent event envelopes for streamed content, progress updates, and terminal outcomes.
@@ -27,3 +26,12 @@ The system SHALL emit terminal completion output only after the orchestration la
 - **WHEN** the chat orchestration layer has finished all required stages for a streamed request
 - **THEN** the backend emits the terminal stream event defined by the shared contract
 - **THEN** the emitted completion reflects the finalized orchestration outcome rather than a partially completed internal stage
+
+### Requirement: Frontend chat surfaces SHALL consume stream events through a shared adapter
+The system SHALL route frontend chat stream consumption through a shared adapter or composable that interprets the backend streaming contract before view state is updated.
+
+#### Scenario: Frontend receives streamed chat events
+- **WHEN** a chat surface receives incremental stream events from the backend contract
+- **THEN** a shared stream-consumption adapter normalizes those events for the frontend
+- **AND** page-level chat views do not implement incompatible event parsing rules locally
+

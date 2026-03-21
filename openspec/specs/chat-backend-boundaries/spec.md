@@ -2,7 +2,6 @@
 
 ## Purpose
 Define stable backend chat architecture boundaries so chat request handling, orchestration, LLM pipeline stages, and persistence responsibilities remain explicitly separated while preserving external chat behavior.
-
 ## Requirements
 ### Requirement: Chat endpoints SHALL delegate to orchestration services
 The system SHALL implement backend chat HTTP handlers as transport adapters that resolve request context and delegate chat execution to orchestration services. Chat HTTP handlers MUST NOT directly embed multi-step generation, record mutation sequencing, or stage-specific parsing behavior.
@@ -35,3 +34,12 @@ The system SHALL separate backend chat pipeline concerns into focused collaborat
 - **WHEN** the backend processes model output that may contain SQL-generation results
 - **THEN** a parsing-focused collaborator converts that output into typed intermediate results
 - **THEN** downstream persistence or streaming behavior consumes those results without duplicating parsing rules
+
+### Requirement: Backend chat decomposition SHALL preserve a stable orchestration entrypoint
+The backend SHALL perform staged chat decomposition behind a stable orchestration entrypoint so transport-level callers do not need to track internal collaborator movement during migration.
+
+#### Scenario: Chat endpoint invokes decomposed backend flow during migration
+- **WHEN** a chat endpoint starts a request while backend extraction is still in progress
+- **THEN** the endpoint invokes the stable orchestration entrypoint defined by the backend chat contract
+- **AND** internal collaborator changes do not require endpoint-specific branching for old versus new module layouts
+

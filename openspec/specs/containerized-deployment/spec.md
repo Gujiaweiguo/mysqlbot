@@ -1,5 +1,8 @@
-## ADDED Requirements
+# containerized-deployment Specification
 
+## Purpose
+Define the supported containerized deployment shapes, readiness expectations, and configuration boundaries for running the application with externalized backing services.
+## Requirements
 ### Requirement: Compose SHALL support separated application and PostgreSQL services
 The system SHALL provide a supported Docker Compose deployment mode where the application runs in a dedicated `gosqlbot-app` service and PostgreSQL runs in a dedicated `postgresql` service.
 
@@ -51,3 +54,20 @@ The system SHALL document the supported Compose deployment shapes, required envi
 - **THEN** they SHALL be able to determine how to run `app + postgresql`
 - **AND** how to enable the optional `app + redis + postgresql` mode
 - **AND** which volumes and environment values belong to each service
+
+### Requirement: Application service SHALL expose a Compose-visible health contract
+The deployment contract SHALL define a health signal for `gosqlbot-app` that operators and container orchestration can observe independently from backing-service health.
+
+#### Scenario: Operator inspects application readiness
+- **WHEN** the Compose deployment starts the application service
+- **THEN** the application service exposes a health status that can transition to healthy only after the app is ready to serve
+- **AND** operators can distinguish app readiness from PostgreSQL readiness
+
+### Requirement: Sensitive deployment values SHALL be environment sourced
+The deployment contract SHALL source sensitive runtime values through environment variables or environment files rather than embedding active secrets directly in committed deployment manifests.
+
+#### Scenario: Operator configures deployment secrets
+- **WHEN** an operator prepares a supported containerized deployment
+- **THEN** sensitive values such as application secrets are supplied through environment-driven configuration
+- **AND** committed deployment manifests do not require active secret material to remain checked in
+
