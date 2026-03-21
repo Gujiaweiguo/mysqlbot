@@ -9,8 +9,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN mkdir -p ${APP_HOME} ${UI_HOME}
 
-COPY frontend /tmp/frontend
-RUN cd /tmp/frontend && npm install && npm run build && mv dist ${UI_HOME}/dist
+WORKDIR /tmp/frontend
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci
+
+COPY frontend ./
+RUN npm run build && mv dist ${UI_HOME}/dist
 
 
 FROM sqlbot-base:ubuntu24 AS sqlbot-builder
@@ -32,27 +37,28 @@ RUN mkdir -p ${APP_HOME} ${UI_HOME}
 WORKDIR ${APP_HOME}
 
 COPY  --from=sqlbot-ui-builder ${UI_HOME} ${UI_HOME}
+COPY backend/pyproject.toml backend/uv.lock ./
+
 # Install dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=backend/uv.lock,target=uv.lock \
-    --mount=type=bind,source=backend/pyproject.toml,target=pyproject.toml \
     sh -c 'if test -f "./uv.lock"; then if [ "$SQLBOT_EMBEDDING_RUNTIME" = "local" ]; then uv sync --frozen --no-install-project --extra cpu; else uv sync --frozen --no-install-project; fi; else echo "uv.lock file not found, skipping intermediate-layers"; fi'
 
 COPY ./backend ${APP_HOME}
 
 # Final sync to ensure all dependencies are installed
 RUN --mount=type=cache,target=/root/.cache/uv \
-    if [ "$SQLBOT_EMBEDDING_RUNTIME" = "local" ]; then uv sync --extra cpu; else uv sync; fi
+    if [ "$SQLBOT_EMBEDDING_RUNTIME" = "local" ]; then uv sync --frozen --extra cpu; else uv sync --frozen; fi
 
 # Build g2-ssr
 FROM sqlbot-base:ubuntu24 AS ssr-builder
 
 WORKDIR /app
 
-# Dependencies already in base image, just copy and install npm packages
-COPY g2-ssr/app.js g2-ssr/package.json /app/
-COPY g2-ssr/charts/* /app/charts/
-RUN npm install
+COPY g2-ssr/package.json g2-ssr/package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci
+
+COPY g2-ssr/app.js /app/
+COPY g2-ssr/charts /app/charts
 
 # Runtime stage
 FROM sqlbot-base:ubuntu24
