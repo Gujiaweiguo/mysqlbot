@@ -4,7 +4,6 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any
 
-from alembic.config import Config
 from fastapi import FastAPI, Request
 from fastapi.concurrency import asynccontextmanager
 from fastapi.openapi.utils import get_openapi
@@ -16,6 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
 
 from alembic import command
+from alembic.config import Config
 from apps.api import api_router
 from apps.datasource.crud.datasource import ensure_internal_pg_datasource
 from apps.swagger.i18n import (
@@ -31,9 +31,9 @@ from apps.system.crud.embedding_admin import (
     embedding_runtime_enabled,
     get_effective_embedding_config,
 )
-from apps.system.schemas.embedding_schema import EmbeddingProviderType
 from apps.system.middleware.auth import TokenMiddleware
 from apps.system.models.system_model import WorkspaceModel
+from apps.system.schemas.embedding_schema import EmbeddingProviderType
 from apps.system.schemas.permission import RequestContextMiddleware
 from common.audit.schemas.request_context import RequestContextMiddlewareCommon
 from common.core.config import settings
@@ -49,8 +49,10 @@ from common.utils.embedding_threads import (
 from common.utils.utils import SQLBotLogUtil
 from common.xpack_compat.startup import (
     clean_xpack_cache,
-    init_fastapi_app as init_xpack_fastapi_app,
     monitor_app,
+)
+from common.xpack_compat.startup import (
+    init_fastapi_app as init_xpack_fastapi_app,
 )
 
 
@@ -253,6 +255,11 @@ async def custom_openapi(request: Request) -> JSONResponse:
     lang = get_language_from_request(request)
     schema = generate_openapi_for_lang(lang)
     return JSONResponse(schema)
+
+
+@app.get("/health", include_in_schema=False)
+async def health_check() -> dict[str, str]:
+    return {"status": "ok"}
 
 
 @app.get("/docs", include_in_schema=False)

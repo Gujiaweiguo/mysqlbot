@@ -23,6 +23,13 @@ repos:
         args:
           - --fix
       - id: ruff-format
+  - repo: local
+    hooks:
+      - id: frontend-lint-check
+        name: frontend lint check
+        entry: npm --prefix frontend exec eslint -- --config frontend/eslint.config.cjs --ext .vue,.js,.ts,.jsx,.tsx
+        language: system
+        files: ^frontend/.*\.(vue|js|ts|jsx|tsx)$
 
 ci:
   autofix_commit_msg: 🎨 [pre-commit.ci] Auto format from pre-commit.com hooks

@@ -7,6 +7,7 @@ from common.utils.utils import SQLBotLogUtil
 
 wlist = [
     "/",
+    "/health",
     "/docs",
     "/openapi.json",
     "/login/*",
