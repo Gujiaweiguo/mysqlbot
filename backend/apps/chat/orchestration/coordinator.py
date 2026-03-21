@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import Any
 
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import and_, select
@@ -7,11 +7,10 @@ from sqlmodel import Session, col
 from apps.chat.models.chat_model import ChatQuestion, ChatRecord, QuickCommand
 from apps.chat.streaming import (
     emit_empty_recommended_questions,
-    iter_error_events,
-    iter_response_chunks,
 )
 from common.utils.command_utils import parse_quick_command
 
+from .runtime import ChatRuntime
 from .types import (
     AnalysisRecordRequest,
     AnalysisRequest,
@@ -23,36 +22,32 @@ from .types import (
 
 class ChatOrchestrator:
     def __init__(self, llm_service_cls: type[Any]):
-        self._llm_service_cls = llm_service_cls
+        self._runtime = ChatRuntime(llm_service_cls)
 
     async def start_recommend_questions(
         self, request: RecommendQuestionsRequest
     ) -> StreamingResponse:
         try:
-            llm_service = await cast(Any, self._llm_service_cls).create(
+            llm_service = await self._runtime.create_service(
                 request.session,
                 request.current_user,
                 request.request_question,
                 request.current_assistant,
-                True,
+                embedding=True,
             )
             llm_service.set_record(request.record)
             llm_service.set_articles_number(request.articles_number)
             llm_service.run_recommend_questions_task_async()
         except Exception as exc:
-            return StreamingResponse(
-                iter_error_events(str(exc)), media_type="text/event-stream"
-            )
+            return self._runtime.error_stream_response(str(exc))
 
-        return StreamingResponse(
-            llm_service.await_result(), media_type="text/event-stream"
-        )
+        return self._runtime.stream_response(llm_service)
 
     async def start_chat(
         self, request: ChatExecutionRequest
     ) -> StreamingResponse | JSONResponse:
         try:
-            llm_service = await cast(Any, self._llm_service_cls).create(
+            llm_service = await self._runtime.create_service(
                 request.session,
                 request.current_user,
                 request.request_question,
@@ -66,21 +61,13 @@ class ChatOrchestrator:
                 finish_step=request.finish_step,
             )
         except Exception as exc:
-            if request.stream:
-                return StreamingResponse(
-                    iter_error_events(str(exc), in_chat=request.in_chat),
-                    media_type="text/event-stream",
-                )
-            return JSONResponse(content={"message": str(exc)}, status_code=500)
-
-        if request.stream:
-            return StreamingResponse(
-                llm_service.await_result(), media_type="text/event-stream"
+            return self._runtime.error_response(
+                str(exc),
+                stream=request.stream,
+                in_chat=request.in_chat,
             )
 
-        raw_data = iter_response_chunks(llm_service.await_result())
-        status_code = 200 if raw_data.get("success") else 500
-        return JSONResponse(content=raw_data, status_code=status_code)
+        return self._runtime.completion_response(llm_service, stream=request.stream)
 
     def _find_base_question(self, record_id: int, session: Session) -> str:
         stmt = select(
@@ -239,7 +226,7 @@ class ChatOrchestrator:
         self, request: AnalysisRequest
     ) -> StreamingResponse | JSONResponse:
         try:
-            llm_service = await cast(Any, self._llm_service_cls).create(
+            llm_service = await self._runtime.create_service(
                 request.session,
                 request.current_user,
                 request.request_question,
@@ -253,21 +240,13 @@ class ChatOrchestrator:
                 request.stream,
             )
         except Exception as exc:
-            if request.stream:
-                return StreamingResponse(
-                    iter_error_events(str(exc), in_chat=request.in_chat),
-                    media_type="text/event-stream",
-                )
-            return JSONResponse(content={"message": str(exc)}, status_code=500)
-
-        if request.stream:
-            return StreamingResponse(
-                llm_service.await_result(), media_type="text/event-stream"
+            return self._runtime.error_response(
+                str(exc),
+                stream=request.stream,
+                in_chat=request.in_chat,
             )
 
-        raw_data = iter_response_chunks(llm_service.await_result())
-        status_code = 200 if raw_data.get("success") else 500
-        return JSONResponse(content=raw_data, status_code=status_code)
+        return self._runtime.completion_response(llm_service, stream=request.stream)
 
     async def start_analysis_or_predict_by_record(
         self, request: AnalysisRecordRequest

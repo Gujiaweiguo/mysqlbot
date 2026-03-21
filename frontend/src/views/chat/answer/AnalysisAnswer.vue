@@ -3,6 +3,7 @@ import BaseAnswer from './BaseAnswer.vue'
 import { chatApi, ChatInfo, type ChatMessage, ChatRecord } from '@/api/chat.ts'
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import MdComponent from '@/views/chat/component/MdComponent.vue'
+import { consumeChatStream, type ChatStreamPayload } from '@/views/chat/composables/useChatStream'
 const props = withDefaults(
   defineProps<{
     chatList?: Array<ChatInfo>
@@ -96,85 +97,47 @@ const sendMessage = async () => {
 
   try {
     const controller: AbortController = new AbortController()
-    const response = await chatApi.analysis(currentRecord.analysis_record_id, controller)
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder('utf-8')
-
     let analysis_answer = ''
     let analysis_answer_thinking = ''
+    const response = await chatApi.analysis(currentRecord.analysis_record_id, controller)
 
-    let tempResult = ''
-
-    while (true) {
-      if (stopFlag.value) {
-        controller.abort()
-        _loading.value = false
-        break
-      }
-
-      const { done, value } = await reader.read()
-      if (done) {
-        _loading.value = false
-        break
-      }
-
-      let chunk = decoder.decode(value, { stream: true })
-      tempResult += chunk
-      const split = tempResult.match(/data:.*}\n\n/g)
-      if (split) {
-        chunk = split.join('')
-        tempResult = tempResult.replace(chunk, '')
-      } else {
-        continue
-      }
-      if (chunk && chunk.startsWith('data:{')) {
-        if (split) {
-          for (const str of split) {
-            let data
-            try {
-              data = JSON.parse(str.replace('data:{', '{'))
-            } catch (err) {
-              console.error('JSON string:', str)
-              throw err
-            }
-
-            if (data.code && data.code !== 200) {
-              ElMessage({
-                message: data.msg,
-                type: 'error',
-                showClose: true,
-              })
-              _loading.value = false
-              return
-            }
-
-            switch (data.type) {
-              case 'id':
-                currentRecord.id = data.id
-                _currentChat.value.records[index.value].id = data.id
-                break
-              case 'info':
-                console.info(data.msg)
-                break
-              case 'error':
-                currentRecord.error = data.content
-                emits('error', currentRecord.id)
-                break
-              case 'analysis-result':
-                analysis_answer += data.content
-                analysis_answer_thinking += data.reasoning_content
-                _currentChat.value.records[index.value].analysis = analysis_answer
-                _currentChat.value.records[index.value].analysis_thinking = analysis_answer_thinking
-                break
-              case 'analysis_finish':
-                emits('finish', currentRecord.id)
-                break
-            }
-            await nextTick()
-          }
+    await consumeChatStream<ChatStreamPayload>({
+      response,
+      controller,
+      isStopped: () => stopFlag.value,
+      onMessageError: (message) => {
+        ElMessage({
+          message,
+          type: 'error',
+          showClose: true,
+        })
+      },
+      onEvent: async (data) => {
+        switch (data.type) {
+          case 'id':
+            currentRecord.id = data.id as number | undefined
+            _currentChat.value.records[index.value].id = data.id as number | undefined
+            break
+          case 'info':
+            console.info(data.msg)
+            break
+          case 'error':
+            currentRecord.error = String(data.content ?? '')
+            emits('error', currentRecord.id)
+            break
+          case 'analysis-result':
+            analysis_answer += String(data.content ?? '')
+            analysis_answer_thinking += String(data.reasoning_content ?? '')
+            _currentChat.value.records[index.value].analysis = analysis_answer
+            _currentChat.value.records[index.value].analysis_thinking = analysis_answer_thinking
+            break
+          case 'analysis_finish':
+            emits('finish', currentRecord.id)
+            break
         }
-      }
-    }
+        await nextTick()
+      },
+    })
   } catch (error) {
     if (!currentRecord.error) {
       currentRecord.error = ''
