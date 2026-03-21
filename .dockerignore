@@ -1,15 +1,44 @@
-# Python
-backend/__pycache__
-backend/app.egg-info
-backend/*.pyc
-backend/.mypy_cache
+# Repository metadata and local tooling
+.git/
+.gitattributes
+.github/
+.idea/
+.opencode/
+.ruff_cache/
+.tmp/
+openspec/
+
+# Runtime data mounts and local-only assets
+data/
+docs/
+installer/
+locales/
+README.md
+LICENSE
+sqlbot-assistant-demo.html
+mysqlbot-logo.png
+*.sql
+mallcre_pg_init/
+
+# Frontend generated files
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/.vite/
+
+# Backend generated files
+backend/**/__pycache__/
+backend/**/*.pyc
+backend/app.egg-info/
 backend/.coverage
-backend/htmlcov
-backend/.venv
+backend/.mypy_cache/
+backend/.pytest_cache/
+backend/htmlcov/
+backend/.venv/
 backend/.gitignore
 backend/README.md
-backend/scripts
+backend/scripts/
 backend/.DS_Store
 
-# Runtime data mounts (not needed in image build context)
-data/
+# SSR generated files
+g2-ssr/node_modules/

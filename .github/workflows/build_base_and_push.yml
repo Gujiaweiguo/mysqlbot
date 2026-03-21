@@ -55,7 +55,8 @@ jobs:
             DOCKER_IMAGE_TAGS="--tag ${DOCKER_IMAGE}:${TAG_NAME}"
           fi
           echo ::set-output name=buildx_args::--platform ${DOCKER_PLATFORMS} --memory-swap -1 \
-            --build-arg DOCKER_IMAGE_TAG=${{ github.event.inputs.dockerImageTag }} --build-arg BUILD_AT=$(TZ=Asia/Shanghai date +'%Y-%m-%dT%H:%M') --build-arg GITHUB_COMMIT=`git rev-parse --short HEAD` --no-cache \
+            --cache-from type=gha,scope=sqlbot-base --cache-to type=gha,mode=max,scope=sqlbot-base \
+            --build-arg DOCKER_IMAGE_TAG=${{ github.event.inputs.dockerImageTag }} --build-arg BUILD_AT=$(TZ=Asia/Shanghai date +'%Y-%m-%dT%H:%M') --build-arg GITHUB_COMMIT=`git rev-parse --short HEAD` \
             ${DOCKER_IMAGE_TAGS} .
       - name: Set up Docker Buildx
         uses: crazy-max/ghaction-docker-buildx@v3
@@ -90,7 +91,8 @@ jobs:
             DOCKER_IMAGE_TAGS="--tag ${DOCKER_IMAGE}:${TAG_NAME}"
           fi
           echo ::set-output name=buildx_args::--platform ${DOCKER_PLATFORMS} --memory-swap -1 \
-            --build-arg DOCKER_IMAGE_TAG=${{ github.event.inputs.dockerImageTag }} --build-arg BUILD_AT=$(TZ=Asia/Shanghai date +'%Y-%m-%dT%H:%M') --build-arg GITHUB_COMMIT=`git rev-parse --short HEAD` --no-cache \
+            --cache-from type=gha,scope=sqlbot-base --cache-to type=gha,mode=max,scope=sqlbot-base \
+            --build-arg DOCKER_IMAGE_TAG=${{ github.event.inputs.dockerImageTag }} --build-arg BUILD_AT=$(TZ=Asia/Shanghai date +'%Y-%m-%dT%H:%M') --build-arg GITHUB_COMMIT=`git rev-parse --short HEAD` \
             ${DOCKER_IMAGE_TAGS} .
       - name: Set up Docker Buildx
         uses: crazy-max/ghaction-docker-buildx@v3
