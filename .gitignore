@@ -8,6 +8,7 @@ frontend/test-results/
 frontend/playwright-report/
 frontend/blob-report/
 *.lock
+!backend/uv.lock
 *-lock.json
 !frontend/package-lock.json
 !g2-ssr/package-lock.json
