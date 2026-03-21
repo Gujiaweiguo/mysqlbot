@@ -15,7 +15,9 @@ const localLicenseGenerator: LicenseGeneratorContract = {
       baseUrl: initializedBaseUrl,
     }
   },
-  generateRouters(_router: Router): void {},
+  generateRouters(router: Router): void {
+    void router
+  },
   sqlbotEncrypt(value: string): string {
     return value
   },
