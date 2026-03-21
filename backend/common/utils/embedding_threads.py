@@ -27,7 +27,7 @@ def _load_fill_callable(module_path: str, attr_name: str) -> EmbeddingFillCallab
 
 def run_save_terminology_embeddings(ids: list[int]) -> None:
     save_embeddings = _load_save_callable(
-        "apps.terminology.curd.terminology", "save_embeddings"
+        "apps.terminology.crud.terminology", "save_embeddings"
     )
 
     _ = embedding_executor.submit(save_embeddings, embedding_session_maker, ids)
@@ -35,7 +35,7 @@ def run_save_terminology_embeddings(ids: list[int]) -> None:
 
 def fill_empty_terminology_embeddings() -> None:
     run_fill_empty_embeddings = _load_fill_callable(
-        "apps.terminology.curd.terminology", "run_fill_empty_embeddings"
+        "apps.terminology.crud.terminology", "run_fill_empty_embeddings"
     )
 
     _ = embedding_executor.submit(run_fill_empty_embeddings, embedding_session_maker)
@@ -43,7 +43,7 @@ def fill_empty_terminology_embeddings() -> None:
 
 def run_save_data_training_embeddings(ids: list[int]) -> None:
     save_embeddings = _load_save_callable(
-        "apps.data_training.curd.data_training", "save_embeddings"
+        "apps.data_training.crud.data_training", "save_embeddings"
     )
 
     _ = embedding_executor.submit(save_embeddings, embedding_session_maker, ids)
@@ -51,7 +51,7 @@ def run_save_data_training_embeddings(ids: list[int]) -> None:
 
 def fill_empty_data_training_embeddings() -> None:
     run_fill_empty_embeddings = _load_fill_callable(
-        "apps.data_training.curd.data_training", "run_fill_empty_embeddings"
+        "apps.data_training.crud.data_training", "run_fill_empty_embeddings"
     )
 
     _ = embedding_executor.submit(run_fill_empty_embeddings, embedding_session_maker)
