@@ -14,6 +14,7 @@ import TableRelationship from '@/views/ds/TableRelationship.vue'
 import icon_mindnote_outlined from '@/assets/svg/icon_mindnote_outlined.svg'
 import { Refresh } from '@element-plus/icons-vue'
 import { debounce } from 'lodash-es'
+import { request } from '@/utils/request'
 
 interface Table {
   name: string
@@ -275,29 +276,7 @@ function downloadTemplate() {
       document.body.removeChild(link)
     })
     .catch(async (error) => {
-      if (error.response) {
-        try {
-          let text = await error.response.data.text()
-          try {
-            text = JSON.parse(text)
-          } finally {
-            ElMessage({
-              message: text,
-              type: 'error',
-              showClose: true,
-            })
-          }
-        } catch (e) {
-          console.error('Error processing error response:', e)
-        }
-      } else {
-        console.error('Other error:', error)
-        ElMessage({
-          message: error,
-          type: 'error',
-          showClose: true,
-        })
-      }
+      await request.showError(error)
     })
 }
 

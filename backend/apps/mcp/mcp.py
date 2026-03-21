@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from sqlmodel import select
 
 from apps.chat.api.chat import question_answer_inner
-from apps.chat.curd.chat import create_chat
+from apps.chat.crud.chat import create_chat
 from apps.chat.models.chat_model import (
     ChatFinishStep,
     ChatMcp,

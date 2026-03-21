@@ -17,6 +17,7 @@ import { convertFilterText, FilterText } from '@/components/filter-text'
 import { DrawerMain } from '@/components/drawer-main'
 import iconFilter from '@/assets/svg/icon-filter_outlined.svg'
 import Uploader from '@/views/system/excel-upload/Uploader.vue'
+import { request } from '@/utils/request'
 
 interface Form {
   id?: string | null
@@ -139,29 +140,7 @@ const exportExcel = () => {
         document.body.removeChild(link)
       })
       .catch(async (error) => {
-        if (error.response) {
-          try {
-            let text = await error.response.data.text()
-            try {
-              text = JSON.parse(text)
-            } finally {
-              ElMessage({
-                message: text,
-                type: 'error',
-                showClose: true,
-              })
-            }
-          } catch (e) {
-            console.error('Error processing error response:', e)
-          }
-        } else {
-          console.error('Other error:', error)
-          ElMessage({
-            message: error,
-            type: 'error',
-            showClose: true,
-          })
-        }
+        await request.showError(error)
       })
       .finally(() => {
         searchLoading.value = false

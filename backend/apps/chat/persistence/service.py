@@ -1,6 +1,6 @@
 from sqlmodel import Session
 
-from apps.chat.curd.chat import (
+from apps.chat.crud.chat import (
     finish_record,
     save_analysis_predict_record,
     save_chart,

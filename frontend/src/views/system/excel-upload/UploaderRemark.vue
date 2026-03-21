@@ -10,6 +10,7 @@ import { useCache } from '@/utils/useCache.ts'
 import { datasourceApi } from '@/api/datasource'
 import { getLocale } from '@/utils/utils.ts'
 import ccmUpload from '@/assets/svg/icon_export_outlined.svg'
+import { request } from '@/utils/request'
 
 const { t } = useI18n()
 const { wsCache } = useCache()
@@ -45,29 +46,7 @@ function downloadTemplate() {
       document.body.removeChild(link)
     })
     .catch(async (error) => {
-      if (error.response) {
-        try {
-          let text = await error.response.data.text()
-          try {
-            text = JSON.parse(text)
-          } finally {
-            ElMessage({
-              message: text,
-              type: 'error',
-              showClose: true,
-            })
-          }
-        } catch (e) {
-          console.error('Error processing error response:', e)
-        }
-      } else {
-        console.error('Other error:', error)
-        ElMessage({
-          message: error,
-          type: 'error',
-          showClose: true,
-        })
-      }
+      await request.showError(error)
     })
 }
 

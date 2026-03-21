@@ -93,47 +93,11 @@ class HttpService {
     // Request interceptor
     this.instance.interceptors.request.use(
       async (config: InternalAxiosRequestConfig) => {
-        // Add auth token
-        const token = wsCache.get('user.token')
-        if (token && config.headers) {
-          config.headers['X-SQLBOT-TOKEN'] = `Bearer ${token}`
-        }
-        if (assistantStore.getToken) {
-          const prefix = assistantStore.getType === 4 ? 'Embedded ' : 'Assistant '
-          config.headers['X-SQLBOT-ASSISTANT-TOKEN'] = `${prefix}${assistantStore.getToken}`
-          if (config.headers['X-SQLBOT-TOKEN']) config.headers.delete('X-SQLBOT-TOKEN')
-          if (
-            assistantStore.getType &&
-            !!(assistantStore.getType % 2) &&
-            assistantStore.getCertificate
-          ) {
-            if (
-              /* (config.method?.toLowerCase() === 'get' && /\/chat\/\d+$/.test(config.url || '')) || */
-              /^\/chat/.test(config.url || '') ||
-              config.url?.includes('/system/assistant/ds')
-            ) {
-              await assistantStore.refreshCertificate(config.url || '')
-            }
-            config.headers['X-SQLBOT-ASSISTANT-CERTIFICATE'] = btoa(
-              encodeURIComponent(assistantStore.getCertificate)
-            )
-          }
-          if (!assistantStore.getType || assistantStore.getType === 2) {
-            config.headers['X-SQLBOT-ASSISTANT-ONLINE'] = assistantStore.getOnline
-          }
-          if (assistantStore.getHostOrigin) {
-            config.headers['X-SQLBOT-HOST-ORIGIN'] = assistantStore.getHostOrigin
-          }
-        }
-        const locale = getLocale()
-        if (locale) {
-          /* const mapping = {
-            'zh-CN': 'zh-CN',
-            en: 'en-US',
-            tw: 'zh-TW',
-          } */
-          /* const val = mapping[locale] || locale */
-          config.headers['Accept-Language'] = locale
+        const authHeaders = await this.buildAuthHeaders(config.url || '')
+        if (config.headers) {
+          Object.entries(authHeaders).forEach(([key, value]) => {
+            config.headers[key] = value
+          })
         }
         /* try {
           const request_key = LicenseGenerator.generate()
@@ -195,7 +159,7 @@ class HttpService {
 
         // Unified error handling
         if (!requestOptions.customError && !requestOptions.silent) {
-          this.handleError(error)
+          await this.showError(error)
         }
 
         return Promise.reject(error)
@@ -203,69 +167,152 @@ class HttpService {
     )
   }
 
-  private handleError(error: AxiosError) {
-    let errorMessage = 'Request error'
-
-    if (error.response) {
-      switch (error.response.status) {
-        case 400:
-          errorMessage = 'Invalid request parameters'
-          break
-        case 401:
-          errorMessage = error.response?.data
-            ? error.response.data.toString()
-            : 'Unauthorized, please login again'
-          // Redirect to login page if needed
-          if (assistantStore.getAssistant) {
-            wsCache.delete('user.token')
-            if (router?.push) {
-              router.push(`/401?title=${encodeURIComponent(errorMessage)}`)
-            } else {
-              window.location.href = `/#/401?title=${encodeURIComponent(errorMessage)}`
-            }
-            return
-          }
-          ElMessage({
-            message: errorMessage,
-            type: 'error',
-            showClose: true,
-          })
-          setTimeout(() => {
-            wsCache.delete('user.token')
-            window.location.reload()
-          }, 2000)
-          return
-        // break
-        case 403:
-          errorMessage = 'Access denied'
-          break
-        case 404:
-          errorMessage = 'Resource not found'
-          break
-        case 500:
-          errorMessage = 'Server error'
-          break
-        default:
-          errorMessage = `Server responded with error: ${error.response.status}`
-      }
-      if (error?.response?.data) {
-        errorMessage = error.response.data.toString()
-      }
-    } else if (error.request) {
-      errorMessage = 'No response from server'
-    } else if (axios.isCancel(error)) {
-      errorMessage = 'Request canceled'
-      return // Skip showing cancel messages
-    } else {
-      errorMessage = error['message'] || 'Unknown error'
+  private async buildAuthHeaders(url: string): Promise<Record<string, string>> {
+    const headers: Record<string, string> = {}
+    const token = wsCache.get('user.token')
+    if (token) {
+      headers['X-SQLBOT-TOKEN'] = `Bearer ${token}`
     }
 
-    // Show error using UI library (e.g., Element Plus, Ant Design)
+    if (assistantStore.getToken) {
+      const prefix = assistantStore.getType === 4 ? 'Embedded ' : 'Assistant '
+      headers['X-SQLBOT-ASSISTANT-TOKEN'] = `${prefix}${assistantStore.getToken}`
+      delete headers['X-SQLBOT-TOKEN']
+
+      if (assistantStore.getType && !!(assistantStore.getType % 2) && assistantStore.getCertificate) {
+        if (/^\/chat/.test(url) || url.includes('/system/assistant/ds')) {
+          await assistantStore.refreshCertificate(url)
+        }
+        headers['X-SQLBOT-ASSISTANT-CERTIFICATE'] = btoa(
+          encodeURIComponent(assistantStore.getCertificate)
+        )
+      }
+
+      if (!assistantStore.getType || assistantStore.getType === 2) {
+        headers['X-SQLBOT-ASSISTANT-ONLINE'] = String(assistantStore.getOnline)
+      }
+
+      if (assistantStore.getHostOrigin) {
+        headers['X-SQLBOT-HOST-ORIGIN'] = assistantStore.getHostOrigin
+      }
+    }
+
+    const locale = getLocale()
+    if (locale) {
+      headers['Accept-Language'] = locale
+    }
+
+    return headers
+  }
+
+  public async extractErrorMessage(error: unknown): Promise<string> {
+    if (axios.isCancel(error)) {
+      return 'Request canceled'
+    }
+
+    if (axios.isAxiosError(error)) {
+      const responseData = error.response?.data
+
+      if (responseData instanceof Blob) {
+        const blobText = await responseData.text()
+        try {
+          const parsed = JSON.parse(blobText)
+          if (typeof parsed === 'string') {
+            return parsed
+          }
+          if (parsed && typeof parsed === 'object') {
+            if ('message' in parsed && typeof parsed.message === 'string') {
+              return parsed.message
+            }
+            if ('msg' in parsed && typeof parsed.msg === 'string') {
+              return parsed.msg
+            }
+          }
+          return blobText
+        } catch {
+          return blobText
+        }
+      }
+
+      if (typeof responseData === 'string') {
+        return responseData
+      }
+
+      if (responseData && typeof responseData === 'object') {
+        if ('message' in responseData && typeof responseData.message === 'string') {
+          return responseData.message
+        }
+        if ('msg' in responseData && typeof responseData.msg === 'string') {
+          return responseData.msg
+        }
+      }
+
+      if (error.response) {
+        switch (error.response.status) {
+          case 400:
+            return 'Invalid request parameters'
+          case 401:
+            return responseData ? responseData.toString() : 'Unauthorized, please login again'
+          case 403:
+            return 'Access denied'
+          case 404:
+            return 'Resource not found'
+          case 500:
+            return 'Server error'
+          default:
+            return `Server responded with error: ${error.response.status}`
+        }
+      }
+
+      if (error.request) {
+        return 'No response from server'
+      }
+
+      return error.message || 'Request error'
+    }
+
+    if (error instanceof Error) {
+      return error.message
+    }
+
+    if (typeof error === 'string') {
+      return error
+    }
+
+    return 'Unknown error'
+  }
+
+  public async showError(error: unknown): Promise<void> {
+    const errorMessage = await this.extractErrorMessage(error)
+
+    if (errorMessage === 'Request canceled') {
+      return
+    }
+
+    if (axios.isAxiosError(error) && error.response?.status === 401 && assistantStore.getAssistant) {
+      wsCache.delete('user.token')
+      if (router?.push) {
+        router.push(`/401?title=${encodeURIComponent(errorMessage)}`)
+      } else {
+        window.location.href = `/#/401?title=${encodeURIComponent(errorMessage)}`
+      }
+      return
+    }
+
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      ElMessage({
+        message: errorMessage,
+        type: 'error',
+        showClose: true,
+      })
+      setTimeout(() => {
+        wsCache.delete('user.token')
+        window.location.reload()
+      }, 2000)
+      return
+    }
+
     console.error(errorMessage)
-    /* if (errorMessage?.includes('Invalid license key salt')) {
-      showLicenseKeyError()
-    } */
-    // ElMessage.error(errorMessage)
     ElMessage({
       message: errorMessage,
       type: 'error',
@@ -299,33 +346,9 @@ class HttpService {
   }
 
   public async fetchStream(url: string, data?: any, controller?: AbortController): Promise<any> {
-    const token = wsCache.get('user.token')
-    const heads: any = {
+    const heads: Record<string, string> = {
       'Content-Type': 'application/json',
-    }
-    if (token) {
-      heads['X-SQLBOT-TOKEN'] = `Bearer ${token}`
-    }
-    if (assistantStore.getToken) {
-      const prefix = assistantStore.getType === 4 ? 'Embedded ' : 'Assistant '
-      heads['X-SQLBOT-ASSISTANT-TOKEN'] = `${prefix}${assistantStore.getToken}`
-      if (heads['X-SQLBOT-TOKEN']) delete heads['X-SQLBOT-TOKEN']
-      if (
-        assistantStore.getType &&
-        !!(assistantStore.getType % 2) &&
-        assistantStore.getCertificate
-      ) {
-        await assistantStore.refreshCertificate(url)
-        heads['X-SQLBOT-ASSISTANT-CERTIFICATE'] = btoa(
-          encodeURIComponent(assistantStore.getCertificate)
-        )
-      }
-      if (assistantStore.getHostOrigin) {
-        heads['X-SQLBOT-HOST-ORIGIN'] = assistantStore.getHostOrigin
-      }
-      if (!assistantStore.getType || assistantStore.getType === 2) {
-        heads['X-SQLBOT-ASSISTANT-ONLINE'] = assistantStore.getOnline
-      }
+      ...(await this.buildAuthHeaders(url)),
     }
 
     /* try {

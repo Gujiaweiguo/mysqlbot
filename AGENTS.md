@@ -18,18 +18,27 @@ This is based on current scripts/config in `backend/`, `frontend/`, and root fil
 ## 3) Build / Lint / Test / Run Commands
 Run from the target directory shown below.
 
-### 3.1 Frontend (`/opt/code/SQLBot/frontend`)
+Canonical root-level entrypoints:
+- `make install`
+- `make backend-dev`
+- `make frontend-dev`
+- `make lint`
+- `make test`
+
+### 3.1 Frontend (`/opt/code/mysqlbot/frontend`)
 - Install: `npm install`
 - Dev: `npm run dev`
 - Build: `npm run build`
 - Preview build: `npm run preview`
 - Lint (auto-fix): `npm run lint`
+- Lint (check only): `npm run lint:check`
+- Typecheck: `npm run typecheck`
 
 Notes:
 - `npm run dev` and `npm run build` both include `vue-tsc -b` first.
-- No frontend test script is currently defined in `frontend/package.json`.
+- `npm run typecheck` is available for type-only validation.
 
-### 3.2 Backend (`/opt/code/SQLBot/backend`)
+### 3.2 Backend (`/opt/code/mysqlbot/backend`)
 - Sync dependencies: `uv sync`
 - Sync CPU extra: `uv sync --extra cpu`
 - Dev server (reload): `uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload`
@@ -39,18 +48,20 @@ Notes:
 - Run tests with coverage: `uv run pytest --cov=apps --cov=common --cov-report=term-missing`
 
 Notes:
-- `scripts/lint.sh` currently runs: `mypy app`, `ruff check app`, `ruff format app --check`.
+- `scripts/lint.sh` currently runs against changed files by default, or `apps common main.py` when `LINT_SCOPE=full`.
 - `scripts/format.sh` currently runs: `ruff check apps scripts common --fix`, then `ruff format apps scripts common`.
 
-### 3.3 Migrations (`/opt/code/SQLBot/backend`)
+### 3.3 Migrations (`/opt/code/mysqlbot/backend`)
 - Apply migrations: `alembic upgrade head`
 - Wrapper: `bash scripts/alembic/exec.sh`
 - Auto-create migration: `bash scripts/alembic/auto.sh "message"`
 - Prestart setup: `bash scripts/prestart.sh`
 
-### 3.4 Containers (`/opt/code/SQLBot`)
+### 3.4 Containers (`/opt/code/mysqlbot`)
 - Build image: `docker build -t sqlbot .`
 - Start stack: `docker-compose up -d`
+- Bootstrap env: `cp .env.example .env`
+- App health: `http://localhost:8000/health`
 
 ## 4) Single-Test Commands (Priority)
 Backend has `pytest` configured with tests in `backend/tests/`. Use these patterns:
@@ -68,7 +79,7 @@ Useful flags:
 
 Frontend test runner status:
 - No Vitest/Jest script/config is present now.
-- Do not assume a frontend test command exists until a runner is added.
+- Use `npm run typecheck` and `npm run build` for the current frontend validation path.
 
 ## 5) Backend Style Guidelines (Python)
 Primary source: `backend/pyproject.toml`.
@@ -125,7 +136,7 @@ Primary sources:
 
 ## 7) Pre-Commit and Quality Gates
 - Root config: `.pre-commit-config.yaml`.
-- Includes file hygiene checks plus `ruff` and `ruff-format` hooks.
+- Includes file hygiene checks plus backend `ruff`/`ruff-format` and frontend `npm --prefix frontend run lint:check`.
 - Before finalizing substantive changes, run relevant lint/type/test commands for touched modules.
 
 ## 8) Cursor / Copilot Rules Status

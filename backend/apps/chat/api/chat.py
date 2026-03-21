@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Path
 from fastapi.responses import StreamingResponse
 from starlette.responses import JSONResponse
 
-from apps.chat.curd.chat import (
+from apps.chat.crud.chat import (
     create_chat,
     delete_chat_with_user,
     format_json_data,
