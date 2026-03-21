@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError, version as package_version
+
 from pydantic import BaseModel
 from fastapi import APIRouter
 
@@ -32,4 +34,7 @@ async def get_license_status() -> LicenseStatusSchema:
 
 @router.get("/version")
 async def get_license_version() -> str:
-    return "community"
+    try:
+        return package_version("sqlbot")
+    except PackageNotFoundError:
+        return "1.6.0"

@@ -102,6 +102,23 @@ const getLicense = (result: any) => {
     isv: result.license ? result.license.isv : '',
   }
 }
+
+const showExpiration = () => {
+  return !!license.expired
+}
+
+const getEditionLabel = () => {
+  if (!license?.edition || license.edition === 'Community') {
+    return t('about.standard')
+  }
+  if (license.edition === 'Embedded') {
+    return t('about.Embedded')
+  }
+  if (license.edition === 'Professional') {
+    return t('about.Professional')
+  }
+  return t('about.enterprise')
+}
 const update = (licKey: string) => {
   const param = { license_key: licKey }
   loading.value = true
@@ -146,7 +163,7 @@ defineExpose({
         <div class="label">ISV</div>
         <div class="value">{{ license.isv }}</div>
       </div>
-      <div class="item">
+      <div v-if="showExpiration()" class="item">
         <div class="label">{{ $t('about.expiration_time') }}</div>
         <div class="value" :class="{ 'expired-mark': license.status === 'expired' }">
           {{ license.expired }}
@@ -154,17 +171,7 @@ defineExpose({
       </div>
       <div class="item">
         <div class="label">{{ $t('about.version') }}</div>
-        <div class="value">
-          {{
-            !license?.edition
-              ? $t('about.standard')
-              : license.edition === 'Embedded'
-                ? $t('about.Embedded')
-                : license.edition === 'Professional'
-                  ? $t('about.Professional')
-                  : $t('about.enterprise')
-          }}
-        </div>
+        <div class="value">{{ getEditionLabel() }}</div>
       </div>
       <div class="item">
         <div class="label">{{ $t('about.version_num') }}</div>
