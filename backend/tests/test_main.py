@@ -1,6 +1,5 @@
 """Tests for main application endpoints."""
 
-import pytest
 from fastapi.testclient import TestClient
 
 
@@ -18,3 +17,8 @@ class TestHealthEndpoint:
         data = response.json()
         assert "openapi" in data
         assert "paths" in data
+
+    def test_health_endpoint(self, test_app: TestClient) -> None:
+        response = test_app.get("/health")
+        assert response.status_code == 200
+        assert response.json() == {"code": 0, "data": {"status": "ok"}, "msg": None}

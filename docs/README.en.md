@@ -36,6 +36,7 @@ The root `docker-compose.yaml` builds `gosqlbot-app` from the current repository
 #### Default mode: app + postgresql
 
 ```bash
+cp .env.example .env
 docker compose up -d
 ```
 
@@ -46,6 +47,10 @@ docker compose -f docker-compose.yaml -f docker-compose.redis.yaml up -d
 ```
 
 > The installer-generated Compose files can still stay image-based for distribution, while the repository root Compose is oriented toward source-based local development.
+
+Before starting the stack, copy `.env.example` to `.env` and replace the placeholder values for `SQLBOT_SECRET_KEY`, `SQLBOT_PG_PASSWORD`, and `SQLBOT_DEFAULT_PWD`. The checked-in files now use placeholders instead of committed live secrets.
+
+The `gosqlbot-app` service exposes a health endpoint at `http://localhost:8000/health`, which is used by the container healthcheck to distinguish application readiness from PostgreSQL readiness.
 
 #### Data directories
 
@@ -60,7 +65,13 @@ docker compose -f docker-compose.yaml -f docker-compose.redis.yaml up -d
 
 - Open in your browser: http://<your server IP>:8000/
 - Username: admin
-- Password: mySQLBot@123456
+- Password: the value you set in `SQLBOT_DEFAULT_PWD`
+
+### Quality gates
+
+- Local fast checks: `pre-commit run --all-files`
+- Frontend CI checks: `npm --prefix frontend run lint:check`, `npm --prefix frontend run typecheck`, `npm --prefix frontend run build`
+- Backend CI checks: see `.github/workflows/quality-check.yml` for mypy, Ruff, smoke tests, and pytest coverage
 
 
 ## UI Display
@@ -68,7 +79,7 @@ docker compose -f docker-compose.yaml -f docker-compose.redis.yaml up -d
   <tr>
     <img width="1920" height="991" alt="image" src="https://github.com/user-attachments/assets/c9f5e1ff-f654-4375-96be-5511fe30c120" />
 
-    
+
   </tr>
 
 

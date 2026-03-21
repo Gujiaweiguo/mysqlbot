@@ -24,6 +24,20 @@ mySQLBot 是一款基于大语言模型和 RAG 的智能问数系统，由 DataE
 
 ## 快速开始
 
+### 开发命令入口
+
+仓库根目录现在提供统一的开发命令入口，推荐优先使用：
+
+```bash
+make install
+make backend-dev
+make frontend-dev
+make lint
+make test
+```
+
+其中 `Makefile` 负责把命令分发到 `backend/` 和 `frontend/` 内部的实际脚本；如果你需要看底层命令，再进入对应子目录即可。
+
 ### 安装部署
 
 准备一台 Linux 服务器，安装好 [Docker](https://docs.docker.com/get-docker/) 与 Docker Compose，推荐使用 Docker Compose 启动。
@@ -64,19 +78,29 @@ docker compose -f docker-compose.yaml -f docker-compose.redis.yaml up -d
 
 #### 配置环境变量
 
-常用环境变量（可通过 `.env` 或 `docker-compose.yaml` 默认值）：
+建议先复制根目录 `.env.example` 为 `.env`，再按实际环境修改：
+
+```bash
+cp .env.example .env
+```
+
+常用环境变量如下，敏感值请通过 `.env` 或部署环境变量提供，不要继续使用仓库中的占位值：
 
 | 变量 | 默认值 | 说明 |
 |-----|---------|------|
 | `SQLBOT_PG_DB` | `sqlbot` | PostgreSQL 数据库名 |
 | `SQLBOT_PG_USER` | `root` | PostgreSQL 用户名 |
-| `SQLBOT_PG_PASSWORD` | `Password123@pg` | PostgreSQL 密码 |
+| `SQLBOT_PG_PASSWORD` | `见 .env.example` | PostgreSQL 密码 |
+| `SQLBOT_SECRET_KEY` | `见 .env.example` | 应用密钥 |
+| `SQLBOT_DEFAULT_PWD` | `见 .env.example` | 初始管理员密码 |
 | `SQLBOT_PG_PORT` | `5432` | PostgreSQL 端口 |
 | `SQLBOT_CACHE_TYPE` | `memory` | 缓存类型 (`memory` 或 `redis`) |
 | `SQLBOT_CACHE_REDIS_URL` | `redis://redis:6379/0` | Redis URL（仅 Redis 模式) |
 | `SQLBOT_DATA_DIR` | `./data/sqlbot` | 应用数据目录 |
 | `SQLBOT_PG_DATA_DIR` | `./data/postgresql` | PostgreSQL 数据目录 |
 | `SQLBOT_REDIS_DATA_DIR` | `./data/redis` | Redis 数据目录（仅 Redis 模式) |
+
+`gosqlbot-app` 容器现在会通过 `http://localhost:8000/health` 暴露健康检查，用于区分应用自身就绪状态与 PostgreSQL 就绪状态。
 
 #### 回滚策略
 
@@ -99,6 +123,7 @@ docker compose up -d
 ## 质量与发布门禁
 
 - 代码质量门禁：`.github/workflows/quality-check.yml`
+- 本地快速门禁：`pre-commit run --all-files`（包含文件卫生检查、backend Ruff、frontend ESLint check）
 - 运行时与回归门禁：`.github/workflows/integration-test.yml`
 - Embedding provider 说明：`docs/embedding-provider.md`
 - 拼写门禁说明：`docs/typos-gate.md`

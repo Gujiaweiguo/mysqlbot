@@ -6,7 +6,7 @@ import orjson
 from sqlalchemy import and_, text
 from sqlmodel import col
 
-from apps.chat.curd.chat import get_chart_data_ds
+from apps.chat.crud.chat import get_chart_data_ds
 from apps.dashboard.models.dashboard_model import (
     CoreDashboard,
     CreateDashboard,

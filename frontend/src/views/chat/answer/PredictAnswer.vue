@@ -4,6 +4,7 @@ import { chatApi, ChatInfo, type ChatMessage, ChatRecord } from '@/api/chat.ts'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import MdComponent from '@/views/chat/component/MdComponent.vue'
 import ChartBlock from '@/views/chat/chat-block/ChartBlock.vue'
+import { consumeChatStream, type ChatStreamPayload } from '@/views/chat/composables/useChatStream'
 
 const props = withDefaults(
   defineProps<{
@@ -101,92 +102,54 @@ const sendMessage = async () => {
 
   try {
     const controller: AbortController = new AbortController()
-    const response = await chatApi.predict(currentRecord.predict_record_id, controller)
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder('utf-8')
-
     let predict_answer = ''
     let predict_content = ''
+    const response = await chatApi.predict(currentRecord.predict_record_id, controller)
 
-    let tempResult = ''
-
-    while (true) {
-      if (stopFlag.value) {
-        controller.abort()
-        _loading.value = false
-        break
-      }
-
-      const { done, value } = await reader.read()
-      if (done) {
-        _loading.value = false
-        break
-      }
-
-      let chunk = decoder.decode(value, { stream: true })
-      tempResult += chunk
-      const split = tempResult.match(/data:.*}\n\n/g)
-      if (split) {
-        chunk = split.join('')
-        tempResult = tempResult.replace(chunk, '')
-      } else {
-        continue
-      }
-      if (chunk && chunk.startsWith('data:{')) {
-        if (split) {
-          for (const str of split) {
-            let data
-            try {
-              data = JSON.parse(str.replace('data:{', '{'))
-            } catch (err) {
-              console.error('JSON string:', str)
-              throw err
-            }
-
-            if (data.code && data.code !== 200) {
-              ElMessage({
-                message: data.msg,
-                type: 'error',
-                showClose: true,
-              })
-              return
-            }
-
-            switch (data.type) {
-              case 'id':
-                currentRecord.id = data.id
-                _currentChat.value.records[index.value].id = data.id
-                break
-              case 'info':
-                console.info(data.msg)
-                break
-              case 'error':
-                currentRecord.error = data.content
-                emits('error', currentRecord.id)
-                break
-              case 'predict-result':
-                predict_answer += data.reasoning_content
-                predict_content += data.content
-                _currentChat.value.records[index.value].predict = predict_answer
-                _currentChat.value.records[index.value].predict_content = predict_content
-                break
-              case 'predict-failed':
-                emits('error', currentRecord.id)
-                break
-              case 'predict-success':
-                //currentChat.value.records[_index].predict_data = data.content
-                getChatPredictData(_currentChat.value.records[index.value].id)
-                emits('finish', currentRecord.id)
-                break
-              case 'predict_finish':
-                _loading.value = false
-                break
-            }
-            await nextTick()
-          }
+    await consumeChatStream<ChatStreamPayload>({
+      response,
+      controller,
+      isStopped: () => stopFlag.value,
+      onMessageError: (message) => {
+        ElMessage({
+          message,
+          type: 'error',
+          showClose: true,
+        })
+      },
+      onEvent: async (data) => {
+        switch (data.type) {
+          case 'id':
+            currentRecord.id = data.id as number | undefined
+            _currentChat.value.records[index.value].id = data.id as number | undefined
+            break
+          case 'info':
+            console.info(data.msg)
+            break
+          case 'error':
+            currentRecord.error = String(data.content ?? '')
+            emits('error', currentRecord.id)
+            break
+          case 'predict-result':
+            predict_answer += String(data.reasoning_content ?? '')
+            predict_content += String(data.content ?? '')
+            _currentChat.value.records[index.value].predict = predict_answer
+            _currentChat.value.records[index.value].predict_content = predict_content
+            break
+          case 'predict-failed':
+            emits('error', currentRecord.id)
+            break
+          case 'predict-success':
+            getChatPredictData(_currentChat.value.records[index.value].id)
+            emits('finish', currentRecord.id)
+            break
+          case 'predict_finish':
+            _loading.value = false
+            break
         }
-      }
-    }
+        await nextTick()
+      },
+    })
   } catch (error) {
     if (!currentRecord.error) {
       currentRecord.error = ''

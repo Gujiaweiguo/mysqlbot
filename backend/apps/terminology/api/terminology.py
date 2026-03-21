@@ -14,7 +14,7 @@ from sqlmodel import Session
 from apps.chat.models.chat_model import AxisObj
 from apps.swagger.i18n import PLACEHOLDER_PREFIX
 from apps.system.schemas.permission import SqlbotPermission, require_permissions
-from apps.terminology.curd.terminology import (
+from apps.terminology.crud.terminology import (
     batch_create_terminology,
     create_terminology,
     delete_terminology,

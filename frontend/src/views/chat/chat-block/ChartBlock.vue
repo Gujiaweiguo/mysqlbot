@@ -26,6 +26,7 @@ import { useAssistantStore } from '@/stores/assistant'
 import AddViewDashboard from '@/views/dashboard/common/AddViewDashboard.vue'
 import html2canvas from 'html2canvas'
 import { chatApi } from '@/api/chat'
+import { request } from '@/utils/request'
 
 const props = withDefaults(
   defineProps<{
@@ -289,29 +290,7 @@ function exportToExcel() {
         document.body.removeChild(link)
       })
       .catch(async (error) => {
-        if (error.response) {
-          try {
-            let text = await error.response.data.text()
-            try {
-              text = JSON.parse(text)
-            } finally {
-              ElMessage({
-                message: text,
-                type: 'error',
-                showClose: true,
-              })
-            }
-          } catch (e) {
-            console.error('Error processing error response:', e)
-          }
-        } else {
-          console.error('Other error:', error)
-          ElMessage({
-            message: error,
-            type: 'error',
-            showClose: true,
-          })
-        }
+        await request.showError(error)
       })
       .finally(() => {
         loading.value = false

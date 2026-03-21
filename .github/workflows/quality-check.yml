@@ -6,12 +6,18 @@ on:
     paths:
       - 'backend/**'
       - 'frontend/**'
+      - '.pre-commit-config.yaml'
+      - 'backend/pyproject.toml'
+      - 'frontend/package.json'
       - '.github/workflows/quality-check.yml'
   pull_request:
     branches: [main, master]
     paths:
       - 'backend/**'
       - 'frontend/**'
+      - '.pre-commit-config.yaml'
+      - 'backend/pyproject.toml'
+      - 'frontend/package.json'
       - '.github/workflows/quality-check.yml'
   workflow_dispatch:
 
@@ -107,6 +113,9 @@ jobs:
 
       - name: Run lint
         run: npm run lint
+
+      - name: Run typecheck
+        run: npm run typecheck
 
       - name: Build
         run: npm run build

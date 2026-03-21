@@ -13,7 +13,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlmodel import Session
 
 from apps.chat.models.chat_model import AxisObj
-from apps.data_training.curd.data_training import (
+from apps.data_training.crud.data_training import (
     batch_create_training,
     create_training,
     delete_training,

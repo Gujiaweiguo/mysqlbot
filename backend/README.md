@@ -2,6 +2,17 @@
 
 ## Development
 
+Canonical root-level equivalents:
+
+```bash
+make install
+make backend-dev
+make lint
+make test
+```
+
+The commands below are the backend-specific implementations used under those root entrypoints.
+
 ### Setup
 ```bash
 uv sync

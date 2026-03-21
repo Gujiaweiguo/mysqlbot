@@ -13,6 +13,7 @@ import { userApi } from '@/api/auth.ts'
 import icon_success from '@/assets/svg/icon_success.svg'
 import icon_error from '@/assets/svg/icon_error.svg'
 import icon_issue from '@/assets/svg/icon_issue.svg'
+import { request } from '@/utils/request'
 
 const { t } = useI18n()
 const multipleSelectionAll = ref<any[]>([])
@@ -65,29 +66,7 @@ const exportExcel = () => {
         document.body.removeChild(link)
       })
       .catch(async (error) => {
-        if (error.response) {
-          try {
-            let text = await error.response.data.text()
-            try {
-              text = JSON.parse(text)
-            } finally {
-              ElMessage({
-                message: text,
-                type: 'error',
-                showClose: true,
-              })
-            }
-          } catch (e) {
-            console.error('Error processing error response:', e)
-          }
-        } else {
-          console.error('Other error:', error)
-          ElMessage({
-            message: error,
-            type: 'error',
-            showClose: true,
-          })
-        }
+        await request.showError(error)
       })
       .finally(() => {
         searchLoading.value = false

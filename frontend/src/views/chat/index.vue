@@ -470,7 +470,7 @@ import ErrorInfo from './ErrorInfo.vue'
 import ChatToolBar from './ChatToolBar.vue'
 import { dsTypeWithImg } from '@/views/ds/js/ds-type'
 import { useI18n } from 'vue-i18n'
-import { find, forEach } from 'lodash-es'
+import { forEach } from 'lodash-es'
 import custom_small from '@/assets/svg/logo-custom_small.svg'
 import LOGO_fold from '@/assets/LOGO-fold.svg'
 import icon_new_chat_outlined from '@/assets/svg/icon_new_chat_outlined.svg'
@@ -489,6 +489,8 @@ import { isMobile } from '@/utils/utils'
 import router from '@/router'
 import QuickQuestion from '@/views/chat/QuickQuestion.vue'
 import { useChatConfigStore } from '@/stores/chatConfig.ts'
+import { useChatAnswerCoordinator } from '@/views/chat/composables/useChatAnswerCoordinator'
+import { useChatMessageActions } from '@/views/chat/composables/useChatMessageActions'
 const userStore = useUserStore()
 const props = defineProps<{
   startChatDsId?: number
@@ -604,6 +606,15 @@ const scrollBottom = () => {
     return
   }
   chatListRef.value!.setScrollTop(innerRef.value!.clientHeight)
+}
+
+const startAutoScroll = () => {
+  if (innerRef.value) {
+    scrollTopVal = innerRef.value.clientHeight
+    scrollTime = setInterval(() => {
+      scrollBottom()
+    }, 300)
+  }
 }
 
 const handleScroll = (val: any) => {
@@ -743,6 +754,22 @@ function onChatCreatedQuick(chat: ChatInfo) {
 
 const recommendQuestionRef = ref()
 const quickQuestionRef = ref()
+const chartAnswerRef = ref()
+const analysisAnswerRef = ref()
+const predictAnswerRef = ref()
+
+const {
+  getRecommendQuestions: loadRecommendQuestions,
+  runAnalysisAnswer,
+  runChartAnswer,
+  runPredictAnswer,
+  stopAll,
+} = useChatAnswerCoordinator(
+  recommendQuestionRef,
+  chartAnswerRef,
+  analysisAnswerRef,
+  predictAnswerRef
+)
 
 function onChatCreated(chat: ChatInfo) {
   if (chat.records.length === 1 && !chat.records[0].recommended_question) {
@@ -752,19 +779,7 @@ function onChatCreated(chat: ChatInfo) {
 
 function getRecommendQuestions(id?: number) {
   nextTick(() => {
-    if (recommendQuestionRef.value) {
-      if (recommendQuestionRef.value instanceof Array) {
-        for (let i = 0; i < recommendQuestionRef.value.length; i++) {
-          const _id = recommendQuestionRef.value[i].id()
-          if (_id === id) {
-            recommendQuestionRef.value[i].getRecommendQuestions()
-            break
-          }
-        }
-      } else {
-        recommendQuestionRef.value.getRecommendQuestions()
-      }
-    }
+    void loadRecommendQuestions(id)
   })
 }
 
@@ -775,7 +790,6 @@ function quickAsk(question: string) {
   })
 }
 
-const chartAnswerRef = ref()
 const getRecommendQuestionsLoading = ref(false)
 async function onChartAnswerFinish(id: number) {
   getRecommendQuestionsLoading.value = true
@@ -812,62 +826,20 @@ const assistantPrepareSend = async () => {
     }
   }
 }
-const sendMessage = async (
-  regenerate_record_id: number | undefined = undefined,
-  $event: any = {}
-) => {
-  if ($event?.isComposing) {
-    return
-  }
-  if (!inputMessage.value.trim()) return
-
-  loading.value = true
-  isTyping.value = true
-  if (isCompletePage.value && innerRef.value) {
-    scrollTopVal = innerRef.value!.clientHeight
-    scrollTime = setInterval(() => {
-      scrollBottom()
-    }, 300)
-  }
-  await assistantPrepareSend()
-  const currentRecord = new ChatRecord()
-  currentRecord.create_time = new Date()
-  currentRecord.chat_id = currentChatId.value
-  currentRecord.question = inputMessage.value
-  currentRecord.regenerate_record_id = regenerate_record_id
-  currentRecord.sql_answer = ''
-  currentRecord.sql = ''
-  currentRecord.chart_answer = ''
-  currentRecord.chart = ''
-
-  currentChat.value.records.push(currentRecord)
-  inputMessage.value = ''
-
-  nextTick(async () => {
-    if (!isCompletePage.value && innerRef.value) {
-      scrollTopVal = innerRef.value!.clientHeight
-      scrollTime = setInterval(() => {
-        scrollBottom()
-      }, 300)
-    }
-    const index = currentChat.value.records.length - 1
-    if (chartAnswerRef.value) {
-      if (chartAnswerRef.value instanceof Array) {
-        for (let i = 0; i < chartAnswerRef.value.length; i++) {
-          const _index = chartAnswerRef.value[i].index()
-          if (index === _index) {
-            await chartAnswerRef.value[i].sendMessage()
-            break
-          }
-        }
-      } else {
-        await chartAnswerRef.value.sendMessage()
-      }
-    }
-  })
-}
-
-const analysisAnswerRef = ref()
+const { sendMessage, askAgain, clickAnalysis, clickPredict } = useChatMessageActions({
+  inputMessage,
+  loading,
+  isTyping,
+  currentChat,
+  currentChatId,
+  isCompletePage,
+  innerRef,
+  startAutoScroll,
+  assistantPrepareSend,
+  runChartAnswer,
+  runAnalysisAnswer,
+  runPredictAnswer,
+})
 
 async function onAnalysisAnswerFinish(id: number) {
   loading.value = false
@@ -881,64 +853,6 @@ function onAnalysisAnswerError(id: number) {
   getRecordUsage(id)
 }
 
-function askAgain(message: ChatMessage) {
-  if (message.record?.question?.trim() === '') {
-    return
-  }
-  // regenerate
-  inputMessage.value = '/regenerate'
-  let regenerate_record_id = message.record?.id
-  if (message.record?.id == undefined && message.record?.regenerate_record_id) {
-    //只有当前对话内，上一次执行失败的重试会进这里
-    regenerate_record_id = message.record?.regenerate_record_id
-  }
-  if (regenerate_record_id) {
-    inputMessage.value = inputMessage.value + ' ' + regenerate_record_id
-  }
-  nextTick(() => {
-    sendMessage(regenerate_record_id)
-  })
-}
-
-async function clickAnalysis(id?: number) {
-  const baseRecord = find(currentChat.value.records, (value) => id === value.id)
-  if (baseRecord == undefined) {
-    return
-  }
-
-  loading.value = true
-  isTyping.value = true
-
-  const currentRecord = new ChatRecord()
-  currentRecord.create_time = new Date()
-  currentRecord.chat_id = baseRecord.chat_id
-  currentRecord.question = baseRecord.question
-  currentRecord.chart = baseRecord.chart
-  currentRecord.data = baseRecord.data
-  currentRecord.analysis_record_id = id
-  currentRecord.analysis = ''
-
-  currentChat.value.records.push(currentRecord)
-
-  nextTick(async () => {
-    const index = currentChat.value.records.length - 1
-    if (analysisAnswerRef.value) {
-      if (analysisAnswerRef.value instanceof Array) {
-        for (let i = 0; i < analysisAnswerRef.value.length; i++) {
-          const _index = analysisAnswerRef.value[i].index()
-          if (index === _index) {
-            await analysisAnswerRef.value[i].sendMessage()
-            break
-          }
-        }
-      } else {
-        await analysisAnswerRef.value.sendMessage()
-      }
-    }
-  })
-
-  return
-}
 
 function getRecordUsage(recordId: any) {
   console.debug('getRecordUsage id: ', recordId)
@@ -963,8 +877,6 @@ function getRecordUsage(recordId: any) {
   })
 }
 
-const predictAnswerRef = ref()
-
 async function onPredictAnswerFinish(id: number) {
   loading.value = false
   isTyping.value = false
@@ -978,46 +890,6 @@ function onPredictAnswerError(id: number) {
   getRecordUsage(id)
 }
 
-async function clickPredict(id?: number) {
-  const baseRecord = find(currentChat.value.records, (value) => id === value.id)
-  if (baseRecord == undefined) {
-    return
-  }
-
-  loading.value = true
-  isTyping.value = true
-
-  const currentRecord = new ChatRecord()
-  currentRecord.create_time = new Date()
-  currentRecord.chat_id = baseRecord.chat_id
-  currentRecord.question = baseRecord.question
-  currentRecord.chart = baseRecord.chart
-  currentRecord.data = baseRecord.data
-  currentRecord.predict_record_id = id
-  currentRecord.predict = ''
-  currentRecord.predict_data = ''
-
-  currentChat.value.records.push(currentRecord)
-
-  nextTick(async () => {
-    const index = currentChat.value.records.length - 1
-    if (predictAnswerRef.value) {
-      if (predictAnswerRef.value instanceof Array) {
-        for (let i = 0; i < predictAnswerRef.value.length; i++) {
-          const _index = predictAnswerRef.value[i].index()
-          if (index === _index) {
-            await predictAnswerRef.value[i].sendMessage()
-            break
-          }
-        }
-      } else {
-        await predictAnswerRef.value.sendMessage()
-      }
-    }
-  })
-
-  return
-}
 
 const handleCtrlEnter = (e: KeyboardEvent) => {
   const textarea = e.target as HTMLTextAreaElement
@@ -1039,42 +911,7 @@ function clickInput() {
 }
 
 function stop(func?: (...p: any[]) => void, ...param: any[]) {
-  if (recommendQuestionRef.value) {
-    if (recommendQuestionRef.value instanceof Array) {
-      for (let i = 0; i < recommendQuestionRef.value.length; i++) {
-        recommendQuestionRef.value[i].stop()
-      }
-    } else {
-      recommendQuestionRef.value.stop()
-    }
-  }
-  if (chartAnswerRef.value) {
-    if (chartAnswerRef.value instanceof Array) {
-      for (let i = 0; i < chartAnswerRef.value.length; i++) {
-        chartAnswerRef.value[i].stop()
-      }
-    } else {
-      chartAnswerRef.value.stop()
-    }
-  }
-  if (analysisAnswerRef.value) {
-    if (analysisAnswerRef.value instanceof Array) {
-      for (let i = 0; i < analysisAnswerRef.value.length; i++) {
-        analysisAnswerRef.value[i].stop()
-      }
-    } else {
-      analysisAnswerRef.value.stop()
-    }
-  }
-  if (predictAnswerRef.value) {
-    if (predictAnswerRef.value instanceof Array) {
-      for (let i = 0; i < predictAnswerRef.value.length; i++) {
-        predictAnswerRef.value[i].stop()
-      }
-    } else {
-      predictAnswerRef.value.stop()
-    }
-  }
+  stopAll()
   if (func && typeof func === 'function') {
     func(...param)
   }

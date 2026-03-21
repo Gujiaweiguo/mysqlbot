@@ -4,7 +4,7 @@ from typing import cast
 
 from sqlmodel import Session
 
-from apps.chat.curd.chat import (
+from apps.chat.crud.chat import (
     _parse_json_value,
     _parse_log_message,
     create_chat,

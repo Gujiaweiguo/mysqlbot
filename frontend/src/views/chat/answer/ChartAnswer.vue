@@ -4,6 +4,7 @@ import { Chat, chatApi, ChatInfo, type ChatMessage, ChatRecord, questionApi } fr
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import ChartBlock from '@/views/chat/chat-block/ChartBlock.vue'
 import JSONBig from 'json-bigint'
+import { consumeChatStream, type ChatStreamPayload } from '@/views/chat/composables/useChatStream'
 
 const props = withDefaults(
   defineProps<{
@@ -107,117 +108,81 @@ const sendMessage = async () => {
       question: currentRecord.question,
       chat_id: _currentChatId.value,
     }
-    const response = await questionApi.add(param, controller)
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder('utf-8')
-
     let sql_answer = ''
     let chart_answer = ''
+    const response = await questionApi.add(param, controller)
 
-    let tempResult = ''
-
-    while (true) {
-      if (stopFlag.value) {
-        controller.abort()
-        break
-      }
-
-      const { done, value } = await reader.read()
-      if (done) {
-        _loading.value = false
-        break
-      }
-
-      let chunk = decoder.decode(value, { stream: true })
-      tempResult += chunk
-      const split = tempResult.match(/data:.*}\n\n/g)
-      if (split) {
-        chunk = split.join('')
-        tempResult = tempResult.replace(chunk, '')
-      } else {
-        continue
-      }
-      if (chunk && chunk.startsWith('data:{')) {
-        if (split) {
-          for (const str of split) {
-            let data
-            try {
-              data = JSONBig.parse(str.replace('data:{', '{'))
-            } catch (err) {
-              console.error('JSON string:', str)
-              throw err
+    await consumeChatStream<ChatStreamPayload>({
+      response,
+      controller,
+      isStopped: () => stopFlag.value,
+      parseEvent: (raw) => JSONBig.parse(raw.replace('data:{', '{')) as ChatStreamPayload,
+      onMessageError: (message) => {
+        ElMessage({
+          message,
+          type: 'error',
+          showClose: true,
+        })
+      },
+      onEvent: async (data) => {
+        switch (data.type) {
+          case 'id':
+            currentRecord.id = data.id as number | undefined
+            _currentChat.value.records[index.value].id = data.id as number | undefined
+            break
+          case 'regenerate_record_id':
+            currentRecord.regenerate_record_id = data.regenerate_record_id as number | undefined
+            _currentChat.value.records[index.value].regenerate_record_id =
+              data.regenerate_record_id as number | undefined
+            break
+          case 'question':
+            currentRecord.question = data.question as string | undefined
+            _currentChat.value.records[index.value].question = data.question as string | undefined
+            break
+          case 'info':
+            console.info(data.msg)
+            break
+          case 'brief':
+            _currentChat.value.brief = data.brief as string | undefined
+            _chatList.value.forEach((c: Chat) => {
+              if (c.id === _currentChat.value.id) {
+                c.brief = _currentChat.value.brief
+              }
+            })
+            break
+          case 'error':
+            currentRecord.error = String(data.content ?? '')
+            emits('error', currentRecord.id)
+            break
+          case 'sql-result':
+            sql_answer += String(data.reasoning_content ?? '')
+            _currentChat.value.records[index.value].sql_answer = sql_answer
+            break
+          case 'sql':
+            _currentChat.value.records[index.value].sql = String(data.content ?? '')
+            break
+          case 'sql-data':
+            getChatData(_currentChat.value.records[index.value].id)
+            break
+          case 'chart-result':
+            chart_answer += String(data.reasoning_content ?? '')
+            _currentChat.value.records[index.value].chart_answer = chart_answer
+            break
+          case 'chart':
+            _currentChat.value.records[index.value].chart = String(data.content ?? '')
+            break
+          case 'datasource':
+            if (!_currentChat.value.datasource) {
+              _currentChat.value.datasource = data.id as number | undefined
             }
-
-            if (data.code && data.code !== 200) {
-              ElMessage({
-                message: data.msg,
-                type: 'error',
-                showClose: true,
-              })
-              _loading.value = false
-              return
-            }
-
-            switch (data.type) {
-              case 'id':
-                currentRecord.id = data.id
-                _currentChat.value.records[index.value].id = data.id
-                break
-              case 'regenerate_record_id':
-                currentRecord.regenerate_record_id = data.regenerate_record_id
-                _currentChat.value.records[index.value].regenerate_record_id =
-                  data.regenerate_record_id
-                break
-              case 'question':
-                currentRecord.question = data.question
-                _currentChat.value.records[index.value].question = data.question
-                break
-              case 'info':
-                console.info(data.msg)
-                break
-              case 'brief':
-                _currentChat.value.brief = data.brief
-                _chatList.value.forEach((c: Chat) => {
-                  if (c.id === _currentChat.value.id) {
-                    c.brief = _currentChat.value.brief
-                  }
-                })
-                break
-              case 'error':
-                currentRecord.error = data.content
-                emits('error', currentRecord.id)
-                break
-              case 'sql-result':
-                sql_answer += data.reasoning_content
-                _currentChat.value.records[index.value].sql_answer = sql_answer
-                break
-              case 'sql':
-                _currentChat.value.records[index.value].sql = data.content
-                break
-              case 'sql-data':
-                getChatData(_currentChat.value.records[index.value].id)
-                break
-              case 'chart-result':
-                chart_answer += data.reasoning_content
-                _currentChat.value.records[index.value].chart_answer = chart_answer
-                break
-              case 'chart':
-                _currentChat.value.records[index.value].chart = data.content
-                break
-              case 'datasource':
-                if (!_currentChat.value.datasource) {
-                  _currentChat.value.datasource = data.id
-                }
-                break
-              case 'finish':
-                emits('finish', currentRecord.id)
-                break
-            }
-            await nextTick()
-          }
+            break
+          case 'finish':
+            emits('finish', currentRecord.id)
+            break
         }
-      }
-    }
+        await nextTick()
+      },
+    })
   } catch (error) {
     if (!currentRecord.error) {
       currentRecord.error = ''

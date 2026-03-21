@@ -28,7 +28,7 @@ from sqlmodel import select as sqlmodel_select
 
 from apps.chat.crud.custom_prompt import find_custom_prompts, get_custom_prompt_type
 from apps.ai_model.model_factory import LLMConfig, LLMFactory, get_default_config
-from apps.chat.curd.chat import (
+from apps.chat.crud.chat import (
     end_log,
     format_chart_fields,
     format_json_data,
@@ -63,8 +63,9 @@ from apps.chat.models.chat_model import (
 )
 from apps.chat.persistence import ChatPersistenceService
 from apps.chat.streaming import emit_chat_error, emit_chat_event, emit_finish_event
+from apps.chat.task.runner import ChatTaskRunner
 from apps.chat.task.stages import ChartResultStage, PredictResultStage, SQLAnswerStage
-from apps.data_training.curd.data_training import get_training_template
+from apps.data_training.crud.data_training import get_training_template
 from apps.datasource.crud.datasource import get_table_schema
 from apps.datasource.crud.permission import get_row_permission_filters, is_normal_user
 from apps.datasource.embedding.ds_embedding import get_ds_embedding
@@ -77,7 +78,7 @@ from apps.system.crud.assistant import (
 )
 from apps.system.crud.parameter_manage import get_groups
 from apps.system.schemas.system_schema import AssistantOutDsSchema
-from apps.terminology.curd.terminology import get_terminology_template
+from apps.terminology.crud.terminology import get_terminology_template
 from common.core.config import settings
 from common.core.db import engine
 from common.core.deps import CurrentAssistant, CurrentUser
@@ -421,8 +422,6 @@ class LLMService:
     generate_sql_logs: list[ChatLog]
     generate_chart_logs: list[ChatLog]
     current_logs: dict[OperationEnum, ChatLog]
-    chunk_list: list[str | dict[str, object]]
-
     trans: I18nHelper
 
     last_execute_sql_error: str | None = None
@@ -448,13 +447,11 @@ class LLMService:
         self.generate_sql_logs = []
         self.generate_chart_logs = []
         self.current_logs = {}
-        self.chunk_list = []
         self.current_user = current_user
         self.current_assistant = current_assistant
         self.persistence = ChatPersistenceService()
         self.record: ChatRecord = ChatRecord.model_construct()
-        self.future: Future[None] = Future()
-        self.future.set_result(None)
+        self.runner: ChatTaskRunner[StreamOutput] = ChatTaskRunner(executor)
         self.ds_core_id = None
         chat_id = chat_question.chat_id
         chat: Chat | None = session.get(Chat, chat_id)
@@ -606,14 +603,7 @@ class LLMService:
         self.ds = current_ds
 
     def is_running(self, timeout: float = 0.5) -> bool:
-        try:
-            r = concurrent.futures.wait([self.future], timeout)
-            if len(r.not_done) > 0:
-                return True
-            else:
-                return False
-        except Exception:
-            return True
+        return self.runner.is_running(timeout)
 
     def init_messages(self, session: Session) -> None:
         self.choose_table_schema(session)
@@ -1725,25 +1715,10 @@ class LLMService:
                 raise SQLBotDBError(err)
 
     def pop_chunk(self) -> StreamOutput | None:
-        try:
-            chunk = self.chunk_list.pop(0)
-            return chunk
-        except IndexError:
-            return None
+        return self.runner.pop_chunk()
 
     def await_result(self) -> Iterator[StreamOutput]:
-        while self.is_running():
-            while True:
-                chunk = self.pop_chunk()
-                if chunk is not None:
-                    yield chunk
-                else:
-                    break
-        while True:
-            chunk = self.pop_chunk()
-            if chunk is None:
-                break
-            yield chunk
+        yield from self.runner.await_result()
 
     def run_task_async(
         self,
@@ -1753,7 +1728,7 @@ class LLMService:
     ) -> None:
         if in_chat:
             stream = True
-        self.future = executor.submit(self.run_task_cache, in_chat, stream, finish_step)
+        self.runner.run_async(self.run_task, in_chat, stream, finish_step)
 
     def run_task_cache(
         self,
@@ -1762,7 +1737,7 @@ class LLMService:
         finish_step: ChatFinishStep = ChatFinishStep.GENERATE_CHART,
     ) -> None:
         for chunk in self.run_task(in_chat, stream, finish_step):
-            self.chunk_list.append(chunk)
+            _ = chunk
 
     def run_task(
         self,
@@ -2181,11 +2156,11 @@ class LLMService:
             session_maker.remove()
 
     def run_recommend_questions_task_async(self) -> None:
-        self.future = executor.submit(self.run_recommend_questions_task_cache)
+        self.runner.run_async(self.run_recommend_questions_task)
 
     def run_recommend_questions_task_cache(self) -> None:
         for chunk in self.run_recommend_questions_task():
-            self.chunk_list.append(chunk)
+            _ = chunk
 
     def run_recommend_questions_task(self) -> Iterator[str]:
         _session: Session | None = None
@@ -2225,15 +2200,15 @@ class LLMService:
                 session, base_record, action_type
             )
         )
-        self.future = executor.submit(
-            self.run_analysis_or_predict_task_cache, action_type, in_chat, stream
+        self.runner.run_async(
+            self.run_analysis_or_predict_task, action_type, in_chat, stream
         )
 
     def run_analysis_or_predict_task_cache(
         self, action_type: str, in_chat: bool = True, stream: bool = True
     ) -> None:
         for chunk in self.run_analysis_or_predict_task(action_type, in_chat, stream):
-            self.chunk_list.append(chunk)
+            _ = chunk
 
     def run_analysis_or_predict_task(
         self, action_type: str, in_chat: bool = True, stream: bool = True
