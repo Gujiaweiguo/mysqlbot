@@ -8,7 +8,7 @@
       :larksuite="loginCategory.larksuite"
     />
   </div>
-  <LdapLoginForm v-if="isLdap" />
+  <LdapLoginForm v-if="isLdap" @authenticated="handleAuthenticated" />
   <div class="sqlbot-other-login">
     <el-divider v-if="anyEnable" class="de-other-login-divider">{{
       t('login.other_login')
@@ -72,7 +72,7 @@ const isLdap = ref(false)
 defineProps<{
   loading: boolean
 }>()
-const emits = defineEmits(['switchTab', 'autoCallback', 'update:loading'])
+const emits = defineEmits(['switchTab', 'autoCallback', 'update:loading', 'authenticated'])
 const updateLoading = (show: boolean, time: number = 1000) => {
   setTimeout(() => {
     emits('update:loading', show)
@@ -176,6 +176,9 @@ const redirectImmediately = () => {
   if (currentSureHandler.value) {
     currentSureHandler.value()
   }
+}
+const handleAuthenticated = () => {
+  emits('authenticated')
 }
 const init = (cb?: () => void) => {
   queryCategoryStatus()
@@ -339,6 +342,7 @@ const third_party_authentication = (state?: string) => {
         platform_info_param['data'] = ticket
       }
       userStore.setPlatformInfo(platform_info_param)
+      handleAuthenticated()
       const queryRedirectPath = getCurLocation()
       router.push({ path: queryRedirectPath })
     })

@@ -118,7 +118,7 @@ export const toLoginPage = (fullPath: string) => {
 export const toLoginSuccess = (router: any) => {
   const redirect = router?.currentRoute?.value?.query?.redirect
   const redirectPath = Array.isArray(redirect) ? redirect[0] : redirect || '/chat'
-  router.push(redirectPath as string)
+  return router.push(redirectPath as string)
 }
 export const getCurrentRouter = () => {
   const hash = location.hash

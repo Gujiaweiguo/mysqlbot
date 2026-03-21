@@ -1,11 +1,20 @@
 <template>
   <div
     v-if="showLoading"
-    v-loading="true"
-    :element-loading-text="t('qa.loading')"
     class="xpack-login-handler-mask"
-    element-loading-background="#F5F6F7"
-  ></div>
+    :data-stage="loadingStage"
+    data-testid="login-wait-state"
+  >
+    <div class="login-wait-panel">
+      <el-icon class="login-wait-icon is-loading" size="28">
+        <Loading />
+      </el-icon>
+      <div class="login-wait-title" data-testid="login-wait-title">{{ loadingTitle }}</div>
+      <div class="login-wait-description" data-testid="login-wait-description">
+        {{ loadingDescription }}
+      </div>
+    </div>
+  </div>
 
   <div class="login-container" :class="{ 'hide-login-container': showLoading }">
     <div class="login-left">
@@ -41,6 +50,7 @@
                 <el-input
                   v-model="loginForm.username"
                   clearable
+                  :disabled="isSubmitting || showLoading"
                   :placeholder="$t('common.your_account_email_address')"
                   size="large"
                 ></el-input>
@@ -48,6 +58,7 @@
               <el-form-item prop="password">
                 <el-input
                   v-model="loginForm.password"
+                  :disabled="isSubmitting || showLoading"
                   :placeholder="$t('common.enter_your_password')"
                   type="password"
                   show-password
@@ -56,15 +67,24 @@
                 ></el-input>
               </el-form-item>
               <el-form-item>
-                <el-button type="primary" class="login-btn" @click="submitForm">{{
+                <el-button
+                  type="primary"
+                  class="login-btn"
+                  :loading="isSubmitting"
+                  :disabled="isSubmitting || showLoading"
+                  data-testid="account-login-submit"
+                  @click="submitForm"
+                  >{{
                   $t('common.login_')
-                }}</el-button>
+                }}</el-button
+                >
               </el-form-item>
             </el-form>
           </div>
           <Handler
-            v-model:loading="showLoading"
+            v-model:loading="isBootstrapping"
             jsname="L2NvbXBvbmVudC9sb2dpbi9IYW5kbGVy"
+            @authenticated="startEnteringSystem"
             @switch-tab="switchTab"
           />
         </div>
@@ -78,6 +98,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useI18n } from 'vue-i18n'
+import { Loading } from '@element-plus/icons-vue'
 import custom_small from '@/assets/svg/logo-custom_small.svg'
 import LOGO_fold from '@/assets/LOGO-fold.svg'
 import login_image from '@/assets/embedded/login_image.png'
@@ -86,7 +107,9 @@ import loginImage from '@/assets/blue/login-image_blue.png'
 import Handler from './xpack/Handler.vue'
 import { toLoginSuccess } from '@/utils/utils'
 
-const showLoading = ref(true)
+const isBootstrapping = ref(true)
+const isSubmitting = ref(false)
+const isEnteringSystem = ref(false)
 const router = useRouter()
 const userStore = useUserStore()
 const appearanceStore = useAppearanceStoreWithOut()
@@ -102,6 +125,15 @@ const bg = computed(() => {
   return appearanceStore.getBg || (appearanceStore.isBlue ? loginImage : login_image)
 })
 
+const showLoading = computed(() => isBootstrapping.value || isEnteringSystem.value)
+const loadingStage = computed(() => (isEnteringSystem.value ? 'entering' : 'bootstrap'))
+const loadingTitle = computed(() =>
+  isEnteringSystem.value ? t('login.entering_system') : t('login.preparing_login')
+)
+const loadingDescription = computed(() =>
+  isEnteringSystem.value ? t('login.entering_system_hint') : t('login.preparing_login_hint')
+)
+
 const loginBg = computed(() => {
   return appearanceStore.getLogin
 })
@@ -113,15 +145,46 @@ const rules = {
 
 const loginFormRef = ref()
 
-const submitForm = () => {
-  loginFormRef.value.validate((valid: boolean) => {
-    if (valid) {
-      userStore.login(loginForm.value).then(() => {
-        toLoginSuccess(router)
-      })
+const validateLoginForm = () => {
+  return new Promise<boolean>((resolve) => {
+    if (!loginFormRef.value) {
+      resolve(false)
+      return
     }
+    loginFormRef.value.validate((valid: boolean) => {
+      resolve(valid)
+    })
   })
 }
+
+const startEnteringSystem = () => {
+  isBootstrapping.value = false
+  isEnteringSystem.value = true
+}
+
+const submitForm = async () => {
+  if (isSubmitting.value || showLoading.value) {
+    return
+  }
+
+  const valid = await validateLoginForm()
+  if (!valid) {
+    return
+  }
+
+  isSubmitting.value = true
+  try {
+    await userStore.login(loginForm.value)
+  } catch {
+    isSubmitting.value = false
+    return
+  }
+
+  isSubmitting.value = false
+  startEnteringSystem()
+  await toLoginSuccess(router)
+}
+
 const switchTab = (name: string) => {
   activeName.value = name || 'simple'
 }
@@ -222,10 +285,42 @@ const switchTab = (name: string) => {
 }
 .xpack-login-handler-mask {
   position: fixed;
-  width: 100vw;
-  height: 100vh;
-  left: 0;
-  top: 0;
+  inset: 0;
   z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-color);
+
+  .login-wait-panel {
+    width: min(420px, calc(100vw - 48px));
+    padding: 32px;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--white);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    row-gap: 12px;
+    text-align: center;
+  }
+
+  .login-wait-icon {
+    color: var(--primary-color);
+  }
+
+  .login-wait-title {
+    color: var(--text-color);
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 28px;
+  }
+
+  .login-wait-description {
+    color: var(--text-light);
+    font-size: 14px;
+    line-height: 20px;
+  }
 }
 </style>
