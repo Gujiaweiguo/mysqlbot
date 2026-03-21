@@ -10,6 +10,27 @@ from common.core.deps import CurrentUser, SessionDep, Trans
 from common.core.pagination import Paginator
 from common.core.schemas import PaginationParams
 
+HIDDEN_SYSTEM_VARIABLE_NAMES = {"embedding_admin_config"}
+HIDDEN_SYSTEM_VARIABLE_TYPES = {"embedding"}
+
+
+def _is_hidden_variable(variable: SystemVariable) -> bool:
+    return (
+        variable.name in HIDDEN_SYSTEM_VARIABLE_NAMES
+        or variable.var_type in HIDDEN_SYSTEM_VARIABLE_TYPES
+    )
+
+
+def _translate_visible_variable(
+    trans: Trans, variable: SystemVariable
+) -> SystemVariable | None:
+    data = SystemVariable.model_validate(variable)
+    if _is_hidden_variable(data):
+        return None
+    if data.type == "system":
+        data.name = trans(data.name)
+    return data
+
 
 def save(
     session: SessionDep,
@@ -67,10 +88,9 @@ def list_all(
 
     res: list[SystemVariable] = []
     for r in records:
-        data = SystemVariable.model_validate(r)
-        if data.type == "system":
-            data.name = trans(data.name)
-        res.append(data)
+        data = _translate_visible_variable(trans, SystemVariable.model_validate(r))
+        if data is not None:
+            res.append(data)
     return res
 
 
@@ -104,18 +124,18 @@ async def list_page(
     res: list[SystemVariable] = []
     for r in variable_page.items:
         if isinstance(r, dict):
-            data = SystemVariable.model_validate(r)
+            raw = SystemVariable.model_validate(r)
         else:
-            data = SystemVariable.model_validate(r.model_dump())
-        if data.type == "system":
-            data.name = trans(data.name)
-        res.append(data)
+            raw = SystemVariable.model_validate(r.model_dump())
+        data = _translate_visible_variable(trans, raw)
+        if data is not None:
+            res.append(data)
 
     return {
         "items": res,
         "page": variable_page.page,
         "size": variable_page.size,
-        "total": variable_page.total,
+        "total": len(res),
         "total_pages": variable_page.total_pages,
     }
 
