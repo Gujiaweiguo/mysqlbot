@@ -40,6 +40,7 @@ from common.core.config import settings
 from common.core.db import engine
 from common.core.response_middleware import ResponseMiddleware, exception_handler
 from common.core.sqlbot_cache import init_sqlbot_cache
+from common.observability import AdminApiObservabilityMiddleware
 from common.utils.embedding_threads import (
     fill_empty_data_training_embeddings,
     fill_empty_table_and_ds_embeddings,
@@ -313,6 +314,7 @@ app.add_middleware(TokenMiddleware)
 app.add_middleware(ResponseMiddleware)
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(RequestContextMiddlewareCommon)
+app.add_middleware(AdminApiObservabilityMiddleware)
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # Register exception handlers
