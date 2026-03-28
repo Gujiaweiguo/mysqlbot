@@ -4,7 +4,7 @@
     id: '1',
     show_guide: false,
     float_icon: '',
-    domain_url: 'http://localhost:5173',
+    domain_url: 'http://localhost:8000',
     header_font_color: 'rgb(100, 106, 115)',
     x_type: 'right',
     y_type: 'bottom',
@@ -560,10 +560,7 @@
     const online = getParam(src, 'online')
     const userFlag = getParam(src, 'userFlag')
     const history = getParam(src, 'history')
-    let url = `${domain_url}/api/v1/system/assistant/info/${id}`
-    if (domain_url.includes('5173')) {
-      url = url.replace('5173', '8000')
-    }
+    const url = `${domain_url}/api/v1/system/assistant/info/${id}`
     fetch(url)
       .then((response) => response.json())
       .then((res) => {
@@ -589,10 +586,6 @@
         if (tempData['float_icon'] && !tempData['float_icon'].startsWith('http://')) {
           tempData['float_icon'] =
             `${domain_url}/api/v1/system/assistant/picture/${tempData['float_icon']}`
-
-          if (domain_url.includes('5173')) {
-            tempData['float_icon'] = tempData['float_icon'].replace('5173', '8000')
-          }
         }
 
         tempData['online'] = online && online.toString().toLowerCase() == 'true'
