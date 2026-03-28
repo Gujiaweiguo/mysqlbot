@@ -12,6 +12,9 @@ backend-dev:
 frontend-dev:
 	cd frontend && npm run dev
 
+frontend-vite-dev:
+	cd frontend && npm run dev:internal
+
 backend-lint:
 	cd backend && LINT_SCOPE=full bash scripts/lint.sh
 
