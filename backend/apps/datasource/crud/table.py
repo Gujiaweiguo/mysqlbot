@@ -3,6 +3,7 @@ import time
 import traceback
 from typing import Any
 
+from sqlalchemy import or_
 from sqlmodel import col, select, update
 
 from apps.ai_model.embedding import EmbeddingModelCache
@@ -48,14 +49,19 @@ def run_fill_empty_table_and_ds_embedding(session_maker: Any) -> None:
         session = session_maker()
 
         SQLBotLogUtil.info("get tables")
-        stmt = select(col(CoreTable.id)).where(col(CoreTable.embedding).is_(None))
+        stmt = select(col(CoreTable.id)).where(
+            or_(col(CoreTable.embedding).is_(None), col(CoreTable.embedding) == "")
+        )
         results = list(session.execute(stmt).scalars().all())
         SQLBotLogUtil.info("table result: " + str(len(results)))
         save_table_embedding(session_maker, results)
 
         SQLBotLogUtil.info("get datasource")
         ds_stmt = select(col(CoreDatasource.id)).where(
-            col(CoreDatasource.embedding).is_(None)
+            or_(
+                col(CoreDatasource.embedding).is_(None),
+                col(CoreDatasource.embedding) == "",
+            )
         )
         ds_results = list(session.execute(ds_stmt).scalars().all())
         SQLBotLogUtil.info("datasource result: " + str(len(ds_results)))
@@ -80,89 +86,20 @@ def save_table_embedding(session_maker: Any, ids: list[int]) -> None:
         session = session_maker()
 
         for _id in ids:
-            table = session.query(CoreTable).filter(col(CoreTable.id) == _id).first()
-            if table is None:
-                continue
+            try:
+                table = (
+                    session.query(CoreTable).filter(col(CoreTable.id) == _id).first()
+                )
+                if table is None:
+                    continue
 
-            fields = (
-                session.query(CoreField)
-                .filter(col(CoreField.table_id) == table.id)
-                .all()
-            )
-
-            schema_table = f"# Table: {table.table_name}"
-            table_comment = table.custom_comment.strip() if table.custom_comment else ""
-            if table_comment == "":
-                schema_table += "\n[\n"
-            else:
-                schema_table += f", {table_comment}\n[\n"
-
-            if fields:
-                field_list: list[str] = []
-                for field in fields:
-                    field_comment = (
-                        field.custom_comment.strip() if field.custom_comment else ""
-                    )
-                    if field_comment == "":
-                        field_list.append(f"({field.field_name}:{field.field_type})")
-                    else:
-                        field_list.append(
-                            f"({field.field_name}:{field.field_type}, {field_comment})"
-                        )
-                schema_table += ",\n".join(field_list)
-            schema_table += "\n]\n"
-
-            emb = json.dumps(model.embed_query(schema_table))
-            stmt = (
-                update(CoreTable).where(col(CoreTable.id) == _id).values(embedding=emb)
-            )
-            session.execute(stmt)
-            session.commit()
-
-        end_time = time.time()
-        SQLBotLogUtil.info(
-            "table embedding finished in: " + str(end_time - start_time) + " seconds"
-        )
-    except Exception:
-        traceback.print_exc()
-    finally:
-        session_maker.remove()
-
-
-def save_ds_embedding(session_maker: Any, ids: list[int]) -> None:
-    if not settings.TABLE_EMBEDDING_ENABLED or not embedding_runtime_enabled():
-        return
-
-    if not ids:
-        return
-
-    try:
-        SQLBotLogUtil.info("start datasource embedding")
-        start_time = time.time()
-        model: Any = EmbeddingModelCache.get_model()
-        session = session_maker()
-
-        for _id in ids:
-            ds = (
-                session.query(CoreDatasource)
-                .filter(col(CoreDatasource.id) == _id)
-                .first()
-            )
-            if ds is None:
-                continue
-
-            schema_table = f"{ds.name}, {ds.description}\n"
-            tables = (
-                session.query(CoreTable).filter(col(CoreTable.ds_id) == ds.id).all()
-            )
-            for table in tables:
                 fields = (
                     session.query(CoreField)
                     .filter(col(CoreField.table_id) == table.id)
                     .all()
                 )
 
-                schema_table += f"# Table: {table.table_name}"
+                schema_table = f"# Table: {table.table_name}"
                 table_comment = (
                     table.custom_comment.strip() if table.custom_comment else ""
                 )
@@ -188,14 +125,105 @@ def save_ds_embedding(session_maker: Any, ids: list[int]) -> None:
                     schema_table += ",\n".join(field_list)
                 schema_table += "\n]\n"
 
-            emb = json.dumps(model.embed_query(schema_table))
-            stmt = (
-                update(CoreDatasource)
-                .where(col(CoreDatasource.id) == _id)
-                .values(embedding=emb)
-            )
-            session.execute(stmt)
-            session.commit()
+                emb = json.dumps(model.embed_query(schema_table))
+                stmt = (
+                    update(CoreTable)
+                    .where(col(CoreTable.id) == _id)
+                    .values(embedding=emb)
+                )
+                session.execute(stmt)
+                session.commit()
+            except Exception as exc:
+                session.rollback()
+                SQLBotLogUtil.warning(
+                    f"Failed to generate embedding for table [{_id}]: {exc}"
+                )
+
+        end_time = time.time()
+        SQLBotLogUtil.info(
+            "table embedding finished in: " + str(end_time - start_time) + " seconds"
+        )
+    except Exception:
+        traceback.print_exc()
+    finally:
+        session_maker.remove()
+
+
+def save_ds_embedding(session_maker: Any, ids: list[int]) -> None:
+    if not settings.TABLE_EMBEDDING_ENABLED or not embedding_runtime_enabled():
+        return
+
+    if not ids:
+        return
+
+    try:
+        SQLBotLogUtil.info("start datasource embedding")
+        start_time = time.time()
+        model: Any = EmbeddingModelCache.get_model()
+        session = session_maker()
+
+        for _id in ids:
+            try:
+                ds = (
+                    session.query(CoreDatasource)
+                    .filter(col(CoreDatasource.id) == _id)
+                    .first()
+                )
+                if ds is None:
+                    continue
+
+                schema_table = f"{ds.name}, {ds.description}\n"
+                tables = (
+                    session.query(CoreTable).filter(col(CoreTable.ds_id) == ds.id).all()
+                )
+                for table in tables:
+                    fields = (
+                        session.query(CoreField)
+                        .filter(col(CoreField.table_id) == table.id)
+                        .all()
+                    )
+
+                    schema_table += f"# Table: {table.table_name}"
+                    table_comment = (
+                        table.custom_comment.strip() if table.custom_comment else ""
+                    )
+                    if table_comment == "":
+                        schema_table += "\n[\n"
+                    else:
+                        schema_table += f", {table_comment}\n[\n"
+
+                    if fields:
+                        field_list: list[str] = []
+                        for field in fields:
+                            field_comment = (
+                                field.custom_comment.strip()
+                                if field.custom_comment
+                                else ""
+                            )
+                            if field_comment == "":
+                                field_list.append(
+                                    f"({field.field_name}:{field.field_type})"
+                                )
+                            else:
+                                field_list.append(
+                                    f"({field.field_name}:{field.field_type}, {field_comment})"
+                                )
+                        schema_table += ",\n".join(field_list)
+                    schema_table += "\n]\n"
+
+                emb = json.dumps(model.embed_query(schema_table))
+                stmt = (
+                    update(CoreDatasource)
+                    .where(col(CoreDatasource.id) == _id)
+                    .values(embedding=emb)
+                )
+                session.execute(stmt)
+                session.commit()
+            except Exception as exc:
+                session.rollback()
+                SQLBotLogUtil.warning(
+                    f"Failed to generate embedding for datasource [{_id}]: {exc}"
+                )
 
         end_time = time.time()
         SQLBotLogUtil.info(
