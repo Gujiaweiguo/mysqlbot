@@ -78,6 +78,8 @@ Development access URL: `http://localhost:8000/#/login`
 
 > Operational note: on the first backend startup, if the `admin` account still has the legacy seeded password, the system automatically syncs it to `DEFAULT_PWD`. If an administrator has already changed the password, the existing password is preserved.
 
+> Operational note: on backend startup, if `sys_assistant` does not yet contain the default embedded assistant (`type=4, oid=1`), the system automatically creates one. Its default `domain` comes from `FRONTEND_HOST`, and later startups do not create duplicates.
+
 **4. Stop development environment**
 
 ```bash
@@ -106,6 +108,8 @@ bash install.sh
 ```
 
 > Operational note: during the first startup after installation, if the `admin` account still uses the legacy seeded password, the system automatically syncs it to `DEFAULT_PWD`. If the password has already been changed, it is not overwritten.
+
+> Operational note: during startup, if `sys_assistant` does not yet contain the default embedded assistant (`type=4, oid=1`), the system automatically creates one. Its default `domain` comes from `FRONTEND_HOST`, and later startups do not create duplicates.
 
 **2. Management (via sctl)**
 

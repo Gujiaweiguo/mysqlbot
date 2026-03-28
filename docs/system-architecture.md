@@ -77,6 +77,7 @@ flowchart LR
 1. `postgresql` 和 `redis` 先通过 healthcheck 达到可用状态。
 2. `gosqlbot-app` 在数据库和缓存就绪后启动。
 3. app 容器内部继续按 `start.sh` 顺序启动 G2-SSR、MCP FastAPI（8001）和主 FastAPI（8000）。
+4. 主 FastAPI 启动期间会自动补齐默认 embedded assistant（`type=4, oid=1`），其 `domain` 默认使用 `FRONTEND_HOST`。
 
 ### 3.2 开发环境启动
 
@@ -84,6 +85,7 @@ flowchart LR
 2. 通过 `make backend-dev` 启动后端，对外统一暴露 `:8000`。
 3. 通过 `make frontend-dev` 启动前端构建监听，持续更新 `frontend/dist`。
 4. 如需内部 HMR 调试，可额外执行 `make frontend-vite-dev`。
+5. 后端启动期间会自动补齐默认 embedded assistant（`type=4, oid=1`），其 `domain` 默认使用 `FRONTEND_HOST`。
 
 ### 3.3 管理命令
 
