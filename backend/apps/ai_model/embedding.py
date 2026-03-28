@@ -1,17 +1,25 @@
 import os.path
 import threading
+import time
 from importlib import import_module
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
 
 import httpx
+from sqlmodel import Session, col, select
 
 from langchain_core.embeddings import Embeddings
 from pydantic import BaseModel
 
-from apps.system.crud.embedding_admin import get_effective_embedding_config
-from apps.system.schemas.embedding_schema import EmbeddingProviderType
+from apps.system.models.system_variable_model import SystemVariable
+from apps.system.schemas.embedding_schema import (
+    EmbeddingConfigPayload,
+    EmbeddingProviderType,
+    EmbeddingStartupBackfillPolicy,
+)
 
 from common.core.config import settings
+from common.core.db import engine
+from common.utils.utils import SQLBotLogUtil
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -54,6 +62,126 @@ _lock = threading.Lock()
 locks: dict[str, threading.Lock] = {}
 
 _embedding_model: dict[str, EmbeddingProvider | None] = {}
+
+
+def _supplier_id_from_base_url(base_url: str | None) -> int:
+    if base_url == "https://dashscope.aliyuncs.com/compatible-mode/v1":
+        return 1
+    if base_url == "https://api.deepseek.com":
+        return 3
+    if base_url == "https://ark.cn-beijing.volces.com/api/v3":
+        return 10
+    return 15
+
+
+def _default_embedding_config() -> EmbeddingConfigPayload:
+    provider_type = (
+        EmbeddingProviderType.LOCAL
+        if settings.EMBEDDING_PROVIDER == "local"
+        else EmbeddingProviderType.OPENAI_COMPATIBLE
+    )
+    base_url = settings.REMOTE_EMBEDDING_BASE_URL
+    return EmbeddingConfigPayload(
+        provider_type=provider_type,
+        supplier_id=(
+            None
+            if provider_type == EmbeddingProviderType.LOCAL
+            else _supplier_id_from_base_url(base_url)
+        ),
+        base_url=base_url,
+        api_key="",
+        api_key_configured=bool(settings.REMOTE_EMBEDDING_API_KEY),
+        model_name=settings.REMOTE_EMBEDDING_MODEL,
+        timeout_seconds=settings.REMOTE_EMBEDDING_TIMEOUT_SECONDS,
+        local_model=settings.DEFAULT_EMBEDDING_MODEL,
+        startup_backfill_policy=EmbeddingStartupBackfillPolicy(
+            cast(str, settings.EMBEDDING_STARTUP_BACKFILL_POLICY)
+        ),
+    )
+
+
+def _normalize_runtime_config(config: dict[str, Any]) -> dict[str, Any]:
+    if "provider_type" in config:
+        normalized = dict(config)
+        if normalized.get("provider_type") == EmbeddingProviderType.OPENAI_COMPATIBLE:
+            supplier_id = normalized.get("supplier_id")
+            if supplier_id not in {1, 3, 10, 15}:
+                normalized["supplier_id"] = _supplier_id_from_base_url(
+                    cast(str | None, normalized.get("base_url"))
+                )
+        return normalized
+
+    provider = config.get("provider")
+    if provider == "local":
+        return {
+            "provider_type": EmbeddingProviderType.LOCAL,
+            "supplier_id": None,
+            "base_url": None,
+            "api_key": config.get("remote_api_key", ""),
+            "api_key_configured": bool(config.get("remote_api_key")),
+            "model_name": None,
+            "timeout_seconds": config.get("remote_timeout_seconds", 30),
+            "local_model": config.get("local_model"),
+            "startup_backfill_policy": config.get(
+                "startup_backfill_policy", EmbeddingStartupBackfillPolicy.DEFERRED
+            ),
+        }
+
+    base_url = cast(str | None, config.get("remote_base_url"))
+    return {
+        "provider_type": EmbeddingProviderType.OPENAI_COMPATIBLE,
+        "supplier_id": _supplier_id_from_base_url(base_url),
+        "base_url": base_url,
+        "api_key": config.get("remote_api_key", ""),
+        "api_key_configured": bool(config.get("remote_api_key")),
+        "model_name": config.get("remote_model"),
+        "timeout_seconds": config.get("remote_timeout_seconds", 30),
+        "local_model": config.get("local_model"),
+        "startup_backfill_policy": config.get(
+            "startup_backfill_policy", EmbeddingStartupBackfillPolicy.DEFERRED
+        ),
+    }
+
+
+def _decrypt_api_key_if_needed(config: dict[str, Any]) -> dict[str, Any]:
+    from common.utils.aes_crypto import sqlbot_aes_decrypt
+
+    api_key = config.get("api_key")
+    if isinstance(api_key, str) and api_key:
+        try:
+            config["api_key"] = sqlbot_aes_decrypt(api_key)
+        except Exception:
+            config["api_key"] = api_key
+        config["api_key_configured"] = True
+    else:
+        config["api_key"] = ""
+        config["api_key_configured"] = False
+
+    return config
+
+
+def _get_effective_embedding_config() -> EmbeddingConfigPayload:
+    with Session(engine) as session:
+        record = session.exec(
+            select(SystemVariable).where(
+                col(SystemVariable.name) == "embedding_admin_config"
+            )
+        ).first()
+
+    if record is None or not record.value:
+        return _default_embedding_config()
+
+    raw_value = record.value[0] if record.value else {}
+    payload = cast(dict[str, Any], raw_value if isinstance(raw_value, dict) else {})
+    config = cast(
+        dict[str, Any],
+        payload.get("config") if isinstance(payload.get("config"), dict) else {},
+    )
+    merged = _default_embedding_config().model_dump()
+    merged.update(_normalize_runtime_config(config))
+    _decrypt_api_key_if_needed(merged)
+
+    return EmbeddingConfigPayload.model_validate(merged)
 
 
 class LocalEmbeddingProvider:
@@ -144,6 +272,14 @@ class RemoteEmbeddingProvider:
 
 
 class TencentCloudEmbeddingProvider:
+    _TRANSIENT_ERROR_CODES = {
+        "InternalError",
+        "ServerNetworkError",
+        "ClientNetworkError",
+        "LimitExceeded",
+        "RequestLimitExceeded",
+    }
+
     def __init__(self, config: TencentCloudEmbeddingModelInfo):
         from tencentcloud.common import credential
         from tencentcloud.lkeap.v20240522 import lkeap_client
@@ -158,6 +294,20 @@ class TencentCloudEmbeddingProvider:
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         return [self._create_embedding(text) for text in texts]
 
+    @classmethod
+    def _get_error_code(cls, exc: Exception) -> str | None:
+        get_code = getattr(exc, "get_code", None)
+        if callable(get_code):
+            code = get_code()
+            if isinstance(code, str):
+                return code
+        return None
+
+    @classmethod
+    def _is_retryable_error(cls, exc: Exception) -> bool:
+        code = cls._get_error_code(exc)
+        return isinstance(code, str) and code in cls._TRANSIENT_ERROR_CODES
+
     def _create_embedding(self, text: str) -> list[float]:
         from tencentcloud.lkeap.v20240522 import models
 
@@ -165,7 +315,24 @@ class TencentCloudEmbeddingProvider:
         req.Inputs = [text.replace("\n", " ")]
         req.Model = self._model
 
-        resp = self._client.GetEmbedding(req)
+        max_attempts = 3
+        resp = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                resp = self._client.GetEmbedding(req)
+                break
+            except Exception as exc:
+                if not self._is_retryable_error(exc) or attempt == max_attempts:
+                    raise
+                sleep_seconds = attempt
+                SQLBotLogUtil.warning(
+                    "Tencent embedding request failed with retryable error "
+                    f"[{self._get_error_code(exc)}], retrying in {sleep_seconds}s "
+                    f"(attempt {attempt}/{max_attempts}): {exc}"
+                )
+                time.sleep(sleep_seconds)
+        if resp is None:
+            raise RuntimeError("Tencent Cloud embedding response missing after retries")
         if not resp.Data or not isinstance(resp.Data, list) or len(resp.Data) == 0:
             raise ValueError("Tencent Cloud embedding response missing data list")
         embedding_obj = resp.Data[0]
@@ -179,7 +346,7 @@ class TencentCloudEmbeddingProvider:
 class EmbeddingModelCache:
     @staticmethod
     def _get_remote_config() -> RemoteEmbeddingModelInfo:
-        config = get_effective_embedding_config()
+        config = _get_effective_embedding_config()
         if not config.base_url:
             raise ValueError(
                 "base_url is required when provider_type=openai_compatible"
@@ -197,7 +364,7 @@ class EmbeddingModelCache:
 
     @staticmethod
     def _get_tencent_cloud_config() -> TencentCloudEmbeddingModelInfo:
-        config = get_effective_embedding_config()
+        config = _get_effective_embedding_config()
         if not config.tencent_secret_id:
             raise ValueError(
                 "tencent_secret_id is required when provider_type=tencent_cloud"
@@ -217,7 +384,7 @@ class EmbeddingModelCache:
 
     @staticmethod
     def _get_cache_key(key: str | None = None) -> str:
-        config = get_effective_embedding_config()
+        config = _get_effective_embedding_config()
         if config.provider_type == EmbeddingProviderType.OPENAI_COMPATIBLE:
             remote_model = config.model_name or ""
             remote_url = config.base_url or ""
@@ -230,7 +397,7 @@ class EmbeddingModelCache:
     def _new_instance(
         config: EmbeddingModelInfo = local_embedding_model,
     ) -> EmbeddingProvider:
-        runtime_config = get_effective_embedding_config()
+        runtime_config = _get_effective_embedding_config()
         if runtime_config.provider_type == EmbeddingProviderType.OPENAI_COMPATIBLE:
             return RemoteEmbeddingProvider(EmbeddingModelCache._get_remote_config())
         if runtime_config.provider_type == EmbeddingProviderType.TENCENT_CLOUD:
