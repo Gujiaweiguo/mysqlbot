@@ -1,0 +1,33 @@
+# 开发环境 Redis 可选 Compose
+# 用法：
+#   启动（默认不启用 redis）：
+#     docker compose -f docker-compose.dev.yaml up -d
+#   启动（启用 redis）：
+#     docker compose -f docker-compose.dev.yaml -f docker-compose.dev.redis.yaml up -d
+#
+# 说明：
+#   - 此文件覆盖默认开发配置，启用 redis
+#   - 本地后端需设置 SQLBOT_CACHE_TYPE=redis 和 SQLBOT_CACHE_REDIS_URL
+
+services:
+  redis:
+    image: redis:7.4-alpine
+    container_name: sqlbot-redis-dev
+    restart: unless-stopped
+    networks:
+      - sqlbot-dev-network
+    ports:
+      - "${SQLBOT_DEV_REDIS_PORT:-16379}:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ${SQLBOT_DEV_REDIS_DATA_DIR:-./data/sqlbot/dev/redis}:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+networks:
+  sqlbot-dev-network:
+    name: sqlbot-dev-network
