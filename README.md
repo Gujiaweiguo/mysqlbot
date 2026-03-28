@@ -94,6 +94,8 @@ make backend-dev
 make frontend-dev
 ```
 
+> 运维说明：后端首次启动后，如果 `admin` 账号仍然是历史种子密码，系统会自动将其同步为 `DEFAULT_PWD`；如果管理员已经手工修改过密码，则不会被覆盖。
+
 **4. 停止开发环境**
 
 ```bash
@@ -140,6 +142,8 @@ vim install.conf
 ```bash
 bash install.sh
 ```
+
+> 运维说明：安装后的首次启动过程中，如果 `admin` 账号仍然保留历史种子密码，系统会自动将其同步为 `DEFAULT_PWD`；如果该密码已经被修改过，则不会覆盖现有密码。
 
 **2. 运行管理（通过 sctl）**
 

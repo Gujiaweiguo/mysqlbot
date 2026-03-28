@@ -71,6 +71,8 @@ make backend-dev
 make frontend-dev
 ```
 
+> Operational note: on the first backend startup, if the `admin` account still has the legacy seeded password, the system automatically syncs it to `DEFAULT_PWD`. If an administrator has already changed the password, the existing password is preserved.
+
 **4. Stop development environment**
 
 ```bash
@@ -97,6 +99,8 @@ Run installer:
 ```bash
 bash install.sh
 ```
+
+> Operational note: during the first startup after installation, if the `admin` account still uses the legacy seeded password, the system automatically syncs it to `DEFAULT_PWD`. If the password has already been changed, it is not overwritten.
 
 **2. Management (via sctl)**
 
