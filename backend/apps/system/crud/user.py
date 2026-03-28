@@ -1,3 +1,5 @@
+from typing import Protocol
+
 from sqlmodel import Session, col, func, select
 from sqlmodel import delete as sqlmodel_delete
 
@@ -11,12 +13,22 @@ from apps.system.schemas.system_schema import (
     UserWs,
 )
 from common.core.deps import SessionDep
-from common.core.security import verify_md5pwd
+from common.core.security import default_md5_pwd, verify_md5pwd
 from common.core.sqlbot_cache import cache, clear_cache
 from common.utils.locale import I18nHelper
 from common.utils.utils import SQLBotLogUtil
 
 from ..models.user import UserModel, UserPlatformModel
+
+LEGACY_ADMIN_PASSWORD_HASH = "8f32d1e371702c1b1b7346f4b07a701d"
+
+
+class _AdminPasswordSession(Protocol):
+    def get(self, entity: type[UserModel], ident: int, /) -> UserModel | None: ...
+
+    def add(self, instance: object, _warn: bool = True, /) -> None: ...
+
+    def commit(self) -> None: ...
 
 
 def get_db_user(*, session: Session, user_id: int) -> UserModel | None:
@@ -64,6 +76,21 @@ def authenticate(
     if not verify_md5pwd(password, db_user.password):
         return None
     return db_user
+
+
+def sync_default_admin_password(*, session: _AdminPasswordSession) -> bool:
+    admin_user = session.get(UserModel, 1)
+    if admin_user is None or admin_user.account != "admin":
+        return False
+
+    if admin_user.password != LEGACY_ADMIN_PASSWORD_HASH:
+        return False
+
+    admin_user.password = default_md5_pwd()
+    session.add(admin_user)
+    session.commit()
+    SQLBotLogUtil.info("✅ Initialized admin password from DEFAULT_PWD")
+    return True
 
 
 async def user_ws_options(
