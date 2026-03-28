@@ -46,11 +46,14 @@ make test
 
 #### 开发环境
 
-前端和后端在宿主机本地运行，Redis 和 PostgreSQL 以容器方式运行。
+前端构建监听和后端在宿主机本地运行，Redis 和 PostgreSQL 以容器方式运行。开发环境统一通过后端 `:8000` 对外提供访问入口，Vite `:5173` 仅作为可选的内部调试端口。
 
 ```
-前端(:5173) → 后端(:8000) → postgresql 容器(:15432)
-                          → redis 容器(:16379)
+浏览器(:8000) → 后端(:8000，托管前端 dist + API) → postgresql 容器(:15432)
+                                                   → redis 容器(:16379)
+
+前端构建监听(make frontend-dev) → frontend/dist
+可选内部 Vite(make frontend-vite-dev) → :5173
 ```
 
 **1. 配置环境变量**
@@ -90,9 +93,14 @@ docker compose -f docker-compose.dev.yaml ps
 # 启动后端（默认 :8000）
 make backend-dev
 
-# 启动前端（默认 :5173）
+# 启动前端构建监听（浏览器统一访问 :8000）
 make frontend-dev
+
+# 如需内部 Vite 调试（可选，默认 :5173）
+make frontend-vite-dev
 ```
+
+开发环境访问入口：`http://localhost:8000/#/login`
 
 > 运维说明：后端首次启动后，如果 `admin` 账号仍然是历史种子密码，系统会自动将其同步为 `DEFAULT_PWD`；如果管理员已经手工修改过密码，则不会被覆盖。
 
@@ -207,7 +215,7 @@ bash uninstall.sh
 
 | 对比项 | 开发环境 | 生产环境 |
 |-------|---------|---------|
-| 前端 | 本地 `npm run dev` | 内嵌到 app 容器 |
+| 前端 | 构建监听后由后端 `:8000` 对外提供，`make frontend-vite-dev` 可选内部调试 | 内嵌到 app 容器 |
 | 后端 | 本地 `uv run uvicorn` | 容器运行 |
 | 数据库 | 容器（端口 15432） | 容器（端口 5432） |
 | Redis | 容器（端口 16379） | 容器（端口 6379） |

@@ -67,9 +67,14 @@ docker compose -f docker-compose.dev.yaml up -d
 # Start backend (default :8000)
 make backend-dev
 
-# Start frontend (default :5173)
+# Start frontend build watch (browser entry stays on :8000)
 make frontend-dev
+
+# Optional internal Vite debug server (default :5173)
+make frontend-vite-dev
 ```
+
+Development access URL: `http://localhost:8000/#/login`
 
 > Operational note: on the first backend startup, if the `admin` account still has the legacy seeded password, the system automatically syncs it to `DEFAULT_PWD`. If an administrator has already changed the password, the existing password is preserved.
 

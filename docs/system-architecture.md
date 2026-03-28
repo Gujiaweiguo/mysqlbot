@@ -19,10 +19,11 @@ mySQLBot 支持两套部署模式：**开发环境** 和 **生产环境**。
 
 ### 1.2 开发环境架构
 
-开发环境采用 **本地前后端 + 容器化基础设施** 模式：
+开发环境采用 **本地后端 + 前端构建监听 + 容器化基础设施** 模式：
 
-- 前端本地运行（Vite，端口 5173）
-- 后端本地运行（FastAPI，端口 8000）
+- 浏览器统一通过后端入口访问（FastAPI，端口 8000）
+- 前端构建监听写入 `frontend/dist`（`make frontend-dev`）
+- 可选内部 Vite 调试（端口 5173，`make frontend-vite-dev`）
 - PostgreSQL（容器，端口 15432 → 5432）
 - Redis（容器，端口 16379 → 6379）
 
@@ -46,8 +47,9 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    U[Browser / Client] -->|HTTP| FE[Frontend :5173]
-    FE -->|HTTP /api/v1| BE[FastAPI :8000]
+    U[Browser / Client :8000] -->|HTTP| BE[FastAPI :8000]
+    FW[Frontend Build Watch] -->|write dist| BE
+    VITE[Optional Vite :5173] -. internal only .-> BE
 
     BE -->|localhost:15432| PG[(PostgreSQL)]
     BE -->|localhost:16379| RD[(Redis)]
@@ -79,8 +81,9 @@ flowchart LR
 ### 3.2 开发环境启动
 
 1. 通过 `docker-compose.dev.yaml` 启动 postgresql 和 redis 容器。
-2. 通过 `make backend-dev` 启动后端。
-3. 通过 `make frontend-dev` 启动前端。
+2. 通过 `make backend-dev` 启动后端，对外统一暴露 `:8000`。
+3. 通过 `make frontend-dev` 启动前端构建监听，持续更新 `frontend/dist`。
+4. 如需内部 HMR 调试，可额外执行 `make frontend-vite-dev`。
 
 ### 3.3 管理命令
 
