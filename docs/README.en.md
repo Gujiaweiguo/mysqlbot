@@ -27,45 +27,120 @@ mySQLBot is an intelligent data query system based on large language models and 
 
 ## Quick Start
 
-### Installation and Deployment
+mySQLBot supports two deployment modes: **Development** and **Production**.
 
-Prepare a Linux server, install [Docker](https://docs.docker.com/get-docker/) and Docker Compose, and start the stack with Docker Compose.
+---
 
-The root `docker-compose.yaml` builds `gosqlbot-app` from the current repository source by default, which is intended for local installation and debugging.
+### Development Environment
 
-#### Default mode: app + postgresql
+Frontend and backend run locally on the host, while Redis and PostgreSQL run in containers.
+
+**1. Configure environment variables**
 
 ```bash
 cp .env.example .env
-docker compose up -d
 ```
 
-#### Optional mode: app + redis + postgresql
+Key development settings:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SQLBOT_DEV_PG_HOST` | `localhost` | Database host |
+| `SQLBOT_DEV_PG_PORT` | `15432` | Database port (avoid conflicts) |
+| `SQLBOT_DEV_PG_USER` | `sqlbot_user` | Database user |
+| `SQLBOT_CACHE_TYPE` | `memory` | Cache type |
+| `SQLBOT_CACHE_REDIS_URL` | `redis://localhost:16379/0` | Redis URL |
+
+**2. Start infrastructure (postgresql + redis)**
 
 ```bash
-docker compose -f docker-compose.yaml -f docker-compose.redis.yaml up -d
+# Start postgresql + redis
+docker compose -f docker-compose.dev.yaml -f docker-compose.dev.redis.yaml up -d
+
+# Start postgresql only (no redis)
+docker compose -f docker-compose.dev.yaml up -d
 ```
 
-> The installer-generated Compose files can still stay image-based for distribution, while the repository root Compose is oriented toward source-based local development.
+**3. Start frontend and backend**
 
-Before starting the stack, copy `.env.example` to `.env` and replace the placeholder values for `SQLBOT_SECRET_KEY`, `SQLBOT_PG_PASSWORD`, and `SQLBOT_DEFAULT_PWD`. The checked-in files now use placeholders instead of committed live secrets.
+```bash
+# Start backend (default :8000)
+make backend-dev
 
-The `gosqlbot-app` service exposes a health endpoint at `http://localhost:8000/health`, which is used by the container healthcheck to distinguish application readiness from PostgreSQL readiness.
+# Start frontend (default :5173)
+make frontend-dev
+```
 
-#### Data directories
+**4. Stop development environment**
 
-- `./data/sqlbot/excel` → Excel files
-- `./data/sqlbot/file` → Uploaded files
-- `./data/sqlbot/images` → Images and embedded assets
-- `./data/sqlbot/logs` → Application logs
-- `./data/postgresql` → PostgreSQL data
-- `./data/redis` → Redis data (Redis mode only)
+```bash
+docker compose -f docker-compose.dev.yaml down
+```
 
-### Access methods
+---
 
-- Open in your browser: http://<your server IP>:8000/
-- Username: admin
-- Password: the value you set in `SQLBOT_DEFAULT_PWD`
+### Production Environment
+
+Uses prebuilt Docker images. All services run in containers.
+
+**1. Install**
+
+Modify installation config:
+
+```bash
+cd installer
+vim install.conf
+```
+
+Run installer:
+
+```bash
+bash install.sh
+```
+
+**2. Management (via sctl)**
+
+| Command | Description |
+|---------|-------------|
+| `sctl start` | Start services |
+| `sctl stop` | Stop services |
+| `sctl restart` | Restart services |
+| `sctl reload` | Reload configuration |
+| `sctl status` | Show status |
+
+**3. Configuration**
+
+After installation, config files are at `/opt/sqlbot/`:
+
+- `/opt/sqlbot/.env` → Environment variables
+- `/opt/sqlbot/conf/sqlbot.conf` → Runtime config
+
+Modify and run `sctl reload` to apply.
+
+**4. Upgrade**
+
+Download new version and run:
+
+```bash
+cd new-installer-directory
+bash install.sh
+```
+
+---
+
+### Environment Comparison
+
+| Aspect | Development | Production |
+|--------|-------------|------------|
+| Frontend | Local `npm run dev` | Embedded in app container |
+| Backend | Local `uv run uvicorn` | Container |
+| Database | Container (port 15432) | Container (port 5432) |
+| Redis | Container (port 16379) | Container (port 6379) |
+| Config | `.env` | `install.conf` → `/opt/sqlbot/.env` |
+| Start | `make` + `docker compose` | `install.sh` + `sctl` |
+| Data dir | `./data/sqlbot/dev/` | `./data/sqlbot/prod/` |
+
+---
 
 ### Quality gates
 

@@ -4,17 +4,31 @@
 
 ## 1. 架构总览
 
-mySQLBot 当前采用 **单容器多进程（All-in-One）** 架构：
+mySQLBot 支持两套部署模式：**开发环境** 和 **生产环境**。
+
+### 1.1 生产环境架构
+
+生产环境采用 **单容器多进程（All-in-One）** 架构：
 
 - 前端静态资源（Vue3 + Vite build 产物）
 - 后端主服务（FastAPI，端口 8000）
 - MCP 服务（FastAPI MCP，端口 8001）
 - 图表 SSR 服务（Node.js + G2-SSR，端口 3000，容器内）
-- PostgreSQL（容器内进程，端口 5432）
+- PostgreSQL（独立容器，端口 5432）
+- Redis（独立容器，端口 6379）
 
-其中对外默认暴露 8000/8001，3000 和 5432 主要用于容器内部协作。
+### 1.2 开发环境架构
+
+开发环境采用 **本地前后端 + 容器化基础设施** 模式：
+
+- 前端本地运行（Vite，端口 5173）
+- 后端本地运行（FastAPI，端口 8000）
+- PostgreSQL（容器，端口 15432 → 5432）
+- Redis（容器，端口 16379 → 6379）
 
 ## 2. 部署拓扑
+
+### 2.1 生产环境拓扑
 
 ```mermaid
 flowchart LR
@@ -23,32 +37,57 @@ flowchart LR
     U -->|HTTP| MCP[FastAPI MCP App :8001]
 
     BE -->|SQLAlchemy/SQLModel| PG[(PostgreSQL)]
+    BE -->|Redis| RD[(Redis)]
     BE -->|HTTP POST| SSR[G2-SSR Service :3000]
     BE -->|Mount| IMG[/MCP Images Dir/]
 ```
 
+### 2.2 开发环境拓扑
+
+```mermaid
+flowchart LR
+    U[Browser / Client] -->|HTTP| FE[Frontend :5173]
+    FE -->|HTTP /api/v1| BE[FastAPI :8000]
+
+    BE -->|localhost:15432| PG[(PostgreSQL)]
+    BE -->|localhost:16379| RD[(Redis)]
+```
+
 关键文件：
 
-- 容器编排：`docker-compose.yaml:1`
+- 开发环境 Compose：`docker-compose.dev.yaml`
+- 生产环境 Compose：`installer/sqlbot/docker-compose.yml`
 - 容器入口：`start.sh:1`
 - 镜像构建：`Dockerfile:1`
 
-## 3. 启动时序（Compose 拓扑）
+## 3. 启动时序
+
+### 3.1 生产环境启动
 
 默认部署模式为：
 
 - `gosqlbot-app`
 - `postgresql`
-- 可选 `redis`
+- `redis`
 
-按新的 Compose 约定：
+启动顺序：
 
-1. `postgresql` 先通过 healthcheck 达到可用状态。
-2. `gosqlbot-app` 在数据库就绪后启动。
+1. `postgresql` 和 `redis` 先通过 healthcheck 达到可用状态。
+2. `gosqlbot-app` 在数据库和缓存就绪后启动。
 3. app 容器内部继续按 `start.sh` 顺序启动 G2-SSR、MCP FastAPI（8001）和主 FastAPI（8000）。
-4. 可选 Redis 模式下，`redis` 作为独立服务加入拓扑，由应用通过显式配置连接。
 
-这意味着 mySQLBot 不再在应用容器内承载 PostgreSQL 进程，数据库生命周期由 Compose 负责。
+### 3.2 开发环境启动
+
+1. 通过 `docker-compose.dev.yaml` 启动 postgresql 和 redis 容器。
+2. 通过 `make backend-dev` 启动后端。
+3. 通过 `make frontend-dev` 启动前端。
+
+### 3.3 管理命令
+
+| 环境 | 安装 | 启动 | 停止 | 重启 | 状态 |
+|------|------|------|------|------|------|
+| 开发 | `cp .env.example .env` | `make backend-dev` / `make frontend-dev` | `Ctrl+C` | — | — |
+| 生产 | `bash install.sh` | `sctl start` | `sctl stop` | `sctl restart` | `sctl status` |
 
 ## 4. 前端架构
 
@@ -184,15 +223,25 @@ MCP 相关在 `backend/main.py:175` 之后初始化：
 
 ## 11. 持久化与挂载目录
 
-`docker-compose.yaml` 挂载：
+### 11.1 开发环境挂载
+
+`docker-compose.dev.yaml` 挂载：
+
+- `./data/sqlbot/dev/postgresql -> /var/lib/postgresql/data`
+- `./data/sqlbot/dev/redis -> /data`
+
+本地前后端直接读源码，不需要容器挂载业务目录。
+
+### 11.2 生产环境挂载
+
+`installer/sqlbot/docker-compose.yml` 挂载：
 
 - `./data/sqlbot/excel -> /opt/sqlbot/data/excel`
 - `./data/sqlbot/file -> /opt/sqlbot/data/file`
 - `./data/sqlbot/images -> /opt/sqlbot/images`
 - `./data/sqlbot/logs -> /opt/sqlbot/app/logs`
 - `./data/postgresql -> /var/lib/postgresql/data`
-
-这保证了数据文件、图像、日志、数据库在容器重启后仍可保留。
+- `./data/redis -> /data`
 
 ## 12. 当前架构特点与边界
 
