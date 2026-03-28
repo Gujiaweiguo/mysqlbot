@@ -18,6 +18,7 @@ from alembic import command
 from alembic.config import Config
 from apps.api import api_router
 from apps.datasource.crud.datasource import ensure_internal_pg_datasource
+from apps.system.crud.user import sync_default_admin_password
 from apps.swagger.i18n import (
     DEFAULT_LANG,
     PLACEHOLDER_PREFIX,
@@ -121,6 +122,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         return
 
     run_migrations()
+    with Session(engine) as session:
+        sync_default_admin_password(session=session)
     init_sqlbot_cache()
     init_dynamic_cors(app)
     if _should_run_embedding_startup_backfill():
