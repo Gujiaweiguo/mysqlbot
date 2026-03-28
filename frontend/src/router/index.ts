@@ -1,4 +1,4 @@
-import { createRouter, createWebHashHistory } from 'vue-router'
+import { createRouter, createWebHashHistory, type RouteLocationGeneric } from 'vue-router'
 // Layout components stay synchronous - they're immediately needed for route wrappers
 import LayoutDsl from '@/components/layout/LayoutDsl.vue'
 import SinglePage from '@/components/layout/SinglePage.vue'
@@ -154,8 +154,9 @@ export const routes = [
       },
       {
         path: 'setting',
+        component: SinglePage,
         meta: { title: t('system.system_settings'), iconActive: 'set', iconDeActive: 'noSet' },
-        redirect: 'system_/appearance',
+        redirect: '/system/setting/appearance',
         name: 'setting',
         children: [
           {
@@ -199,6 +200,14 @@ export const routes = [
     ],
   },
 
+  {
+    path: '/assistant/index',
+    redirect: (to: RouteLocationGeneric) => ({ path: '/assistant', query: to.query, hash: to.hash }),
+  },
+  {
+    path: '/setting/model',
+    redirect: (to: RouteLocationGeneric) => ({ path: '/system/model', query: to.query, hash: to.hash }),
+  },
   {
     path: '/assistant',
     name: 'assistant',
