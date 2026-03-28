@@ -72,6 +72,10 @@ def test_startup_lifespan_runs_expected_hooks(
         assert session is not None
         startup_calls.append("sync_default_admin_password")
 
+    def fake_ensure_default_embedded_assistant(*, session: object) -> None:
+        assert session is not None
+        startup_calls.append("ensure_default_embedded_assistant")
+
     def fake_init_dynamic_cors(app: object) -> None:
         assert app is fastapi_app
         startup_calls.append("init_dynamic_cors")
@@ -111,6 +115,11 @@ def test_startup_lifespan_runs_expected_hooks(
         "sync_default_admin_password",
         fake_sync_default_admin_password,
     )
+    monkeypatch.setattr(
+        main_module,
+        "ensure_default_embedded_assistant",
+        fake_ensure_default_embedded_assistant,
+    )
     monkeypatch.setattr(main_module, "init_sqlbot_cache", fake_init_sqlbot_cache)
     monkeypatch.setattr(main_module, "init_dynamic_cors", fake_init_dynamic_cors)
     monkeypatch.setattr(
@@ -152,6 +161,7 @@ def test_startup_lifespan_runs_expected_hooks(
     assert startup_calls == [
         "run_migrations",
         "sync_default_admin_password",
+        "ensure_default_embedded_assistant",
         "init_sqlbot_cache",
         "init_dynamic_cors",
         "init_terminology_embedding_data",
@@ -185,6 +195,10 @@ def test_startup_lifespan_skips_embedding_backfill_for_remote_deferred(
     def fake_sync_default_admin_password(*, session: object) -> None:
         assert session is not None
         startup_calls.append("sync_default_admin_password")
+
+    def fake_ensure_default_embedded_assistant(*, session: object) -> None:
+        assert session is not None
+        startup_calls.append("ensure_default_embedded_assistant")
 
     def fake_init_dynamic_cors(app: object) -> None:
         assert app is fastapi_app
@@ -224,6 +238,11 @@ def test_startup_lifespan_skips_embedding_backfill_for_remote_deferred(
         "sync_default_admin_password",
         fake_sync_default_admin_password,
     )
+    monkeypatch.setattr(
+        main_module,
+        "ensure_default_embedded_assistant",
+        fake_ensure_default_embedded_assistant,
+    )
     monkeypatch.setattr(main_module, "init_sqlbot_cache", fake_init_sqlbot_cache)
     monkeypatch.setattr(main_module, "init_dynamic_cors", fake_init_dynamic_cors)
     monkeypatch.setattr(
@@ -265,6 +284,7 @@ def test_startup_lifespan_skips_embedding_backfill_for_remote_deferred(
     assert startup_calls == [
         "run_migrations",
         "sync_default_admin_password",
+        "ensure_default_embedded_assistant",
         "init_sqlbot_cache",
         "init_dynamic_cors",
         "init_default_internal_datasource",
