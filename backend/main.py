@@ -239,13 +239,17 @@ def _frontend_response(full_path: str) -> FileResponse:
     if frontend_dir is None:
         raise StarletteHTTPException(status_code=404, detail="Not Found")
 
-    requested = (frontend_dir / full_path).resolve()
-    if requested.is_file() and frontend_dir in requested.parents:
-        return FileResponse(requested)
+    resolved_dir = frontend_dir.resolve()
+    requested = (resolved_dir / full_path).resolve()
+    if requested.is_file() and resolved_dir in requested.parents:
+        return FileResponse(
+            requested,
+            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        )
 
-    index_file = frontend_dir / "index.html"
+    index_file = resolved_dir / "index.html"
     if index_file.exists():
-        return FileResponse(index_file)
+        return FileResponse(index_file, headers={"Cache-Control": "no-store"})
     raise StarletteHTTPException(status_code=404, detail="Not Found")
 
 
