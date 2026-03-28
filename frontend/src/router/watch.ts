@@ -9,32 +9,28 @@ import { generateLicenseRouters, initLicenseGenerator } from '@/xpack-compat'
 const appearanceStore = useAppearanceStoreWithOut()
 const userStore = useUserStore()
 const { wsCache } = useCache()
-const whiteList = ['/login', '/-admin-login']
+const whiteList = ['/login', '/admin-login']
 const assistantWhiteList = ['/assistant', '/embeddedPage', '/embeddedCommon', '/401']
 
 const wsAdminRouterList = ['/ds/index', '/as/index']
 export const watchRouter = (router: Router) => {
-  router.beforeEach(async (to: any, from: any, next: any) => {
+  router.beforeEach(async (to: any) => {
     await initLicenseGenerator(import.meta.env.VITE_API_BASE_URL)
     await appearanceStore.setAppearance()
     generateLicenseRouters(router)
-    if (to.path.startsWith('/login') && userStore.getUid) {
-      next(to?.query?.redirect || '/')
-      return
+    if ((to.path === '/login' || to.path === '/admin-login') && userStore.getUid) {
+      return to?.query?.redirect || '/chat/index'
     }
     if (assistantWhiteList.includes(to.path)) {
-      next()
-      return
+      return true
     }
     const token = wsCache.get('user.token')
     if (whiteList.includes(to.path)) {
-      next()
-      return
+      return true
     }
     if (!token) {
       // ElMessage.error('Please login first')
-      next(toLoginPage(to.fullPath))
-      return
+      return toLoginPage(to.fullPath)
     }
     if (!userStore.getUid) {
       await userStore.info()
@@ -42,25 +38,21 @@ export const watchRouter = (router: Router) => {
       const isFirstDynamicPath = to?.path && ['/ds/index', '/as/index'].includes(to.path)
       if (isFirstDynamicPath) {
         if (userStore.isSpaceAdmin) {
-          next({ ...to, replace: true })
-          return
+          return { ...to, replace: true }
         }
       }
     }
     if (to.path === '/docs') {
       location.href = to.fullPath
-      return
+      return false
     }
     if (to.path === '/' || accessCrossPermission(to)) {
-      next('/chat')
-      return
+      return '/chat/index'
     }
     if (to.path === '/login' || to.path === '/admin-login') {
-      console.info(from)
-      next('/chat')
-    } else {
-      next()
+      return '/chat/index'
     }
+    return true
   })
 }
 

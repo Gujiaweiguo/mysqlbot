@@ -106,6 +106,7 @@ import { useAppearanceStoreWithOut } from '@/stores/appearance'
 import loginImage from '@/assets/blue/login-image_blue.png'
 import Handler from './xpack/Handler.vue'
 import { toLoginSuccess } from '@/utils/utils'
+import { generateDynamicRouters } from '@/router/dynamic'
 
 const isBootstrapping = ref(true)
 const isSubmitting = ref(false)
@@ -182,7 +183,13 @@ const submitForm = async () => {
 
   isSubmitting.value = false
   startEnteringSystem()
-  await toLoginSuccess(router)
+  try {
+    await userStore.info()
+    generateDynamicRouters(router)
+    await toLoginSuccess(router)
+  } catch {
+    isEnteringSystem.value = false
+  }
 }
 
 const switchTab = (name: string) => {

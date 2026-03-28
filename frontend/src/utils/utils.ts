@@ -115,10 +115,15 @@ export const toLoginPage = (fullPath: string) => {
   }
 }
 
-export const toLoginSuccess = (router: any) => {
+export const toLoginSuccess = async (router: any) => {
   const redirect = router?.currentRoute?.value?.query?.redirect
-  const redirectPath = Array.isArray(redirect) ? redirect[0] : redirect || '/chat'
-  return router.push(redirectPath as string)
+  const redirectPath = Array.isArray(redirect) ? redirect[0] : redirect || '/chat/index'
+  const normalizedRedirectPath =
+    typeof redirectPath === 'string' && redirectPath.startsWith('/')
+      ? redirectPath
+      : `/${String(redirectPath)}`
+
+  await router.replace(normalizedRedirectPath)
 }
 export const getCurrentRouter = () => {
   const hash = location.hash
