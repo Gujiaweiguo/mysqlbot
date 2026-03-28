@@ -2,8 +2,9 @@ from typing import cast
 
 from sqlmodel import Session
 
-from apps.datasource.crud.datasource import chooseTables, update_ds
+from apps.datasource.crud.datasource import chooseTables, create_ds, update_ds
 from apps.datasource.models.datasource import (
+    CreateDatasource,
     CoreDatasource,
     CoreTable,
     SelectedTablePayload,
@@ -62,6 +63,39 @@ def _fake_trans(key: str) -> str:
 
 
 class TestDatasourceCrud:
+    async def test_create_ds_initializes_embedding_as_none(
+        self, monkeypatch, auth_user: UserInfoDTO
+    ) -> None:
+        session = FakeDatasourceSession([])
+
+        monkeypatch.setattr(
+            "apps.datasource.crud.datasource.check_name",
+            lambda session, trans, user, record: None,
+        )
+        monkeypatch.setattr(
+            "apps.datasource.crud.datasource.sync_table",
+            lambda session, ds, tables: None,
+        )
+        monkeypatch.setattr(
+            "apps.datasource.crud.datasource.updateNum",
+            lambda session, ds: None,
+        )
+
+        created = await create_ds(
+            cast(Session, cast(object, session)),
+            cast(Trans, cast(object, _fake_trans)),
+            auth_user,
+            CreateDatasource(
+                name="gs_scrm",
+                description="demo",
+                type="pg",
+                configuration="{}",
+                recommended_config=1,
+            ),
+        )
+
+        assert created.embedding is None
+
     def test_choose_tables_accepts_payload_models(
         self, monkeypatch, auth_user: UserInfoDTO
     ) -> None:

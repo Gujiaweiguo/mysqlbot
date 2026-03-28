@@ -178,7 +178,7 @@ def ensure_internal_pg_datasource(
         num="0/0",
         oid=oid,
         table_relation=[],
-        embedding="",
+        embedding=None,
         recommended_config=1,
     )
     session.add(datasource)
@@ -294,7 +294,7 @@ async def create_ds(
         num="0/0",
         oid=user.oid,
         table_relation=[],
-        embedding="",
+        embedding=None,
         recommended_config=create_ds.recommended_config,
     )
     check_name(session, trans, user, record)
@@ -481,7 +481,7 @@ def sync_table(
                 table_name=item.table_name,
                 table_comment=item.table_comment,
                 custom_comment=item.table_comment,
-                embedding="",
+                embedding=None,
             )
             object.__setattr__(table, "id", None)
             session.add(table)
