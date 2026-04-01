@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import Protocol
@@ -85,6 +87,8 @@ def _run_sync_job_with_visibility_guard(
         total_tables=len(requested_tables),
     )
 
+    _total_start = time.perf_counter()
+    _introspect_start = time.perf_counter()
     metadata_context = build_metadata_context(ds)
     table_field_map: dict[str, list[ColumnSchema]] = {}
     total_fields = 0
@@ -92,6 +96,7 @@ def _run_sync_job_with_visibility_guard(
         fields = get_fields_from_context(ds, metadata_context, item.table_name) or []
         table_field_map[item.table_name] = fields
         total_fields += len(fields)
+    introspect_elapsed = time.perf_counter() - _introspect_start
 
     update_sync_job_status(
         status_session,
@@ -101,6 +106,7 @@ def _run_sync_job_with_visibility_guard(
         total_fields=total_fields,
     )
 
+    _stage_start = time.perf_counter()
     id_list: list[int] = []
     for item in requested_tables:
         resolved_fields = table_field_map[item.table_name]
@@ -117,6 +123,7 @@ def _run_sync_job_with_visibility_guard(
     # remains stable until the transaction commits successfully.
     _finalize_sync_table_prune(work_session, ds, id_list, auto_commit=False)
     work_session.commit()
+    stage_elapsed = time.perf_counter() - _stage_start
     update_sync_job_status(
         status_session,
         job=job,
@@ -128,6 +135,7 @@ def _run_sync_job_with_visibility_guard(
     )
     # Embedding follow-up is recorded separately from sync success because schema
     # publication must not be rolled back by async embedding dispatch problems.
+    _post_process_start = time.perf_counter()
     try:
         _run_sync_table_embeddings(ds, id_list)
     except Exception as exc:
@@ -138,11 +146,45 @@ def _run_sync_job_with_visibility_guard(
         SQLBotLogUtil.warning(
             f"Post-sync embedding dispatch failed for job {job.id}: {exc}"
         )
+        post_process_elapsed = time.perf_counter() - _post_process_start
+        total_elapsed = time.perf_counter() - _total_start
+        SQLBotLogUtil.info(
+            json.dumps(
+                {
+                    "event": "sync_job_timing",
+                    "job_id": job.id,
+                    "ds_id": job.ds_id,
+                    "total_tables": len(requested_tables),
+                    "total_fields": total_fields,
+                    "introspect_seconds": round(introspect_elapsed, 3),
+                    "stage_seconds": round(stage_elapsed, 3),
+                    "post_process_seconds": round(post_process_elapsed, 3),
+                    "total_seconds": round(total_elapsed, 3),
+                }
+            )
+        )
         return
     job.embedding_followup_status = "dispatched"
     status_session.add(job)
     status_session.commit()
     status_session.refresh(job)
+    post_process_elapsed = time.perf_counter() - _post_process_start
+    total_elapsed = time.perf_counter() - _total_start
+    SQLBotLogUtil.info(
+        json.dumps(
+            {
+                "event": "sync_job_timing",
+                "job_id": job.id,
+                "ds_id": job.ds_id,
+                "total_tables": len(requested_tables),
+                "total_fields": total_fields,
+                "introspect_seconds": round(introspect_elapsed, 3),
+                "stage_seconds": round(stage_elapsed, 3),
+                "post_process_seconds": round(post_process_elapsed, 3),
+                "total_seconds": round(total_elapsed, 3),
+            }
+        )
+    )
 
 
 def run_sync_job_with_session_factory(
