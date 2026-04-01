@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import importlib
 from types import SimpleNamespace
-from typing import cast
 
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+from apps.system.schemas.embedding_schema import EmbeddingProviderType
+from common.core.config import settings
 
 
 class _FakeXPackCore:
@@ -35,8 +36,8 @@ def test_main_import_initializes_xpack_app_handoff(
 ) -> None:
     monkeypatch.setenv("SKIP_MCP_SETUP", "true")
 
-    import main as main_module
     import common.xpack_compat.startup as startup_module
+    import main as main_module
 
     init_calls: list[object] = []
 
@@ -48,6 +49,19 @@ def test_main_import_initializes_xpack_app_handoff(
     main_module = importlib.reload(main_module)
 
     assert init_calls == [main_module.app]
+    assert not hasattr(main_module, "mcp")
+
+
+def test_main_import_initializes_mcp_only_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SKIP_MCP_SETUP", raising=False)
+
+    import main as main_module
+
+    main_module = importlib.reload(main_module)
+
+    assert hasattr(main_module, "mcp")
 
 
 def test_startup_lifespan_runs_expected_hooks(
@@ -59,7 +73,7 @@ def test_startup_lifespan_runs_expected_hooks(
     import main as main_module
 
     main_module = importlib.reload(main_module)
-    fastapi_app = cast(FastAPI, main_module.app)
+    fastapi_app = main_module.app
     startup_calls: list[str] = []
 
     def fake_run_migrations() -> None:
@@ -89,22 +103,23 @@ def test_startup_lifespan_runs_expected_hooks(
     def fake_init_default_internal_datasource() -> None:
         startup_calls.append("init_default_internal_datasource")
 
+    def fake_init_stale_datasource_sync_jobs() -> None:
+        startup_calls.append("init_stale_datasource_sync_jobs")
+
     def fake_init_table_and_ds_embedding() -> None:
         startup_calls.append("init_table_and_ds_embedding")
 
     async def fake_async_model_info() -> None:
         startup_calls.append("async_model_info")
 
-    monkeypatch.setattr(main_module.settings, "EMBEDDING_PROVIDER", "local")
-    monkeypatch.setattr(
-        main_module.settings, "EMBEDDING_STARTUP_BACKFILL_POLICY", "eager"
-    )
+    monkeypatch.setattr(settings, "EMBEDDING_PROVIDER", "local")
+    monkeypatch.setattr(settings, "EMBEDDING_STARTUP_BACKFILL_POLICY", "eager")
     monkeypatch.setattr(main_module, "embedding_runtime_enabled", lambda: True)
     monkeypatch.setattr(
         main_module,
         "get_effective_embedding_config",
         lambda: SimpleNamespace(
-            provider_type=main_module.EmbeddingProviderType.OPENAI_COMPATIBLE,
+            provider_type=EmbeddingProviderType.OPENAI_COMPATIBLE,
             startup_backfill_policy="eager",
         ),
     )
@@ -139,6 +154,11 @@ def test_startup_lifespan_runs_expected_hooks(
     )
     monkeypatch.setattr(
         main_module,
+        "init_stale_datasource_sync_jobs",
+        fake_init_stale_datasource_sync_jobs,
+    )
+    monkeypatch.setattr(
+        main_module,
         "init_table_and_ds_embedding",
         fake_init_table_and_ds_embedding,
     )
@@ -167,6 +187,7 @@ def test_startup_lifespan_runs_expected_hooks(
         "init_terminology_embedding_data",
         "init_data_training_embedding_data",
         "init_default_internal_datasource",
+        "init_stale_datasource_sync_jobs",
         "init_table_and_ds_embedding",
         "clean_xpack_cache",
         "async_model_info",
@@ -183,7 +204,7 @@ def test_startup_lifespan_skips_embedding_backfill_for_remote_deferred(
     import main as main_module
 
     main_module = importlib.reload(main_module)
-    fastapi_app = cast(FastAPI, main_module.app)
+    fastapi_app = main_module.app
     startup_calls: list[str] = []
 
     def fake_run_migrations() -> None:
@@ -213,22 +234,23 @@ def test_startup_lifespan_skips_embedding_backfill_for_remote_deferred(
     def fake_init_default_internal_datasource() -> None:
         startup_calls.append("init_default_internal_datasource")
 
+    def fake_init_stale_datasource_sync_jobs() -> None:
+        startup_calls.append("init_stale_datasource_sync_jobs")
+
     def fake_init_table_and_ds_embedding() -> None:
         startup_calls.append("init_table_and_ds_embedding")
 
     async def fake_async_model_info() -> None:
         startup_calls.append("async_model_info")
 
-    monkeypatch.setattr(main_module.settings, "EMBEDDING_PROVIDER", "remote")
-    monkeypatch.setattr(
-        main_module.settings, "EMBEDDING_STARTUP_BACKFILL_POLICY", "deferred"
-    )
+    monkeypatch.setattr(settings, "EMBEDDING_PROVIDER", "remote")
+    monkeypatch.setattr(settings, "EMBEDDING_STARTUP_BACKFILL_POLICY", "deferred")
     monkeypatch.setattr(main_module, "embedding_runtime_enabled", lambda: True)
     monkeypatch.setattr(
         main_module,
         "get_effective_embedding_config",
         lambda: SimpleNamespace(
-            provider_type=main_module.EmbeddingProviderType.OPENAI_COMPATIBLE,
+            provider_type=EmbeddingProviderType.OPENAI_COMPATIBLE,
             startup_backfill_policy="deferred",
         ),
     )
@@ -262,6 +284,11 @@ def test_startup_lifespan_skips_embedding_backfill_for_remote_deferred(
     )
     monkeypatch.setattr(
         main_module,
+        "init_stale_datasource_sync_jobs",
+        fake_init_stale_datasource_sync_jobs,
+    )
+    monkeypatch.setattr(
+        main_module,
         "init_table_and_ds_embedding",
         fake_init_table_and_ds_embedding,
     )
@@ -288,6 +315,7 @@ def test_startup_lifespan_skips_embedding_backfill_for_remote_deferred(
         "init_sqlbot_cache",
         "init_dynamic_cors",
         "init_default_internal_datasource",
+        "init_stale_datasource_sync_jobs",
         "clean_xpack_cache",
         "async_model_info",
         "monitor_app",
@@ -303,7 +331,7 @@ def test_startup_lifespan_skips_all_side_effects_when_flag_enabled(
     import main as main_module
 
     main_module = importlib.reload(main_module)
-    fastapi_app = cast(FastAPI, main_module.app)
+    fastapi_app = main_module.app
 
     def fail_run_migrations() -> None:
         raise AssertionError("run_migrations should not be called")

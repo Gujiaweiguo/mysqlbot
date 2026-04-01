@@ -1,5 +1,36 @@
 import { request } from '@/utils/request'
 
+export interface DatasourceSelectedTable {
+  table_name: string
+  table_comment?: string
+}
+
+export interface DatasourceSyncJobStart {
+  job_id: number
+  datasource_id: number
+  status: string
+  phase: string
+  reused_active_job: boolean
+}
+
+export interface DatasourceSyncJob extends DatasourceSyncJobStart {
+  total_tables?: number | null
+  completed_tables?: number | null
+  failed_tables?: number | null
+  skipped_tables?: number | null
+  total_fields?: number | null
+  completed_fields?: number | null
+  current_table_name?: string | null
+  embedding_followup_status?: string | null
+  error_summary?: string | null
+  create_time?: string | null
+  start_time?: string | null
+  finish_time?: string | null
+  update_time?: string | null
+}
+
+export type DatasourceChooseTablesResult = DatasourceSyncJobStart | null
+
 export const datasourceApi = {
   check: (data: any) => request.post('/datasource/check', data),
   check_by_id: (id: any) => request.get(`/datasource/check/${id}`),
@@ -15,7 +46,8 @@ export const datasourceApi = {
     request.post(`/datasource/getFields/${id}/${table_name}`),
   execSql: (id: number | string, sql: string) =>
     request.post(`/datasource/execSql/${id}`, { sql: sql }),
-  chooseTables: (id: number, data: any) => request.post(`/datasource/chooseTables/${id}`, data),
+  chooseTables: (id: number, data: DatasourceSelectedTable[]) =>
+    request.post<DatasourceChooseTablesResult>(`/datasource/chooseTables/${id}`, data),
   tableList: (id: number) => request.post(`/datasource/tableList/${id}`),
   fieldList: (id: number, data = { fieldName: '' }) =>
     request.post(`/datasource/fieldList/${id}`, data),
@@ -32,4 +64,7 @@ export const datasourceApi = {
       responseType: 'blob',
       requestOptions: { customError: true },
     }),
+  getSyncJob: (jobId: number) => request.get<DatasourceSyncJob>(`/datasource/syncJob/${jobId}`),
+  listSyncJobs: (dsId: number) => request.get<DatasourceSyncJob[]>(`/datasource/syncJobs/${dsId}`),
+  getSyncJobStreamPath: (jobId: number) => `/datasource/syncJob/${jobId}/stream`,
 }

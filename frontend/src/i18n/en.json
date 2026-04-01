@@ -387,6 +387,75 @@
         "success": "Connect success",
         "failed": "Connect failed"
       },
+      "sync_job": {
+        "title": {
+          "running": "Sync in progress",
+          "success": "Sync completed",
+          "partial": "Sync completed with issues",
+          "failed": "Sync failed",
+          "conflict": "Sync already in progress"
+        },
+        "action": {
+          "running": "Syncing..."
+        },
+        "message": {
+          "started": "Table sync has started in the background.",
+          "reused": "An existing sync job is already running for this datasource. Reusing that job.",
+          "restoring": "Restoring the latest sync status...",
+          "success": "Table sync completed successfully.",
+          "partial": "Table sync completed, but some tables were skipped or failed.",
+          "failed": "Table sync failed.",
+          "conflict": "Another sync job is already handling this datasource."
+        },
+        "hint": {
+          "reused_active_job": "A running sync job was reused for this save request.",
+          "restored_active": "Recovered the latest running sync job for this datasource.",
+          "restored_recent": "Showing the most recent sync result for this datasource."
+        },
+        "summary": {
+          "pending": "Preparing datasource sync...",
+          "running": "Synced {completed}/{total} tables.",
+          "running_current": "Synced {completed}/{total} tables. Processing {current}.",
+          "success": "Successfully synced {count} tables.",
+          "partial": "Sync successful: {success} tables. Failed: {fail}. Skipped: {skip}.",
+          "conflict": "Another sync job is already processing this datasource.",
+          "failed": "Datasource sync did not complete."
+        },
+        "status": {
+          "queued": "Queued",
+          "pending": "Pending",
+          "running": "Running",
+          "finalizing": "Finalizing",
+          "processing": "Processing",
+          "success": "Success",
+          "succeeded": "Succeeded",
+          "completed": "Completed",
+          "failed": "Failed",
+          "conflict": "Conflict",
+          "cancelled": "Cancelled"
+        },
+        "phase": {
+          "submit": "Preparing",
+          "introspect": "Reading schema",
+          "stage": "Syncing tables",
+          "finalize": "Finalizing",
+          "post_process": "Embedding follow-up",
+          "preparing": "Preparing",
+          "syncing_tables": "Syncing tables",
+          "syncing_fields": "Syncing fields",
+          "embedding_followup": "Embedding follow-up",
+          "completed": "Completed"
+        },
+        "phase_label": "Current phase",
+        "last_updated": "Last updated",
+        "total_tables": "Total tables",
+        "completed_tables": "Completed",
+        "failed_tables": "Failed",
+        "skipped_tables": "Skipped",
+        "field_progress": "Fields",
+        "current_table_label": "Current table",
+        "embedding_followup_status": "Embedding follow-up"
+      },
       "timeout": "Connection Timeout(second)",
       "address": "Address",
       "low_version": "Compatible with lower versions"

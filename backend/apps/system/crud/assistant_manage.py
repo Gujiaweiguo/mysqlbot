@@ -9,7 +9,6 @@ from apps.system.models.system_model import AssistantModel
 from apps.system.schemas.system_schema import AssistantBase
 from common.core.config import settings
 from common.utils.time import get_timestamp
-
 from common.utils.utils import get_domain_list
 
 DEFAULT_EMBEDDED_ASSISTANT_NAME = "Default Embedded Assistant"
@@ -27,7 +26,9 @@ class _EmbeddedAssistantSession(Protocol):
     def commit(self) -> None: ...
 
 
-def ensure_default_embedded_assistant(*, session: _EmbeddedAssistantSession) -> bool:
+def ensure_default_embedded_assistant(
+    *, session: Session | _EmbeddedAssistantSession
+) -> bool:
     existing = session.exec(
         select(AssistantModel).where(
             col(AssistantModel.type) == 4,

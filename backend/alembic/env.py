@@ -1,16 +1,14 @@
-# alembic/env.py
 import sys
+from importlib import import_module
 from os.path import abspath, dirname
 
 sys.path.insert(0, dirname(dirname(abspath(__file__))))
 
-import os
+from sqlalchemy import engine_from_config, pool
+from sqlmodel import SQLModel
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
 
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
 config = context.config
 
 # Interpret the config file for Python logging.
@@ -22,15 +20,11 @@ config = context.config
 # target_metadata = mymodel.Base.metadata
 # target_metadata = None
 
-# from apps.system.models.user import SQLModel  # noqa
-# from apps.settings.models.setting_models import SQLModel
-from apps.chat.models.chat_model import SQLModel
-from apps.terminology.models.terminology_model import SQLModel
-#from apps.custom_prompt.models.custom_prompt_model import SQLModel
-from apps.data_training.models.data_training_model import SQLModel
-# from apps.dashboard.models.dashboard_model import SQLModel
-from common.core.config import settings # noqa
-#from apps.datasource.models.datasource import SQLModel
+_ = import_module("apps.chat.models.chat_model")
+_ = import_module("apps.data_training.models.data_training_model")
+_ = import_module("apps.datasource.models.sync_job")
+_ = import_module("apps.terminology.models.terminology_model")
+settings = import_module("common.core.config").settings
 
 target_metadata = SQLModel.metadata
 
@@ -40,11 +34,11 @@ target_metadata = SQLModel.metadata
 # ... etc.
 
 
-def get_url():
+def get_url() -> str:
     return str(settings.SQLALCHEMY_DATABASE_URI)
 
 
-def run_migrations_offline():
+def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 
     This configures the context with just a URL
@@ -65,7 +59,7 @@ def run_migrations_offline():
         context.run_migrations()
 
 
-def run_migrations_online():
+def run_migrations_online() -> None:
     """Run migrations in 'online' mode.
 
     In this scenario we need to create an Engine
@@ -73,6 +67,8 @@ def run_migrations_online():
 
     """
     configuration = config.get_section(config.config_ini_section)
+    if configuration is None:
+        raise RuntimeError("Alembic configuration section is missing")
     configuration["sqlalchemy.url"] = get_url()
     connectable = engine_from_config(
         configuration,

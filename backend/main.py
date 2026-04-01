@@ -4,6 +4,7 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any
 
+from alembic.config import Config
 from fastapi import FastAPI, Request
 from fastapi.concurrency import asynccontextmanager
 from fastapi.openapi.utils import get_openapi
@@ -15,11 +16,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
 
 from alembic import command
-from alembic.config import Config
 from apps.api import api_router
 from apps.datasource.crud.datasource import ensure_internal_pg_datasource
-from apps.system.crud.user import sync_default_admin_password
-from apps.system.crud.assistant_manage import ensure_default_embedded_assistant
 from apps.swagger.i18n import (
     DEFAULT_LANG,
     PLACEHOLDER_PREFIX,
@@ -29,10 +27,12 @@ from apps.swagger.i18n import (
 )
 from apps.system.crud.aimodel_manage import async_model_info
 from apps.system.crud.assistant import init_dynamic_cors
+from apps.system.crud.assistant_manage import ensure_default_embedded_assistant
 from apps.system.crud.embedding_admin import (
     embedding_runtime_enabled,
     get_effective_embedding_config,
 )
+from apps.system.crud.user import sync_default_admin_password
 from apps.system.middleware.auth import TokenMiddleware
 from apps.system.models.system_model import WorkspaceModel
 from apps.system.schemas.embedding_schema import EmbeddingProviderType
@@ -47,6 +47,10 @@ from common.utils.embedding_threads import (
     fill_empty_data_training_embeddings,
     fill_empty_table_and_ds_embeddings,
     fill_empty_terminology_embeddings,
+)
+from common.utils.sync_job_runtime import (
+    recover_stale_sync_jobs,
+    sync_job_session_maker,
 )
 from common.utils.utils import SQLBotLogUtil
 from common.xpack_compat.startup import (
@@ -87,6 +91,10 @@ def init_default_internal_datasource() -> None:
                 session=session, oid=workspace_id, create_by=1, commit=False
             )
         session.commit()
+
+
+def init_stale_datasource_sync_jobs() -> None:
+    recover_stale_sync_jobs(sync_job_session_maker)
 
 
 def _get_fastapi_mcp_class() -> Any:
@@ -135,6 +143,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     else:
         SQLBotLogUtil.info("⏭️ Skipping startup embedding backfill for remote provider")
     init_default_internal_datasource()
+    init_stale_datasource_sync_jobs()
     if _should_run_embedding_startup_backfill():
         init_table_and_ds_embedding()
     SQLBotLogUtil.info("✅ SQLBot 初始化完成")
@@ -300,22 +309,24 @@ images_path = settings.MCP_IMAGE_PATH
 os.makedirs(images_path, exist_ok=True)
 mcp_app.mount("/images", StaticFiles(directory=images_path), name="images")
 
-mcp = _get_fastapi_mcp_class()(
-    app,
-    name="SQLBot MCP Server",
-    description="SQLBot MCP Server",
-    describe_all_responses=True,
-    describe_full_response_schema=True,
-    include_operations=[
-        "mcp_datasource_list",
-        "get_model_list",
-        "mcp_question",
-        "mcp_start",
-        "mcp_assistant",
-    ],
-)
-
-mcp.mount(mcp_app)
+if _should_setup_mcp():
+    # FastApiMCP.setup_server() runs inside __init__, so the environment gate must
+    # wrap object creation itself instead of a later setup call.
+    mcp = _get_fastapi_mcp_class()(
+        app,
+        name="SQLBot MCP Server",
+        description="SQLBot MCP Server",
+        describe_all_responses=True,
+        describe_full_response_schema=True,
+        include_operations=[
+            "mcp_datasource_list",
+            "get_model_list",
+            "mcp_question",
+            "mcp_start",
+            "mcp_assistant",
+        ],
+    )
+    mcp.mount(mcp_app)
 
 # Set all CORS enabled origins
 if settings.all_cors_origins:
@@ -335,14 +346,8 @@ app.add_middleware(AdminApiObservabilityMiddleware)
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # Register exception handlers
-app.add_exception_handler(
-    StarletteHTTPException,
-    starlette_http_exception_handler,
-)
+app.add_exception_handler(StarletteHTTPException, starlette_http_exception_handler)
 app.add_exception_handler(Exception, exception_handler.global_exception_handler)
-
-if _should_setup_mcp():
-    mcp.setup_server()
 
 init_xpack_fastapi_app(app)
 

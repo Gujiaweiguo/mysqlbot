@@ -27,7 +27,11 @@ from common.core.deps import CurrentUser, SessionDep
 router = APIRouter(tags=["Dashboard"], prefix="/dashboard")
 
 
-@router.post("/list_resource", summary=f"{PLACEHOLDER_PREFIX}list_resource_api")
+@router.post(
+    "/list_resource",
+    response_model=None,
+    summary=f"{PLACEHOLDER_PREFIX}list_resource_api",
+)
 async def list_resource_api(
     session: SessionDep,
     dashboard: QueryDashboard,

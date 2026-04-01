@@ -4,6 +4,8 @@ import json
 import os
 import platform
 import urllib.parse
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any, cast
@@ -47,6 +49,16 @@ pymssql = cast(Any, importlib.import_module("pymssql"))
 psycopg2 = cast(Any, importlib.import_module("psycopg2"))
 pymysql = cast(Any, importlib.import_module("pymysql"))
 redshift_connector = cast(Any, importlib.import_module("redshift_connector"))
+
+
+@dataclass(slots=True)
+class DatasourceMetadataContext:
+    ds_type: str
+    conf: DatasourceConf
+    connect_type: ConnectType
+    version: str | None = None
+    session_factory: Callable[[], Session] | None = None
+
 
 try:
     if os.path.exists(settings.ORACLE_CLIENT_PATH):
@@ -233,6 +245,33 @@ def get_session(ds: CoreDatasource | AssistantOutDsSchema) -> Session:
     return session
 
 
+def build_metadata_context(
+    ds: CoreDatasource | AssistantOutDsSchema,
+) -> DatasourceMetadataContext:
+    ds_type = _get_ds_type(ds)
+    conf = (
+        DatasourceConf(**json.loads(_decrypt_configuration(ds.configuration)))
+        if not equals_ignore_case(ds_type, "excel")
+        else get_engine_config()
+    )
+    db = DB.get_db(ds_type)
+    session_factory: Callable[[], Session] | None = None
+    if db.connect_type == ConnectType.sqlalchemy:
+        engine = get_engine(ds)
+        session_maker = sessionmaker(bind=engine)
+
+        def create_session() -> Session:
+            return session_maker()
+
+        session_factory = create_session
+    return DatasourceMetadataContext(
+        ds_type=ds_type,
+        conf=conf,
+        connect_type=db.connect_type,
+        session_factory=session_factory,
+    )
+
+
 def check_connection(
     trans: Trans | None,
     ds: CoreDatasource | AssistantOutDsSchema,
@@ -386,33 +425,29 @@ def check_connection(
 
 
 def get_version(ds: CoreDatasource | AssistantOutDsSchema) -> str:
+    context = build_metadata_context(ds)
+    return get_version_from_context(ds, context)
+
+
+def get_version_from_context(
+    ds: CoreDatasource | AssistantOutDsSchema,
+    context: DatasourceMetadataContext,
+) -> str:
+    if context.version is not None:
+        return context.version
     version = ""
-    ds_type = _get_ds_type(ds)
-    if isinstance(ds, CoreDatasource):
-        conf = (
-            DatasourceConf(**json.loads(_decrypt_configuration(ds.configuration)))
-            if not equals_ignore_case(ds_type, "excel")
-            else get_engine_config()
-        )
-    else:
-        conf = DatasourceConf(
-            **json.loads(_decrypt_configuration(get_out_ds_conf(ds, 10)))
-        )
-    # if isinstance(ds, AssistantOutDsSchema):
-    #     conf = DatasourceConf()
-    #     conf.host = ds.host
-    #     conf.port = ds.port
-    #     conf.username = ds.user
-    #     conf.password = ds.password
-    #     conf.database = ds.dataBase
-    #     conf.dbSchema = ds.db_schema
-    #     conf.timeout = 10
-    db = DB.get_db(ds_type)
+    ds_type = context.ds_type
+    conf = context.conf
     core_ds = cast(CoreDatasource, ds)
     sql = get_version_sql(core_ds, conf)
     try:
-        if db.connect_type == ConnectType.sqlalchemy:
-            with get_session(ds) as session:
+        if context.connect_type == ConnectType.sqlalchemy:
+            session_factory = context.session_factory
+            if session_factory is None:
+                raise RuntimeError(
+                    "Datasource metadata context is missing session factory"
+                )
+            with session_factory() as session:
                 with session.execute(text(sql)) as result:
                     res = result.fetchall()
                     version = res[0][0]
@@ -453,7 +488,9 @@ def get_version(ds: CoreDatasource | AssistantOutDsSchema) -> str:
     except Exception as e:
         print(e)
         version = ""
-    return version.decode() if isinstance(version, bytes) else version
+    normalized = version.decode() if isinstance(version, bytes) else version
+    context.version = normalized
+    return normalized
 
 
 def get_schema(ds: CoreDatasource) -> list[str] | None:
@@ -543,16 +580,22 @@ def get_schema(ds: CoreDatasource) -> list[str] | None:
 
 
 def get_tables(ds: CoreDatasource) -> list[TableSchema] | None:
-    ds_type = ds.type
-    conf = (
-        DatasourceConf(**json.loads(_decrypt_configuration(ds.configuration)))
-        if not equals_ignore_case(ds_type, "excel")
-        else get_engine_config()
-    )
-    db = DB.get_db(ds_type)
-    sql, sql_param = get_table_sql(ds, conf, get_version(ds))
-    if db.connect_type == ConnectType.sqlalchemy:
-        with get_session(ds) as session:
+    context = build_metadata_context(ds)
+    return get_tables_from_context(ds, context)
+
+
+def get_tables_from_context(
+    ds: CoreDatasource,
+    context: DatasourceMetadataContext,
+) -> list[TableSchema] | None:
+    ds_type = context.ds_type
+    conf = context.conf
+    sql, sql_param = get_table_sql(ds, conf, get_version_from_context(ds, context))
+    if context.connect_type == ConnectType.sqlalchemy:
+        session_factory = context.session_factory
+        if session_factory is None:
+            raise RuntimeError("Datasource metadata context is missing session factory")
+        with session_factory() as session:
             with session.execute(text(sql), {"param": sql_param}) as result:
                 res = result.fetchall()
                 res_list = [TableSchema(*item) for item in res]
@@ -637,16 +680,23 @@ def get_tables(ds: CoreDatasource) -> list[TableSchema] | None:
 def get_fields(
     ds: CoreDatasource, table_name: str | None = None
 ) -> list[ColumnSchema] | None:
-    ds_type = ds.type
-    conf = (
-        DatasourceConf(**json.loads(_decrypt_configuration(ds.configuration)))
-        if not equals_ignore_case(ds_type, "excel")
-        else get_engine_config()
-    )
-    db = DB.get_db(ds_type)
+    context = build_metadata_context(ds)
+    return get_fields_from_context(ds, context, table_name)
+
+
+def get_fields_from_context(
+    ds: CoreDatasource,
+    context: DatasourceMetadataContext,
+    table_name: str | None = None,
+) -> list[ColumnSchema] | None:
+    ds_type = context.ds_type
+    conf = context.conf
     sql, p1, p2 = get_field_sql(ds, conf, table_name)
-    if db.connect_type == ConnectType.sqlalchemy:
-        with get_session(ds) as session:
+    if context.connect_type == ConnectType.sqlalchemy:
+        session_factory = context.session_factory
+        if session_factory is None:
+            raise RuntimeError("Datasource metadata context is missing session factory")
+        with session_factory() as session:
             with session.execute(text(sql), {"param1": p1, "param2": p2}) as result:
                 res = result.fetchall()
                 res_list = [ColumnSchema(*item) for item in res]

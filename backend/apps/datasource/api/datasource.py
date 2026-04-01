@@ -13,7 +13,7 @@ from fastapi import APIRouter, File, HTTPException, Path, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import and_
-from sqlmodel import col
+from sqlmodel import col, select
 
 from apps.db.db import get_schema
 from apps.db.engine import get_engine_conn
@@ -23,8 +23,10 @@ from common.audit.models.log_model import OperationModules, OperationType
 from common.audit.schemas.logger_decorator import LogConfig, system_log
 from common.core.config import settings
 from common.core.deps import CurrentUser, SessionDep, Trans
+from common.utils.sync_job_runtime import dispatch_sync_job, sync_job_session_maker
 from common.utils.utils import SQLBotLogUtil
 
+from ..api.sync_job_streaming import iter_sync_job_events
 from ..crud.datasource import (
     check_status,
     check_status_by_id,
@@ -45,6 +47,12 @@ from ..crud.datasource import (
     updateTable,
 )
 from ..crud.field import get_fields_by_table_id
+from ..crud.sync_job import (
+    build_sync_job_status_response,
+    get_sync_job_by_id,
+    list_sync_jobs_by_ds,
+    submit_datasource_sync_job,
+)
 from ..crud.table import get_tables_by_ds_id
 from ..models.datasource import (
     ColumnSchemaResponse,
@@ -59,9 +67,45 @@ from ..models.datasource import (
     TableSchemaResponse,
     UpdateDatasource,
 )
+from ..models.sync_job import (
+    DatasourceSyncJobStatusResponse,
+    DatasourceSyncJobSubmitResponse,
+)
 
 router = APIRouter(tags=["Datasource"], prefix="/datasource")
 path = settings.EXCEL_PATH
+
+
+def _should_use_async_sync(tables: list[SelectedTablePayload]) -> bool:
+    return settings.DATASOURCE_ASYNC_SYNC_ENABLED and (
+        len(tables) > settings.DATASOURCE_ASYNC_SYNC_TABLE_THRESHOLD
+    )
+
+
+def _submit_async_sync_job(
+    session: SessionDep,
+    trans: Trans,
+    user: CurrentUser,
+    ds_id: int,
+    tables: list[SelectedTablePayload],
+) -> DatasourceSyncJobSubmitResponse:
+    ds = session.exec(
+        select(CoreDatasource).where(col(CoreDatasource.id) == ds_id)
+    ).first()
+    if ds is None:
+        raise HTTPException(status_code=500, detail=trans("i18n_ds_invalid"))
+    _ = check_status(session, trans, ds, True)
+    result = submit_datasource_sync_job(
+        session,
+        ds_id=ds_id,
+        oid=user.oid,
+        create_by=user.id,
+        total_tables=len(tables),
+        requested_tables=tables,
+    )
+    if not result.reused_active_job:
+        _ = dispatch_sync_job(result.job_id)
+    return result
 
 
 @router.get("/ws/{oid}", include_in_schema=False)
@@ -163,13 +207,69 @@ async def add(
 async def choose_tables(
     session: SessionDep,
     trans: Trans,
+    user: CurrentUser,
     tables: list[SelectedTablePayload],
     id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_id"),
-) -> None:
+) -> DatasourceSyncJobSubmitResponse | None:
+    if _should_use_async_sync(tables):
+        return _submit_async_sync_job(session, trans, user, id, tables)
+
     def inner() -> None:
         chooseTables(session, trans, id, tables)
 
     await asyncio.to_thread(inner)
+    return None
+
+
+@router.get(
+    "/syncJob/{job_id}",
+    response_model=DatasourceSyncJobStatusResponse,
+    summary=f"{PLACEHOLDER_PREFIX}ds_sync_job_status",
+)
+@require_permissions(permission=SqlbotPermission(role=["ws_admin"]))
+async def get_sync_job_status(
+    session: SessionDep,
+    job_id: int = Path(..., description="sync job id"),
+) -> DatasourceSyncJobStatusResponse:
+    job = get_sync_job_by_id(session, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="sync job not found")
+    return build_sync_job_status_response(job)
+
+
+@router.get(
+    "/syncJobs/{ds_id}",
+    response_model=list[DatasourceSyncJobStatusResponse],
+    summary=f"{PLACEHOLDER_PREFIX}ds_sync_job_list",
+)
+@require_permissions(permission=SqlbotPermission(role=["ws_admin"]))
+async def list_datasource_sync_jobs(
+    session: SessionDep,
+    ds_id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_id"),
+) -> list[DatasourceSyncJobStatusResponse]:
+    return [
+        build_sync_job_status_response(job)
+        for job in list_sync_jobs_by_ds(session, ds_id)
+    ]
+
+
+@router.get("/syncJob/{job_id}/stream", include_in_schema=False)
+@require_permissions(permission=SqlbotPermission(role=["ws_admin"]))
+async def stream_sync_job_progress(
+    session: SessionDep,
+    job_id: int = Path(..., description="sync job id"),
+) -> StreamingResponse:
+    job = get_sync_job_by_id(session, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="sync job not found")
+    return StreamingResponse(
+        iter_sync_job_events(
+            sync_job_session_maker,
+            job_id,
+            poll_interval_seconds=settings.DATASOURCE_SYNC_JOB_PROGRESS_INTERVAL_SECONDS,
+        ),
+        media_type="text/event-stream",
+    )
 
 
 @router.post(

@@ -16,7 +16,15 @@ from apps.datasource.crud.permission_provider import get_ds_rules_model
 from apps.datasource.embedding.table_embedding import calc_table_embedding
 from apps.datasource.utils.utils import aes_decrypt, aes_encrypt
 from apps.db.constant import DB
-from apps.db.db import check_connection, exec_sql, get_fields, get_tables
+from apps.db.db import (
+    DatasourceMetadataContext,
+    build_metadata_context,
+    check_connection,
+    exec_sql,
+    get_fields,
+    get_fields_from_context,
+    get_tables,
+)
 from apps.db.engine import get_engine_config, get_engine_conn
 from apps.system.schemas.auth import CacheName, CacheNamespace
 from common.core.config import settings
@@ -410,8 +418,13 @@ def getFields(session: SessionDep, id: int, table_name: str) -> list[ColumnSchem
 
 
 def getFieldsByDs(
-    _session: SessionDep, ds: CoreDatasource, table_name: str
+    _session: SessionDep,
+    ds: CoreDatasource,
+    table_name: str,
+    metadata_context: DatasourceMetadataContext | None = None,
 ) -> list[ColumnSchema]:
+    if metadata_context is not None:
+        return list(get_fields_from_context(ds, metadata_context, table_name) or [])
     return list(get_fields(ds, table_name) or [])
 
 
@@ -451,53 +464,81 @@ def sync_single_fields(session: SessionDep, trans: Trans, id: int) -> None:
 def sync_table(
     session: SessionDep, ds: CoreDatasource, tables: list[SelectedTablePayload]
 ) -> None:
+    metadata_context = build_metadata_context(ds)
     ds_id = cast(object, ds.id)
     if not isinstance(ds_id, int):
         raise HTTPException(status_code=500, detail="datasource not found")
-    ds_id_int = ds_id
     id_list: list[int] = []
     for item in tables:
-        statement = select(CoreTable).where(
-            and_(
-                col(CoreTable.ds_id) == ds_id_int,
-                col(CoreTable.table_name) == item.table_name,
-            )
+        current_table = _reconcile_single_table(
+            session=session,
+            ds=ds,
+            item=item,
+            metadata_context=metadata_context,
+            auto_commit=True,
         )
-        record = session.exec(statement).first()
-        # update exist table, only update table_comment
-        if record is not None:
-            id_list.append(record.id)
+        id_list.append(current_table.id)
 
-            record.table_comment = item.table_comment
-            session.add(record)
-            session.commit()
-            current_table = record
-        else:
-            # save new table
-            table = CoreTable(
-                id=0,
-                ds_id=ds_id_int,
-                checked=True,
-                table_name=item.table_name,
-                table_comment=item.table_comment,
-                custom_comment=item.table_comment,
-                embedding=None,
-            )
-            object.__setattr__(table, "id", None)
-            session.add(table)
-            session.flush()
-            session.refresh(table)
-            table_id = cast(object, getattr(table, "id", None))
-            if not isinstance(table_id, int):
-                raise HTTPException(status_code=500, detail="table create failed")
-            id_list.append(table_id)
-            session.commit()
-            current_table = table
+    _finalize_sync_table_prune(session, ds, id_list, auto_commit=True)
+    _run_sync_table_embeddings(ds, id_list)
 
-        # sync field
-        fields = getFieldsByDs(session, ds, item.table_name)
-        sync_fields(session, ds, current_table, fields)
 
+def _reconcile_single_table(
+    session: SessionDep,
+    ds: CoreDatasource,
+    item: SelectedTablePayload,
+    metadata_context: DatasourceMetadataContext,
+    *,
+    fields: list[ColumnSchema] | None = None,
+    auto_commit: bool,
+) -> CoreTable:
+    ds_id = cast(object, ds.id)
+    if not isinstance(ds_id, int):
+        raise HTTPException(status_code=500, detail="datasource not found")
+    statement = select(CoreTable).where(
+        and_(
+            col(CoreTable.ds_id) == ds_id, col(CoreTable.table_name) == item.table_name
+        )
+    )
+    record = session.exec(statement).first()
+    if record is not None:
+        record.table_comment = item.table_comment
+        session.add(record)
+        current_table = record
+    else:
+        table = CoreTable(
+            id=0,
+            ds_id=ds_id,
+            checked=True,
+            table_name=item.table_name,
+            table_comment=item.table_comment,
+            custom_comment=item.table_comment,
+            embedding=None,
+        )
+        object.__setattr__(table, "id", None)
+        session.add(table)
+        session.flush()
+        session.refresh(table)
+        table_id = cast(object, getattr(table, "id", None))
+        if not isinstance(table_id, int):
+            raise HTTPException(status_code=500, detail="table create failed")
+        current_table = table
+    resolved_fields = fields
+    if resolved_fields is None:
+        resolved_fields = getFieldsByDs(session, ds, item.table_name, metadata_context)
+    sync_fields(session, ds, current_table, resolved_fields, auto_commit=auto_commit)
+    if auto_commit:
+        session.commit()
+    return current_table
+
+
+def _finalize_sync_table_prune(
+    session: SessionDep,
+    ds: CoreDatasource,
+    id_list: list[int],
+    *,
+    auto_commit: bool,
+) -> None:
     if len(id_list) > 0:
         _ = session.exec(
             delete(CoreTable).where(
@@ -512,14 +553,21 @@ def sync_table(
                 )
             )
         )
-        session.commit()
-    else:  # delete all tables and fields in this ds
-        _ = session.exec(delete(CoreTable).where(col(CoreTable.ds_id) == ds.id))
-        _ = session.exec(delete(CoreField).where(col(CoreField.ds_id) == ds.id))
+        if auto_commit:
+            session.commit()
+        return
+    _ = session.exec(delete(CoreTable).where(col(CoreTable.ds_id) == ds.id))
+    _ = session.exec(delete(CoreField).where(col(CoreField.ds_id) == ds.id))
+    if auto_commit:
         session.commit()
 
-    # do table embedding
-    run_save_table_embeddings(id_list)
+
+def _run_sync_table_embeddings(ds: CoreDatasource, id_list: list[int]) -> None:
+    if len(id_list) == 0:
+        return
+    chunk_size = settings.DATASOURCE_SYNC_EMBEDDING_CHUNK_SIZE
+    for start in range(0, len(id_list), chunk_size):
+        run_save_table_embeddings(id_list[start : start + chunk_size])
     if ds.id is not None:
         run_save_ds_embeddings([ds.id])
 
@@ -529,6 +577,8 @@ def sync_fields(
     ds: CoreDatasource,
     table: CoreTable,
     fields: list[ColumnSchema],
+    *,
+    auto_commit: bool = True,
 ) -> None:
     ds_id = cast(object, ds.id)
     if not isinstance(ds_id, int):
@@ -553,7 +603,6 @@ def sync_fields(
             record.field_index = index
             record.field_type = item.fieldType
             session.add(record)
-            session.commit()
         else:
             field = CoreField(
                 id=0,
@@ -571,7 +620,6 @@ def sync_fields(
             session.flush()
             session.refresh(field)
             id_list.append(field.id)
-            session.commit()
 
     if len(id_list) > 0:
         _ = session.exec(
@@ -582,6 +630,7 @@ def sync_fields(
                 )
             )
         )
+    if auto_commit:
         session.commit()
 
 

@@ -387,6 +387,75 @@
         "success": "연결 성공",
         "failed": "연결 실패"
       },
+      "sync_job": {
+        "title": {
+          "running": "동기화 진행 중",
+          "success": "동기화 완료",
+          "partial": "동기화 완료(일부 문제 있음)",
+          "failed": "동기화 실패",
+          "conflict": "이미 동기화 작업이 진행 중입니다"
+        },
+        "action": {
+          "running": "동기화 중..."
+        },
+        "message": {
+          "started": "백그라운드 테이블 동기화가 시작되었습니다.",
+          "reused": "이 데이터 소스에 대해 이미 실행 중인 동기화 작업을 재사용했습니다.",
+          "restoring": "최근 동기화 상태를 복원하는 중입니다...",
+          "success": "데이터 테이블 동기화가 완료되었습니다.",
+          "partial": "데이터 테이블 동기화가 완료되었지만 일부 테이블은 실패하거나 건너뛰었습니다.",
+          "failed": "데이터 테이블 동기화에 실패했습니다.",
+          "conflict": "다른 동기화 작업이 이 데이터 소스를 처리 중입니다."
+        },
+        "hint": {
+          "reused_active_job": "이번 저장 요청은 이미 실행 중인 동기화 작업을 재사용했습니다.",
+          "restored_active": "이 데이터 소스의 최신 실행 중 동기화 작업을 복원했습니다.",
+          "restored_recent": "이 데이터 소스의 가장 최근 동기화 결과를 표시합니다."
+        },
+        "summary": {
+          "pending": "데이터 소스 동기화를 준비 중입니다...",
+          "running": "{completed}/{total}개 테이블 동기화 완료.",
+          "running_current": "{completed}/{total}개 테이블 동기화 완료. 현재 {current} 처리 중.",
+          "success": "총 {count}개 테이블 동기화 성공.",
+          "partial": "성공 {success}개, 실패 {fail}개, 건너뜀 {skip}개.",
+          "conflict": "다른 동기화 작업이 이 데이터 소스를 처리 중입니다.",
+          "failed": "데이터 소스 동기화가 완료되지 않았습니다."
+        },
+        "status": {
+          "queued": "대기열",
+          "pending": "대기 중",
+          "running": "실행 중",
+          "finalizing": "마무리 중",
+          "processing": "처리 중",
+          "success": "성공",
+          "succeeded": "성공 완료",
+          "completed": "완료",
+          "failed": "실패",
+          "conflict": "충돌",
+          "cancelled": "취소됨"
+        },
+        "phase": {
+          "submit": "준비 중",
+          "introspect": "스키마 확인",
+          "stage": "테이블 동기화",
+          "finalize": "최종 반영",
+          "post_process": "임베딩 후속 처리",
+          "preparing": "준비 중",
+          "syncing_tables": "테이블 동기화",
+          "syncing_fields": "필드 동기화",
+          "embedding_followup": "임베딩 후속 처리",
+          "completed": "완료"
+        },
+        "phase_label": "현재 단계",
+        "last_updated": "최근 업데이트",
+        "total_tables": "전체 테이블",
+        "completed_tables": "완료",
+        "failed_tables": "실패",
+        "skipped_tables": "건너뜀",
+        "field_progress": "필드 진행률",
+        "current_table_label": "현재 테이블",
+        "embedding_followup_status": "임베딩 후속 처리"
+      },
       "timeout": "연결 시간 초과(초)",
       "address": "주소",
       "low_version": "낮은 버전 호환"

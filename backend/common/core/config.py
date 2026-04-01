@@ -136,6 +136,15 @@ class Settings(BaseSettings):
     TABLE_EMBEDDING_COUNT: int = 10
     DS_EMBEDDING_COUNT: int = 10
 
+    # Datasource async sync rollout defaults remain OFF until staged validation
+    # is complete in a target environment.
+    DATASOURCE_ASYNC_SYNC_ENABLED: bool = False
+    DATASOURCE_ASYNC_SYNC_TABLE_THRESHOLD: int = 100
+    DATASOURCE_SYNC_JOB_MAX_WORKERS: int = 4
+    DATASOURCE_SYNC_JOB_STALE_TIMEOUT_SECONDS: int = 3600
+    DATASOURCE_SYNC_JOB_PROGRESS_INTERVAL_SECONDS: int = 2
+    DATASOURCE_SYNC_EMBEDDING_CHUNK_SIZE: int = 50
+
     ORACLE_CLIENT_PATH: str = "/opt/sqlbot/db_client/oracle_instant_client"
 
     @field_validator(
@@ -145,6 +154,7 @@ class Settings(BaseSettings):
         "PARSE_REASONING_BLOCK_ENABLED",
         "PG_POOL_PRE_PING",
         "TABLE_EMBEDDING_ENABLED",
+        "DATASOURCE_ASYNC_SYNC_ENABLED",
         mode="before",
     )
     @classmethod

@@ -387,6 +387,75 @@
         "success": "连接成功",
         "failed": "连接失败"
       },
+      "sync_job": {
+        "title": {
+          "running": "同步进行中",
+          "success": "同步完成",
+          "partial": "同步完成，但存在异常",
+          "failed": "同步失败",
+          "conflict": "已有同步任务进行中"
+        },
+        "action": {
+          "running": "同步中..."
+        },
+        "message": {
+          "started": "已开始后台同步数据表。",
+          "reused": "当前数据源已有同步任务在执行，已复用该任务。",
+          "restoring": "正在恢复最近一次同步状态...",
+          "success": "数据表同步成功。",
+          "partial": "数据表同步完成，但存在失败或跳过的数据表。",
+          "failed": "数据表同步失败。",
+          "conflict": "当前数据源正在被其他同步任务处理。"
+        },
+        "hint": {
+          "reused_active_job": "本次保存复用了一个正在执行中的同步任务。",
+          "restored_active": "已恢复当前数据源最近一次正在执行的同步任务。",
+          "restored_recent": "当前展示的是该数据源最近一次同步结果。"
+        },
+        "summary": {
+          "pending": "正在准备同步数据源...",
+          "running": "已同步 {completed}/{total} 张数据表。",
+          "running_current": "已同步 {completed}/{total} 张数据表，正在处理 {current}。",
+          "success": "成功同步 {count} 张数据表。",
+          "partial": "同步成功 {success} 张，失败 {fail} 张，跳过 {skip} 张。",
+          "conflict": "当前数据源已有其他同步任务正在处理。",
+          "failed": "数据源同步未完成。"
+        },
+        "status": {
+          "queued": "排队中",
+          "pending": "待处理",
+          "running": "执行中",
+          "finalizing": "收尾中",
+          "processing": "处理中",
+          "success": "成功",
+          "succeeded": "已成功",
+          "completed": "已完成",
+          "failed": "失败",
+          "conflict": "冲突",
+          "cancelled": "已取消"
+        },
+        "phase": {
+          "submit": "准备中",
+          "introspect": "读取结构",
+          "stage": "同步数据表",
+          "finalize": "最终发布",
+          "post_process": "向量后续处理",
+          "preparing": "准备中",
+          "syncing_tables": "同步数据表",
+          "syncing_fields": "同步字段",
+          "embedding_followup": "向量后续处理",
+          "completed": "已完成"
+        },
+        "phase_label": "当前阶段",
+        "last_updated": "最近更新时间",
+        "total_tables": "数据表总数",
+        "completed_tables": "已完成",
+        "failed_tables": "失败",
+        "skipped_tables": "跳过",
+        "field_progress": "字段进度",
+        "current_table_label": "当前数据表",
+        "embedding_followup_status": "向量后续处理"
+      },
       "timeout": "连接超时(秒)",
       "address": "地址",
       "low_version": "兼容低版本"
