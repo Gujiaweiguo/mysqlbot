@@ -92,10 +92,31 @@ def _run_sync_job_with_visibility_guard(
     metadata_context = build_metadata_context(ds)
     table_field_map: dict[str, list[ColumnSchema]] = {}
     total_fields = 0
-    for item in requested_tables:
-        fields = get_fields_from_context(ds, metadata_context, item.table_name) or []
-        table_field_map[item.table_name] = fields
-        total_fields += len(fields)
+
+    def _introspect_table(table_name: str) -> tuple[str, list[ColumnSchema]]:
+        fields = get_fields_from_context(ds, metadata_context, table_name) or []
+        return table_name, fields
+
+    introspect_workers = min(
+        settings.DATASOURCE_SYNC_JOB_MAX_WORKERS, len(requested_tables)
+    )
+    if introspect_workers > 1 and len(requested_tables) > 1:
+        with ThreadPoolExecutor(max_workers=introspect_workers) as introspect_pool:
+            futures = {
+                introspect_pool.submit(
+                    _introspect_table, item.table_name
+                ): item.table_name
+                for item in requested_tables
+            }
+            for future in futures:
+                table_name, fields = future.result()
+                table_field_map[table_name] = fields
+                total_fields += len(fields)
+    else:
+        for item in requested_tables:
+            table_name, fields = _introspect_table(item.table_name)
+            table_field_map[table_name] = fields
+            total_fields += len(fields)
     introspect_elapsed = time.perf_counter() - _introspect_start
 
     update_sync_job_status(
