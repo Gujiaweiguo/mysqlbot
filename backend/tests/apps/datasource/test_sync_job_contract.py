@@ -106,6 +106,12 @@ def test_status_response_contract_exposes_progress_fields() -> None:
             datetime(2026, 3, 31, 12, 10, 0),
         ),
         (
+            SyncJobStatus.PARTIAL,
+            SyncJobPhase.STAGE,
+            "1 of 2 tables failed during sync",
+            datetime(2026, 3, 31, 12, 10, 0),
+        ),
+        (
             SyncJobStatus.CANCELLED,
             SyncJobPhase.FINALIZE,
             None,
@@ -155,5 +161,6 @@ def test_only_succeeded_jobs_publish_new_schema() -> None:
     assert should_publish_datasource_sync_result(SyncJobStatus.RUNNING) is False
     assert should_publish_datasource_sync_result(SyncJobStatus.FINALIZING) is False
     assert should_publish_datasource_sync_result(SyncJobStatus.FAILED) is False
+    assert should_publish_datasource_sync_result(SyncJobStatus.PARTIAL) is False
     assert should_publish_datasource_sync_result(SyncJobStatus.CANCELLED) is False
     assert should_publish_datasource_sync_result(SyncJobStatus.SUCCEEDED) is True

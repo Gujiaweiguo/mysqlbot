@@ -18,6 +18,7 @@ class SyncJobStatus(str, Enum):
     FINALIZING = "finalizing"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+    PARTIAL = "partial"
     CANCELLED = "cancelled"
 
 
@@ -42,6 +43,7 @@ TERMINAL_DATASOURCE_SYNC_JOB_STATUSES = frozenset(
     {
         SyncJobStatus.SUCCEEDED,
         SyncJobStatus.FAILED,
+        SyncJobStatus.PARTIAL,
         SyncJobStatus.CANCELLED,
     }
 )
