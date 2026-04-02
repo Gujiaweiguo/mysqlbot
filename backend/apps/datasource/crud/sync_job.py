@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, select
 
 from apps.datasource.models.datasource import SelectedTablePayload
@@ -149,17 +150,34 @@ def submit_datasource_sync_job(
             reused_active_job=True,
         )
 
-    job = create_sync_job(
-        session,
-        ds_id=ds_id,
-        oid=oid,
-        create_by=create_by,
-        total_tables=total_tables,
-    )
-    job.requested_tables = dump_selected_tables_payload(requested_tables or [])
-    session.add(job)
-    session.commit()
-    session.refresh(job)
+    try:
+        job = create_sync_job(
+            session,
+            ds_id=ds_id,
+            oid=oid,
+            create_by=create_by,
+            total_tables=total_tables,
+        )
+        job.requested_tables = dump_selected_tables_payload(requested_tables or [])
+        session.add(job)
+        session.commit()
+        session.refresh(job)
+    except IntegrityError:
+        session.rollback()
+        active_job = get_active_sync_job(session, ds_id)
+        if active_job is not None:
+            active_job_id = active_job.id
+            if active_job_id is None:
+                raise ValueError("active sync job id is missing")
+            SYNC_JOBS_SUBMITTED.labels(reused_active="true").inc()
+            return DatasourceSyncJobSubmitResponse(
+                job_id=active_job_id,
+                datasource_id=active_job.ds_id,
+                status=active_job.status,
+                phase=active_job.phase,
+                reused_active_job=True,
+            )
+        raise
     job_id = job.id
     if job_id is None:
         raise ValueError("created sync job id is missing")
@@ -220,6 +238,7 @@ def update_sync_job_status(
     if status in {
         SyncJobStatus.SUCCEEDED,
         SyncJobStatus.FAILED,
+        SyncJobStatus.PARTIAL,
         SyncJobStatus.CANCELLED,
     }:
         job.finish_time = now
