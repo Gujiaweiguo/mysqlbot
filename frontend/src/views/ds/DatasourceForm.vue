@@ -67,12 +67,18 @@ const syncJob = ref<DatasourceSyncJobView | null>(null)
 const syncJobPolling = ref(false)
 const syncJobRestoring = ref(false)
 const syncJobTimer = ref<number | null>(null)
+const syncJobActionLoading = ref(false)
+const mutedTerminalToastJobId = ref<number | null>(null)
 
 const getSyncJobNumber = (value?: number | null) =>
   typeof value === 'number' && Number.isFinite(value) ? value : 0
 
 const normalizeSyncToken = (value?: string | null) =>
-  value?.toString().trim().toLowerCase().replace(/[\s-]+/g, '_') ?? ''
+  value
+    ?.toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_') ?? ''
 
 const isTerminalSyncJobStatus = (status?: string | null) => {
   const token = normalizeSyncToken(status)
@@ -94,14 +100,19 @@ const isTerminalSyncJobStatus = (status?: string | null) => {
   )
 }
 
-const isConflictSyncJobStatus = (status?: string | null) => normalizeSyncToken(status).includes('conflict')
+const isConflictSyncJobStatus = (status?: string | null) =>
+  normalizeSyncToken(status).includes('conflict')
+
+const isCancelledSyncJobStatus = (status?: string | null) =>
+  normalizeSyncToken(status).includes('cancel')
 
 const isFailedSyncJobStatus = (status?: string | null) => {
   const token = normalizeSyncToken(status)
   return ['failed', 'error', 'cancel', 'timeout', 'abort'].some((item) => token.includes(item))
 }
 
-const isRunningSyncJobStatus = (status?: string | null) => !!status && !isTerminalSyncJobStatus(status)
+const isRunningSyncJobStatus = (status?: string | null) =>
+  !!status && !isTerminalSyncJobStatus(status)
 
 const stopSyncJobPolling = () => {
   if (syncJobTimer.value !== null) {
@@ -113,6 +124,8 @@ const stopSyncJobPolling = () => {
 
 const resetSyncJobState = () => {
   stopSyncJobPolling()
+  syncJobActionLoading.value = false
+  mutedTerminalToastJobId.value = null
   syncJobRestoring.value = false
   syncJob.value = null
 }
@@ -147,12 +160,18 @@ const syncJobProcessedTables = computed(
 const syncJobRunning = computed(() => isRunningSyncJobStatus(syncJob.value?.status))
 const syncJobConflict = computed(() => isConflictSyncJobStatus(syncJob.value?.status))
 const syncJobFailed = computed(() => isFailedSyncJobStatus(syncJob.value?.status))
+const syncJobCancelled = computed(() => isCancelledSyncJobStatus(syncJob.value?.status))
 const syncJobTerminal = computed(() => isTerminalSyncJobStatus(syncJob.value?.status))
 const syncJobPartial = computed(
-  () => syncJobTerminal.value && !syncJobFailed.value && !syncJobConflict.value && syncJobFailedTables.value > 0
+  () =>
+    syncJobTerminal.value &&
+    !syncJobFailed.value &&
+    !syncJobConflict.value &&
+    syncJobFailedTables.value > 0
 )
 const syncJobSucceeded = computed(
-  () => syncJobTerminal.value && !syncJobFailed.value && !syncJobConflict.value && !syncJobPartial.value
+  () =>
+    syncJobTerminal.value && !syncJobFailed.value && !syncJobConflict.value && !syncJobPartial.value
 )
 
 const syncJobPercent = computed(() => {
@@ -162,7 +181,10 @@ const syncJobPercent = computed(() => {
     return Math.min(100, Math.round((syncJobProcessedTables.value / syncJobTableTotal.value) * 100))
   }
   if (syncJobTotalFields.value > 0) {
-    return Math.min(100, Math.round((syncJobCompletedFields.value / syncJobTotalFields.value) * 100))
+    return Math.min(
+      100,
+      Math.round((syncJobCompletedFields.value / syncJobTotalFields.value) * 100)
+    )
   }
   return syncJobRunning.value ? 5 : 0
 })
@@ -256,15 +278,40 @@ const syncJobPrimaryButtonText = computed(() =>
 )
 
 const canSaveTableSelection = computed(() => !syncJobRunning.value && !syncJobRestoring.value)
+const canCancelSyncJob = computed(() => !!syncJob.value?.job_id && syncJobRunning.value)
+const canRetrySyncJob = computed(
+  () =>
+    !!syncJob.value?.job_id &&
+    syncJobTerminal.value &&
+    (syncJobFailed.value || syncJobPartial.value)
+)
 
 const notifySyncJobTerminalState = (previousStatus?: string | null) => {
-  if (!syncJob.value || !isTerminalSyncJobStatus(syncJob.value.status) || isTerminalSyncJobStatus(previousStatus)) {
+  if (
+    !syncJob.value ||
+    !isTerminalSyncJobStatus(syncJob.value.status) ||
+    isTerminalSyncJobStatus(previousStatus)
+  ) {
+    return
+  }
+
+  if (mutedTerminalToastJobId.value === syncJob.value.job_id) {
+    mutedTerminalToastJobId.value = null
     return
   }
 
   if (syncJobConflict.value) {
     ElMessage({
       message: t('ds.form.sync_job.message.conflict'),
+      type: 'warning',
+      showClose: true,
+    })
+    return
+  }
+
+  if (syncJobCancelled.value) {
+    ElMessage({
+      message: t('ds.form.sync_job.message.cancelled'),
       type: 'warning',
       showClose: true,
     })
@@ -281,11 +328,85 @@ const notifySyncJobTerminalState = (previousStatus?: string | null) => {
   }
 
   ElMessage({
-    message: t(syncJobPartial.value ? 'ds.form.sync_job.message.partial' : 'ds.form.sync_job.message.success'),
+    message: t(
+      syncJobPartial.value ? 'ds.form.sync_job.message.partial' : 'ds.form.sync_job.message.success'
+    ),
     type: syncJobPartial.value ? 'warning' : 'success',
     showClose: true,
   })
   emit('refresh')
+}
+
+const confirmSyncJobAction = async (messageKey: string) => {
+  try {
+    const result = await ElMessageBox.confirm(t(messageKey), {
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
+      confirmButtonType: 'primary',
+      type: 'warning',
+      customClass: 'confirm-with_icon',
+      autofocus: false,
+    })
+    return result === 'confirm'
+  } catch {
+    return false
+  }
+}
+
+const cancelSyncJob = async () => {
+  if (!syncJob.value?.job_id || syncJobActionLoading.value) return
+
+  const confirmed = await confirmSyncJobAction('ds.form.sync_job.message.cancel_confirm')
+  if (!confirmed) return
+
+  syncJobActionLoading.value = true
+  const currentJobId = syncJob.value.job_id
+  try {
+    const detail = await datasourceApi.cancelSyncJob(currentJobId)
+    mutedTerminalToastJobId.value = currentJobId
+    stopSyncJobPolling()
+    syncJob.value = {
+      ...(syncJob.value || {}),
+      ...detail,
+    }
+    ElMessage({
+      message: t('ds.form.sync_job.message.cancelled'),
+      type: 'warning',
+      showClose: true,
+    })
+  } finally {
+    syncJobActionLoading.value = false
+  }
+}
+
+const retrySyncJob = async () => {
+  if (!syncJob.value?.job_id || syncJobActionLoading.value) return
+
+  const confirmed = await confirmSyncJobAction('ds.form.sync_job.message.retry_confirm')
+  if (!confirmed) return
+
+  syncJobActionLoading.value = true
+  try {
+    const job = await datasourceApi.retrySyncJob(syncJob.value.job_id)
+
+    if (job.reused_active_job) {
+      ElMessage({
+        message: t('ds.form.sync_job.message.reused'),
+        type: 'warning',
+        showClose: true,
+      })
+    } else {
+      ElMessage({
+        message: t('ds.form.sync_job.message.started'),
+        type: 'success',
+        showClose: true,
+      })
+    }
+
+    startSyncJobTracking(job)
+  } finally {
+    syncJobActionLoading.value = false
+  }
 }
 
 const pollSyncJob = async (jobId: number) => {
@@ -322,6 +443,7 @@ const startSyncJobTracking = (
 ) => {
   if (!job?.job_id) return
 
+  mutedTerminalToastJobId.value = null
   stopSyncJobPolling()
   syncJob.value = {
     ...(syncJob.value || {}),
@@ -1089,13 +1211,39 @@ defineExpose({
               <div>
                 <div class="sync-job-panel__title">{{ syncJobTitle }}</div>
                 <div class="sync-job-panel__summary">
-                  {{ syncJobRestoring && !syncJob ? t('ds.form.sync_job.message.restoring') : syncJobSummary }}
+                  {{
+                    syncJobRestoring && !syncJob
+                      ? t('ds.form.sync_job.message.restoring')
+                      : syncJobSummary
+                  }}
                 </div>
               </div>
             </div>
-            <el-tag v-if="syncJob" size="small" effect="plain" :type="syncJobTagType">
-              {{ translateSyncJobToken('status', syncJob.status) }}
-            </el-tag>
+            <div v-if="syncJob" class="sync-job-panel__actions">
+              <el-button
+                v-if="canCancelSyncJob"
+                secondary
+                size="small"
+                :loading="syncJobActionLoading"
+                :disabled="syncJobActionLoading"
+                @click="cancelSyncJob"
+              >
+                {{ t('common.cancel') }}
+              </el-button>
+              <el-button
+                v-else-if="canRetrySyncJob"
+                secondary
+                size="small"
+                :loading="syncJobActionLoading"
+                :disabled="syncJobActionLoading"
+                @click="retrySyncJob"
+              >
+                {{ t('common.retry') }}
+              </el-button>
+              <el-tag size="small" effect="plain" :type="syncJobTagType">
+                {{ translateSyncJobToken('status', syncJob.status) }}
+              </el-tag>
+            </div>
           </div>
 
           <template v-if="syncJob">
@@ -1435,6 +1583,12 @@ defineExpose({
         display: flex;
         align-items: flex-start;
         gap: 10px;
+      }
+
+      &__actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
       }
 
       &__dot {

@@ -66,5 +66,9 @@ export const datasourceApi = {
     }),
   getSyncJob: (jobId: number) => request.get<DatasourceSyncJob>(`/datasource/syncJob/${jobId}`),
   listSyncJobs: (dsId: number) => request.get<DatasourceSyncJob[]>(`/datasource/syncJobs/${dsId}`),
+  cancelSyncJob: (jobId: number) =>
+    request.post<DatasourceSyncJob>(`/datasource/syncJob/${jobId}/cancel`),
+  retrySyncJob: (jobId: number) =>
+    request.post<DatasourceSyncJobStart>(`/datasource/syncJob/${jobId}/retry`),
   getSyncJobStreamPath: (jobId: number) => `/datasource/syncJob/${jobId}/stream`,
 }
