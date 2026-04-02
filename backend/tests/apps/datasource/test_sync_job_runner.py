@@ -10,8 +10,10 @@ from prometheus_client import REGISTRY
 from sqlmodel import Session, SQLModel
 
 from apps.datasource.crud.sync_job import (
+    cancel_sync_job,
     create_sync_job,
     get_sync_job_by_id,
+    retry_sync_job,
     submit_datasource_sync_job,
     update_sync_job_status,
 )
@@ -181,6 +183,56 @@ def test_second_submit_for_same_datasource_reuses_active_job(
     assert first.reused_active_job is False
     assert second.reused_active_job is True
     assert second.job_id == first.job_id
+
+
+def test_cancel_sync_job_marks_active_job_cancelled(
+    sync_job_runtime_tables: None,
+    test_db: Session,
+) -> None:
+    _ = sync_job_runtime_tables
+    job = create_sync_job(test_db, ds_id=20, oid=1, create_by=1, total_tables=10)
+    update_sync_job_status(
+        test_db,
+        job=job,
+        status=SyncJobStatus.RUNNING,
+        phase=SyncJobPhase.STAGE,
+    )
+
+    cancelled = cancel_sync_job(test_db, job=job)
+
+    assert cancelled.status == SyncJobStatus.CANCELLED
+    assert cancelled.error_summary == "sync job cancelled by operator"
+    assert cancelled.finish_time is not None
+
+
+def test_retry_sync_job_creates_new_job_from_requested_tables(
+    sync_job_runtime_tables: None,
+    test_db: Session,
+) -> None:
+    _ = sync_job_runtime_tables
+    job = create_sync_job(test_db, ds_id=23, oid=1, create_by=1, total_tables=2)
+    job.requested_tables = (
+        '[{"table_name":"orders","table_comment":"Orders"},'
+        '{"table_name":"customers","table_comment":"Customers"}]'
+    )
+    test_db.add(job)
+    test_db.commit()
+    test_db.refresh(job)
+    update_sync_job_status(
+        test_db,
+        job=job,
+        status=SyncJobStatus.PARTIAL,
+        phase=SyncJobPhase.STAGE,
+        completed_tables=1,
+        failed_tables=1,
+    )
+
+    result = retry_sync_job(test_db, job=job, oid=1, create_by=1)
+
+    assert result.reused_active_job is False
+    assert result.datasource_id == 23
+    assert result.status == SyncJobStatus.PENDING
+    assert result.job_id != cast(int, job.id)
 
 
 def test_submit_metrics_count_new_and_reused_jobs(

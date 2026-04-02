@@ -49,8 +49,10 @@ from ..crud.datasource import (
 from ..crud.field import get_fields_by_table_id
 from ..crud.sync_job import (
     build_sync_job_status_response,
+    cancel_sync_job,
     get_sync_job_by_id,
     list_sync_jobs_by_ds,
+    retry_sync_job,
     submit_datasource_sync_job,
 )
 from ..crud.table import get_tables_by_ds_id
@@ -235,6 +237,51 @@ async def get_sync_job_status(
     if job is None:
         raise HTTPException(status_code=404, detail="sync job not found")
     return build_sync_job_status_response(job)
+
+
+@router.post(
+    "/syncJob/{job_id}/cancel",
+    response_model=DatasourceSyncJobStatusResponse,
+    summary=f"{PLACEHOLDER_PREFIX}ds_sync_job_cancel",
+)
+@require_permissions(permission=SqlbotPermission(role=["ws_admin"]))
+async def cancel_datasource_sync_job_api(
+    session: SessionDep,
+    job_id: int = Path(..., description="sync job id"),
+) -> DatasourceSyncJobStatusResponse:
+    job = get_sync_job_by_id(session, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="sync job not found")
+    try:
+        cancelled_job = cancel_sync_job(session, job=job)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return build_sync_job_status_response(cancelled_job)
+
+
+@router.post(
+    "/syncJob/{job_id}/retry",
+    response_model=DatasourceSyncJobSubmitResponse,
+    summary=f"{PLACEHOLDER_PREFIX}ds_sync_job_retry",
+)
+@require_permissions(permission=SqlbotPermission(role=["ws_admin"]))
+async def retry_datasource_sync_job_api(
+    session: SessionDep,
+    user: CurrentUser,
+    job_id: int = Path(..., description="sync job id"),
+) -> DatasourceSyncJobSubmitResponse:
+    job = get_sync_job_by_id(session, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="sync job not found")
+
+    try:
+        result = retry_sync_job(session, job=job, oid=user.oid, create_by=user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    if not result.reused_active_job:
+        _ = dispatch_sync_job(result.job_id)
+    return result
 
 
 @router.get(

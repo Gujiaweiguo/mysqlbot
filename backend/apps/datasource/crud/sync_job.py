@@ -195,6 +195,47 @@ def get_requested_tables(job: DatasourceSyncJob) -> list[SelectedTablePayload]:
     return load_selected_tables_payload(job.requested_tables)
 
 
+def cancel_sync_job(session: Session, *, job: DatasourceSyncJob) -> DatasourceSyncJob:
+    if job.status not in ACTIVE_DATASOURCE_SYNC_JOB_STATUSES:
+        raise ValueError("sync job is not cancelable")
+    return update_sync_job_status(
+        session,
+        job=job,
+        status=SyncJobStatus.CANCELLED,
+        phase=job.phase,
+        current_table_name=None,
+        error_summary="sync job cancelled by operator",
+    )
+
+
+def retry_sync_job(
+    session: Session,
+    *,
+    job: DatasourceSyncJob,
+    oid: int,
+    create_by: int,
+) -> DatasourceSyncJobSubmitResponse:
+    if job.status not in {
+        SyncJobStatus.FAILED,
+        SyncJobStatus.PARTIAL,
+        SyncJobStatus.CANCELLED,
+    }:
+        raise ValueError("sync job is not retryable")
+
+    requested_tables = get_requested_tables(job)
+    if not requested_tables:
+        raise ValueError("sync job has no requested tables to retry")
+
+    return submit_datasource_sync_job(
+        session,
+        ds_id=job.ds_id,
+        oid=oid,
+        create_by=create_by,
+        total_tables=len(requested_tables),
+        requested_tables=requested_tables,
+    )
+
+
 def update_sync_job_status(
     session: Session,
     *,

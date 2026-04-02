@@ -200,6 +200,201 @@ def test_get_sync_job_status_404_on_missing(
     assert "sync job not found" in response.text
 
 
+def test_cancel_sync_job_returns_cancelled_status(
+    monkeypatch: pytest.MonkeyPatch,
+    test_app: Any,
+    auth_headers: dict[str, str],
+) -> None:
+    from apps.datasource.api import datasource as datasource_api
+
+    now = datetime(2026, 3, 31, 12, 0, 0)
+    job = DatasourceSyncJob(
+        id=5,
+        ds_id=8,
+        oid=1,
+        create_by=1,
+        status=SyncJobStatus.RUNNING,
+        phase=SyncJobPhase.STAGE,
+        total_tables=20,
+        completed_tables=3,
+        failed_tables=0,
+        skipped_tables=0,
+        total_fields=50,
+        completed_fields=10,
+        create_time=now,
+        update_time=now,
+    )
+
+    monkeypatch.setattr(
+        datasource_api,
+        "get_sync_job_by_id",
+        lambda session, job_id: job if job_id == 5 else None,
+    )
+
+    def fake_cancel(session: Session, job: DatasourceSyncJob) -> DatasourceSyncJob:
+        _ = session
+        job.status = SyncJobStatus.CANCELLED
+        job.error_summary = "sync job cancelled by operator"
+        job.finish_time = now
+        return job
+
+    monkeypatch.setattr(datasource_api, "cancel_sync_job", fake_cancel)
+
+    response = test_app.post(
+        "/api/v1/datasource/syncJob/5/cancel", headers=auth_headers
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["status"] == "cancelled"
+    assert response.json()["data"]["error_summary"] == "sync job cancelled by operator"
+
+
+def test_cancel_sync_job_returns_409_for_terminal_job(
+    monkeypatch: pytest.MonkeyPatch,
+    test_app: Any,
+    auth_headers: dict[str, str],
+) -> None:
+    from apps.datasource.api import datasource as datasource_api
+
+    monkeypatch.setattr(
+        datasource_api,
+        "get_sync_job_by_id",
+        lambda session, job_id: object() if job_id == 5 else None,
+    )
+
+    def fail_cancel(session: Session, job: object) -> None:
+        _ = session
+        _ = job
+        raise ValueError("sync job is not cancelable")
+
+    monkeypatch.setattr(datasource_api, "cancel_sync_job", fail_cancel)
+
+    response = test_app.post(
+        "/api/v1/datasource/syncJob/5/cancel", headers=auth_headers
+    )
+
+    assert response.status_code == 409
+    assert "sync job is not cancelable" in response.text
+
+
+def test_retry_sync_job_returns_submit_response(
+    monkeypatch: pytest.MonkeyPatch,
+    test_app: Any,
+    auth_headers: dict[str, str],
+) -> None:
+    from apps.datasource.api import datasource as datasource_api
+    from apps.datasource.models.sync_job import DatasourceSyncJobSubmitResponse
+
+    now = datetime(2026, 3, 31, 12, 0, 0)
+    job = DatasourceSyncJob(
+        id=7,
+        ds_id=1,
+        oid=1,
+        create_by=1,
+        status=SyncJobStatus.PARTIAL,
+        phase=SyncJobPhase.STAGE,
+        total_tables=20,
+        completed_tables=19,
+        failed_tables=1,
+        skipped_tables=0,
+        total_fields=50,
+        completed_fields=49,
+        requested_tables='[{"table_name":"orders","table_comment":"Orders"}]',
+        create_time=now,
+        update_time=now,
+    )
+
+    monkeypatch.setattr(
+        datasource_api,
+        "get_sync_job_by_id",
+        lambda session, job_id: job if job_id == 7 else None,
+    )
+    monkeypatch.setattr(
+        datasource_api,
+        "check_status",
+        lambda session, trans, ds, is_raise: True,
+    )
+    monkeypatch.setattr(
+        datasource_api,
+        "dispatch_sync_job",
+        lambda job_id: None,
+    )
+    monkeypatch.setattr(
+        datasource_api,
+        "retry_sync_job",
+        lambda session, job, oid, create_by: DatasourceSyncJobSubmitResponse(
+            job_id=8,
+            datasource_id=job.ds_id,
+            status=SyncJobStatus.PENDING,
+            phase=SyncJobPhase.SUBMIT,
+            reused_active_job=False,
+        ),
+    )
+
+    response = test_app.post("/api/v1/datasource/syncJob/7/retry", headers=auth_headers)
+
+    assert response.status_code == 200
+    assert response.json()["data"] == {
+        "job_id": 8,
+        "datasource_id": 1,
+        "status": "pending",
+        "phase": "submit",
+        "reused_active_job": False,
+    }
+
+
+def test_retry_sync_job_returns_409_for_non_terminal_job(
+    monkeypatch: pytest.MonkeyPatch,
+    test_app: Any,
+    auth_headers: dict[str, str],
+) -> None:
+    from apps.datasource.api import datasource as datasource_api
+
+    now = datetime(2026, 3, 31, 12, 0, 0)
+    job = DatasourceSyncJob(
+        id=9,
+        ds_id=1,
+        oid=1,
+        create_by=1,
+        status=SyncJobStatus.RUNNING,
+        phase=SyncJobPhase.STAGE,
+        total_tables=20,
+        completed_tables=10,
+        failed_tables=0,
+        skipped_tables=0,
+        total_fields=50,
+        completed_fields=25,
+        requested_tables='[{"table_name":"orders","table_comment":"Orders"}]',
+        create_time=now,
+        update_time=now,
+    )
+
+    monkeypatch.setattr(
+        datasource_api,
+        "get_sync_job_by_id",
+        lambda session, job_id: job if job_id == 9 else None,
+    )
+    monkeypatch.setattr(
+        datasource_api,
+        "check_status",
+        lambda session, trans, ds, is_raise: True,
+    )
+
+    def fail_retry(session: Session, job: object, oid: int, create_by: int) -> None:
+        _ = session
+        _ = job
+        _ = oid
+        _ = create_by
+        raise ValueError("sync job is not retryable")
+
+    monkeypatch.setattr(datasource_api, "retry_sync_job", fail_retry)
+
+    response = test_app.post("/api/v1/datasource/syncJob/9/retry", headers=auth_headers)
+
+    assert response.status_code == 409
+    assert "sync job is not retryable" in response.text
+
+
 def test_list_sync_jobs_scoped_to_datasource(
     monkeypatch: pytest.MonkeyPatch,
     test_app: Any,
