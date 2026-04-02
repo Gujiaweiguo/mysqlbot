@@ -11,7 +11,11 @@ from apps.datasource.crud.datasource import (
     _finalize_sync_table_prune,
     _reconcile_single_table,
 )
-from apps.datasource.crud.sync_job import create_sync_job, get_sync_job_by_id
+from apps.datasource.crud.sync_job import (
+    create_sync_job,
+    get_sync_job_by_id,
+    update_sync_job_status,
+)
 from apps.datasource.models.datasource import (
     ColumnSchema,
     CoreDatasource,
@@ -419,4 +423,118 @@ def test_visibility_guard_preserves_previous_schema_when_all_introspection_fails
         assert loaded_job.completed_tables == 0
         assert loaded_job.error_summary == "1 of 1 tables failed during sync"
         assert [table.table_name for table in visible_tables] == ["orders"]
+        assert [field.field_name for field in visible_fields] == ["legacy_id"]
+
+
+def test_visibility_guard_preserves_previous_schema_on_cancellation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = _create_visibility_engine(tmp_path)
+    with Session(engine) as setup_session:
+        _seed_existing_schema(setup_session)
+        job = create_sync_job(
+            setup_session, ds_id=1, oid=1, create_by=1, total_tables=2
+        )
+        job.requested_tables = dump_selected_tables_payload(
+            [
+                SelectedTablePayload(table_name="orders", table_comment="new orders"),
+                SelectedTablePayload(table_name="payments", table_comment="payments"),
+            ]
+        )
+        setup_session.add(job)
+        setup_session.commit()
+        setup_session.refresh(job)
+        job_id = cast(int, job.id)
+
+    session_factory = EngineSessionFactory(engine)
+    original_session_get = Session.get
+    original_reconcile = _reconcile_single_table
+    should_cancel = False
+    cancellation_persisted = False
+
+    class FakeDatasource:
+        id = 1
+
+    def fake_session_get(self: Session, entity: Any, ident: Any) -> Any:
+        if entity is CoreDatasource and ident == 1:
+            return FakeDatasource()
+        return original_session_get(self, entity, ident)
+
+    def fake_build_metadata_context(ds: object) -> object:
+        _ = ds
+        return object()
+
+    def fake_get_fields_from_context(
+        ds: object, context: object, table_name: str | None = None
+    ) -> list[ColumnSchema]:
+        _ = ds
+        _ = context
+        return [ColumnSchema("legacy_id", "bigint", f"{table_name} id")]
+
+    def reconcile_then_mark_for_cancel(
+        session: Session,
+        ds: CoreDatasource,
+        item: SelectedTablePayload,
+        metadata_context: object,
+        *,
+        fields: list[ColumnSchema] | None = None,
+        auto_commit: bool,
+    ) -> CoreTable:
+        nonlocal should_cancel
+        table = original_reconcile(
+            session=session,
+            ds=ds,
+            item=item,
+            metadata_context=cast(Any, metadata_context),
+            fields=fields,
+            auto_commit=auto_commit,
+        )
+        should_cancel = True
+        return table
+
+    def fake_job_is_cancelled(
+        status_session: Session,
+        job: DatasourceSyncJob,
+    ) -> bool:
+        nonlocal should_cancel, cancellation_persisted
+        if should_cancel and not cancellation_persisted:
+            cancellation_persisted = True
+            should_cancel = False
+            update_sync_job_status(
+                status_session,
+                job=job,
+                status=SyncJobStatus.CANCELLED,
+                phase=job.phase,
+                error_summary="sync job cancelled by operator",
+            )
+            return True
+        status_session.refresh(job)
+        return job.status == SyncJobStatus.CANCELLED
+
+    monkeypatch.setattr(sync_job_runtime, "engine", engine)
+    monkeypatch.setattr(Session, "get", fake_session_get)
+    monkeypatch.setattr(
+        sync_job_runtime, "build_metadata_context", fake_build_metadata_context
+    )
+    monkeypatch.setattr(
+        sync_job_runtime, "get_fields_from_context", fake_get_fields_from_context
+    )
+    monkeypatch.setattr(
+        "common.utils.sync_job_runtime._reconcile_single_table",
+        reconcile_then_mark_for_cancel,
+    )
+    monkeypatch.setattr(sync_job_runtime, "_job_is_cancelled", fake_job_is_cancelled)
+
+    sync_job_runtime.run_sync_job_with_session_factory(session_factory, job_id)
+
+    with Session(engine) as assert_session:
+        loaded_job = get_sync_job_by_id(assert_session, job_id)
+        visible_tables = list(assert_session.exec(select(CoreTable)).all())
+        visible_fields = list(assert_session.exec(select(CoreField)).all())
+        assert loaded_job is not None
+        assert loaded_job.status == SyncJobStatus.CANCELLED
+        assert loaded_job.error_summary == "sync job cancelled by operator"
+        assert [table.table_name for table in visible_tables] == ["orders"]
+        assert visible_tables[0].table_comment == "old orders"
         assert [field.field_name for field in visible_fields] == ["legacy_id"]

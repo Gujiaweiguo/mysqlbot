@@ -80,6 +80,11 @@ def _run_sync_job_phases(session: Session, job: DatasourceSyncJob) -> None:
     )
 
 
+def _job_is_cancelled(status_session: Session, job: DatasourceSyncJob) -> bool:
+    status_session.refresh(job)
+    return job.status == SyncJobStatus.CANCELLED
+
+
 def _run_sync_job_with_visibility_guard(
     status_session: Session,
     work_session: Session,
@@ -89,6 +94,10 @@ def _run_sync_job_with_visibility_guard(
     if ds is None:
         raise RuntimeError("datasource not found")
     requested_tables = get_requested_tables(job)
+
+    if _job_is_cancelled(status_session, job):
+        work_session.rollback()
+        return
 
     update_sync_job_status(
         status_session,
@@ -122,6 +131,9 @@ def _run_sync_job_with_visibility_guard(
                 for item in requested_tables
             }
             for future in futures:
+                if _job_is_cancelled(status_session, job):
+                    work_session.rollback()
+                    return
                 tbl_name = futures[future]
                 try:
                     table_name, fields = future.result()
@@ -134,6 +146,9 @@ def _run_sync_job_with_visibility_guard(
                     )
     else:
         for item in requested_tables:
+            if _job_is_cancelled(status_session, job):
+                work_session.rollback()
+                return
             try:
                 table_name, fields = _introspect_table(item.table_name)
                 table_field_map[table_name] = fields
@@ -145,6 +160,10 @@ def _run_sync_job_with_visibility_guard(
                 )
     introspect_elapsed = time.perf_counter() - _introspect_start
     SYNC_JOB_PHASE_DURATION.labels(phase="introspect").observe(introspect_elapsed)
+
+    if _job_is_cancelled(status_session, job):
+        work_session.rollback()
+        return
 
     update_sync_job_status(
         status_session,
@@ -160,6 +179,9 @@ def _run_sync_job_with_visibility_guard(
     bind = work_session.get_bind()
     use_sqlite_probe_stage = bind is not None and bind.dialect.name == "sqlite"
     for item in requested_tables:
+        if _job_is_cancelled(status_session, job):
+            work_session.rollback()
+            return
         if item.table_name not in table_field_map:
             continue
         resolved_fields = table_field_map[item.table_name]
@@ -199,6 +221,10 @@ def _run_sync_job_with_visibility_guard(
     stage_elapsed = time.perf_counter() - _stage_start
     SYNC_JOB_PHASE_DURATION.labels(phase="stage").observe(stage_elapsed)
 
+    if _job_is_cancelled(status_session, job):
+        work_session.rollback()
+        return
+
     completed_count = len(staged_items) if use_sqlite_probe_stage else len(id_list)
     if failed_tables > 0 and completed_count > 0:
         final_status = SyncJobStatus.PARTIAL
@@ -226,6 +252,9 @@ def _run_sync_job_with_visibility_guard(
 
     if use_sqlite_probe_stage:
         for item, resolved_fields in staged_items:
+            if _job_is_cancelled(status_session, job):
+                work_session.rollback()
+                return
             current_table = _reconcile_single_table(
                 session=work_session,
                 ds=ds,
@@ -327,7 +356,11 @@ def run_sync_job_with_session_factory(
             return
         try:
             _run_sync_job_with_visibility_guard(session, work_session, job)
-            if job.status in {SyncJobStatus.PARTIAL, SyncJobStatus.FAILED}:
+            if job.status in {
+                SyncJobStatus.PARTIAL,
+                SyncJobStatus.FAILED,
+                SyncJobStatus.CANCELLED,
+            }:
                 SYNC_JOB_TOTAL_DURATION.observe(time.perf_counter() - total_start)
         except Exception as exc:
             work_session.rollback()
