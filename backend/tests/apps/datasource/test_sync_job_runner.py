@@ -452,6 +452,47 @@ def test_partial_status_when_some_tables_fail_introspection(
     assert call_count == 1
 
 
+def test_partial_status_records_total_duration_metric(
+    sync_job_runtime_tables: None,
+    test_db: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ = sync_job_runtime_tables
+    before_total_duration = _sample_value(
+        "sqlbot_sync_job_total_duration_seconds_count"
+    )
+    job = create_sync_job(test_db, ds_id=33, oid=1, create_by=1, total_tables=3)
+    session_factory = FakeSessionFactory(test_db)
+
+    def fake_visibility_guard(
+        status_session: Session,
+        work_session: Session,
+        job_obj: DatasourceSyncJob,
+    ) -> None:
+        _ = work_session
+        update_sync_job_status(
+            status_session,
+            job=job_obj,
+            status=SyncJobStatus.PARTIAL,
+            phase=SyncJobPhase.STAGE,
+            completed_tables=2,
+            failed_tables=1,
+            error_summary="1 of 3 tables failed during sync",
+        )
+
+    monkeypatch.setattr(
+        sync_job_runtime, "_run_sync_job_with_visibility_guard", fake_visibility_guard
+    )
+
+    sync_job_runtime.run_sync_job_with_session_factory(
+        session_factory, cast(int, job.id)
+    )
+
+    after_total_duration = _sample_value("sqlbot_sync_job_total_duration_seconds_count")
+
+    assert after_total_duration - before_total_duration == 1.0
+
+
 def test_partial_status_does_not_publish(
     sync_job_runtime_tables: None,
     test_db: Session,

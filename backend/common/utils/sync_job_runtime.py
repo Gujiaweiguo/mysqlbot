@@ -327,6 +327,8 @@ def run_sync_job_with_session_factory(
             return
         try:
             _run_sync_job_with_visibility_guard(session, work_session, job)
+            if job.status in {SyncJobStatus.PARTIAL, SyncJobStatus.FAILED}:
+                SYNC_JOB_TOTAL_DURATION.observe(time.perf_counter() - total_start)
         except Exception as exc:
             work_session.rollback()
             update_sync_job_status(
