@@ -45,13 +45,17 @@ The system SHALL wrap each table's introspection and staging in per-table error 
 - **AND** the remaining 999 tables continue to be processed
 - **AND** the job completes with `PARTIAL` status
 
+#### Scenario: Partial job does not publish a partial schema
+- **WHEN** a datasource sync job completes with a `partial` terminal state before finalize succeeds
+- **THEN** the previously completed datasource schema remains visible
+- **AND** the system does not publish partially staged schema
+
 #### Scenario: All tables fail during sync
 - **WHEN** every table in a sync job fails during introspection or staging
 - **THEN** the job is marked as `FAILED` with an error summary
 - **AND** no staged schema is finalized
 
-#### Scenario: Per-table failure with partial stage commit
-- **WHEN** a table's staging succeeds and is committed, and a subsequent table's staging fails
-- **THEN** the successfully staged tables remain committed
-- **AND** the failed table is skipped
-- **AND** the finalize step processes only the successfully staged tables
+#### Scenario: Per-table stage failure still produces a partial terminal state
+- **WHEN** a datasource sync job stages metadata for multiple tables and at least one table fails during staging
+- **THEN** the job completes with `PARTIAL` status
+- **AND** the job records aggregate failure details without publishing a partial schema
