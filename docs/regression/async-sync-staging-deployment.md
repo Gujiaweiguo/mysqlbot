@@ -52,6 +52,58 @@ Expected output:
 {"event": "sync_job_timing", "job_id": 42, "ds_id": 7, "total_tables": 150, "total_fields": 750, "introspect_seconds": 1.8, "stage_seconds": 2.7, "post_process_seconds": 0.05, "total_seconds": 4.55}
 ```
 
+Also verify the Prometheus scrape endpoint is reachable:
+
+```bash
+curl -s http://<staging-host>/metrics | grep sqlbot_sync
+```
+
+Expected metric families:
+
+```text
+sqlbot_sync_jobs_submitted_total
+sqlbot_sync_job_status_transitions_total
+sqlbot_sync_job_phase_duration_seconds
+sqlbot_sync_job_total_duration_seconds
+sqlbot_sync_job_tables_fields
+sqlbot_sync_embedding_followup_total
+```
+
+### 3.1 Prometheus Scrape Config
+
+Example scrape job:
+
+```yaml
+- job_name: sqlbot-async-sync
+  metrics_path: /metrics
+  static_configs:
+    - targets:
+        - <staging-host>:8000
+```
+
+Recommended PromQL checks during gray rollout:
+
+```promql
+# Success / failure counts in the last hour
+increase(sqlbot_sync_job_status_transitions_total{status="succeeded"}[1h])
+increase(sqlbot_sync_job_status_transitions_total{status="failed"}[1h])
+
+# P95 stage duration
+histogram_quantile(
+  0.95,
+  sum by (le) (rate(sqlbot_sync_job_phase_duration_seconds_bucket{phase="stage"}[15m]))
+)
+
+# P95 total duration
+histogram_quantile(
+  0.95,
+  sum by (le) (rate(sqlbot_sync_job_total_duration_seconds_bucket[15m]))
+)
+
+# Embedding followup failures in the last hour
+increase(sqlbot_sync_embedding_followup_total{outcome="failed"}[1h])
+```
+
 ### 4. Validate Async Path
 
 1. Open the datasource management page
@@ -73,6 +125,34 @@ GROUP BY status, phase;
 
 Expected: 0 failed jobs, `avg_seconds` < 120 for typical datasources.
 
+Recommended alert rules:
+
+```yaml
+- alert: SQLBotAsyncSyncFailures
+  expr: increase(sqlbot_sync_job_status_transitions_total{status="failed"}[15m]) > 0
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: Async datasource sync has failures in staging
+
+- alert: SQLBotAsyncSyncStageP95High
+  expr: histogram_quantile(0.95, sum by (le) (rate(sqlbot_sync_job_phase_duration_seconds_bucket{phase="stage"}[15m]))) > 60
+  for: 10m
+  labels:
+    severity: warning
+  annotations:
+    summary: Async datasource sync stage p95 is above 60 seconds
+
+- alert: SQLBotAsyncSyncEmbeddingFollowupFailures
+  expr: increase(sqlbot_sync_embedding_followup_total{outcome="failed"}[15m]) > 0
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: Async datasource sync embedding followup is failing
+```
+
 ### 6. Rollback
 
 If issues arise, disable the feature:
@@ -88,6 +168,8 @@ Restart the backend. No data migration is needed — the `datasource_sync_job` t
 - [ ] All datasources with >100 tables sync via async path
 - [ ] No failed sync jobs in 24 hours
 - [ ] Average sync time < 2 minutes for 500-table datasources
+- [ ] `/metrics` is scrapeable from Prometheus
+- [ ] Stage p95 remains below 60 seconds during gray rollout
 - [ ] Frontend progress panel shows accurate status
 - [ ] Embedding follow-up dispatch succeeds
 

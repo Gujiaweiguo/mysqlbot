@@ -16,6 +16,10 @@ from apps.datasource.models.sync_job import (
     load_selected_tables_payload,
 )
 from common.core.config import settings
+from common.observability.sync_metrics import (
+    SYNC_JOB_STATUS_TRANSITIONS,
+    SYNC_JOBS_SUBMITTED,
+)
 
 
 def _allocate_sqlite_job_id(session: Session) -> int:
@@ -136,6 +140,7 @@ def submit_datasource_sync_job(
         active_job_id = active_job.id
         if active_job_id is None:
             raise ValueError("active sync job id is missing")
+        SYNC_JOBS_SUBMITTED.labels(reused_active="true").inc()
         return DatasourceSyncJobSubmitResponse(
             job_id=active_job_id,
             datasource_id=active_job.ds_id,
@@ -158,6 +163,7 @@ def submit_datasource_sync_job(
     job_id = job.id
     if job_id is None:
         raise ValueError("created sync job id is missing")
+    SYNC_JOBS_SUBMITTED.labels(reused_active="false").inc()
     return DatasourceSyncJobSubmitResponse(
         job_id=job_id,
         datasource_id=job.ds_id,
@@ -221,6 +227,7 @@ def update_sync_job_status(
     session.add(job)
     session.commit()
     session.refresh(job)
+    SYNC_JOB_STATUS_TRANSITIONS.labels(status=status.value).inc()
     return job
 
 

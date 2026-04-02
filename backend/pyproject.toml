@@ -52,6 +52,7 @@ dependencies = [
     "dicttoxml>=1.7.16",
     "numpy==2.3.5",
     "tencentcloud-sdk-python-lkeap>=3.0.1424",
+    "prometheus-client>=0.20.0,<1.0.0",
 ]
 
 [project.optional-dependencies]

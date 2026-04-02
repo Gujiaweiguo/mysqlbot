@@ -8,7 +8,7 @@ from alembic.config import Config
 from fastapi import FastAPI, Request
 from fastapi.concurrency import asynccontextmanager
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
@@ -42,7 +42,7 @@ from common.core.config import settings
 from common.core.db import engine
 from common.core.response_middleware import ResponseMiddleware, exception_handler
 from common.core.sqlbot_cache import init_sqlbot_cache
-from common.observability import AdminApiObservabilityMiddleware
+from common.observability import AdminApiObservabilityMiddleware, metrics_view
 from common.utils.embedding_threads import (
     fill_empty_data_training_embeddings,
     fill_empty_table_and_ds_embeddings,
@@ -279,6 +279,11 @@ async def custom_openapi(request: Request) -> JSONResponse:
 @app.get("/health", include_in_schema=False)
 async def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/metrics", include_in_schema=False)
+async def prometheus_metrics(request: Request) -> Response:
+    return await metrics_view(request)
 
 
 @app.get("/docs", include_in_schema=False)

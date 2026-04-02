@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import Any, cast
 
 import pytest
+from prometheus_client import REGISTRY
 from sqlmodel import Session, SQLModel
 
 from apps.datasource.crud.sync_job import (
@@ -21,6 +22,13 @@ from apps.datasource.models.sync_job import (
 )
 from common.core.config import settings
 from common.utils import sync_job_runtime
+
+
+def _sample_value(name: str, labels: dict[str, str] | None = None) -> float:
+    value = REGISTRY.get_sample_value(name, labels)
+    if value is None:
+        return 0.0
+    return float(value)
 
 
 @pytest.fixture
@@ -173,6 +181,81 @@ def test_second_submit_for_same_datasource_reuses_active_job(
     assert first.reused_active_job is False
     assert second.reused_active_job is True
     assert second.job_id == first.job_id
+
+
+def test_submit_metrics_count_new_and_reused_jobs(
+    sync_job_runtime_tables: None,
+    test_db: Session,
+) -> None:
+    _ = sync_job_runtime_tables
+    before_new = _sample_value(
+        "sqlbot_sync_jobs_submitted_total", {"reused_active": "false"}
+    )
+    before_reused = _sample_value(
+        "sqlbot_sync_jobs_submitted_total", {"reused_active": "true"}
+    )
+
+    _ = submit_datasource_sync_job(
+        test_db,
+        ds_id=21,
+        oid=1,
+        create_by=1,
+        total_tables=10,
+    )
+    _ = submit_datasource_sync_job(
+        test_db,
+        ds_id=21,
+        oid=1,
+        create_by=1,
+        total_tables=10,
+    )
+
+    after_new = _sample_value(
+        "sqlbot_sync_jobs_submitted_total", {"reused_active": "false"}
+    )
+    after_reused = _sample_value(
+        "sqlbot_sync_jobs_submitted_total", {"reused_active": "true"}
+    )
+
+    assert after_new - before_new == 1.0
+    assert after_reused - before_reused == 1.0
+
+
+def test_status_transition_metric_increments(
+    sync_job_runtime_tables: None,
+    test_db: Session,
+) -> None:
+    _ = sync_job_runtime_tables
+    before_running = _sample_value(
+        "sqlbot_sync_job_status_transitions_total", {"status": "running"}
+    )
+    before_succeeded = _sample_value(
+        "sqlbot_sync_job_status_transitions_total", {"status": "succeeded"}
+    )
+    job = create_sync_job(test_db, ds_id=22, oid=1, create_by=1)
+
+    update_sync_job_status(
+        test_db,
+        job=job,
+        status=SyncJobStatus.RUNNING,
+        phase=SyncJobPhase.INTROSPECT,
+    )
+    update_sync_job_status(
+        test_db,
+        job=job,
+        status=SyncJobStatus.SUCCEEDED,
+        phase=SyncJobPhase.FINALIZE,
+    )
+
+    after_running = _sample_value(
+        "sqlbot_sync_job_status_transitions_total", {"status": "running"}
+    )
+    after_succeeded = _sample_value(
+        "sqlbot_sync_job_status_transitions_total", {"status": "succeeded"}
+    )
+
+    assert after_running - before_running == 1.0
+    assert after_succeeded - before_succeeded == 1.0
 
 
 def test_recover_stale_sync_jobs_marks_old_running_as_failed(

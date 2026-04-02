@@ -28,6 +28,12 @@ from apps.datasource.models.sync_job import (
 from apps.db.db import build_metadata_context, get_fields_from_context
 from common.core.config import settings
 from common.core.db import engine
+from common.observability.sync_metrics import (
+    SYNC_EMBEDDING_FOLLOWUP,
+    SYNC_JOB_PHASE_DURATION,
+    SYNC_JOB_TABLES_FIELDS,
+    SYNC_JOB_TOTAL_DURATION,
+)
 from common.utils.utils import SQLBotLogUtil
 
 sync_job_executor = ThreadPoolExecutor(
@@ -118,6 +124,7 @@ def _run_sync_job_with_visibility_guard(
             table_field_map[table_name] = fields
             total_fields += len(fields)
     introspect_elapsed = time.perf_counter() - _introspect_start
+    SYNC_JOB_PHASE_DURATION.labels(phase="introspect").observe(introspect_elapsed)
 
     update_sync_job_status(
         status_session,
@@ -145,6 +152,7 @@ def _run_sync_job_with_visibility_guard(
     _finalize_sync_table_prune(work_session, ds, id_list, auto_commit=False)
     work_session.commit()
     stage_elapsed = time.perf_counter() - _stage_start
+    SYNC_JOB_PHASE_DURATION.labels(phase="stage").observe(stage_elapsed)
     update_sync_job_status(
         status_session,
         job=job,
@@ -169,6 +177,13 @@ def _run_sync_job_with_visibility_guard(
         )
         post_process_elapsed = time.perf_counter() - _post_process_start
         total_elapsed = time.perf_counter() - _total_start
+        SYNC_JOB_PHASE_DURATION.labels(phase="post_process").observe(
+            post_process_elapsed
+        )
+        SYNC_JOB_TOTAL_DURATION.observe(total_elapsed)
+        SYNC_JOB_TABLES_FIELDS.labels(metric="tables").observe(len(requested_tables))
+        SYNC_JOB_TABLES_FIELDS.labels(metric="fields").observe(total_fields)
+        SYNC_EMBEDDING_FOLLOWUP.labels(outcome="failed").inc()
         SQLBotLogUtil.info(
             json.dumps(
                 {
@@ -191,6 +206,11 @@ def _run_sync_job_with_visibility_guard(
     status_session.refresh(job)
     post_process_elapsed = time.perf_counter() - _post_process_start
     total_elapsed = time.perf_counter() - _total_start
+    SYNC_JOB_PHASE_DURATION.labels(phase="post_process").observe(post_process_elapsed)
+    SYNC_JOB_TOTAL_DURATION.observe(total_elapsed)
+    SYNC_JOB_TABLES_FIELDS.labels(metric="tables").observe(len(requested_tables))
+    SYNC_JOB_TABLES_FIELDS.labels(metric="fields").observe(total_fields)
+    SYNC_EMBEDDING_FOLLOWUP.labels(outcome="dispatched").inc()
     SQLBotLogUtil.info(
         json.dumps(
             {
@@ -212,6 +232,7 @@ def run_sync_job_with_session_factory(
     session_factory: SyncJobSessionFactory,
     job_id: int,
 ) -> None:
+    total_start = time.perf_counter()
     session = session_factory()
     work_session = Session(bind=engine)
     try:
@@ -229,6 +250,7 @@ def run_sync_job_with_session_factory(
                 phase=job.phase,
                 error_summary=str(exc),
             )
+            SYNC_JOB_TOTAL_DURATION.observe(time.perf_counter() - total_start)
     finally:
         work_session.close()
         session.close()

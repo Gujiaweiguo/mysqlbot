@@ -22,3 +22,11 @@ class TestHealthEndpoint:
         response = test_app.get("/health")
         assert response.status_code == 200
         assert response.json() == {"code": 0, "data": {"status": "ok"}, "msg": None}
+
+    def test_metrics_endpoint(self, test_app: TestClient) -> None:
+        response = test_app.get("/metrics")
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/plain")
+        body = response.text
+        assert "sqlbot_sync_jobs_submitted_total" in body
+        assert "sqlbot_sync_job_total_duration_seconds" in body
