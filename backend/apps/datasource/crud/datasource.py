@@ -587,15 +587,15 @@ def sync_fields(
     table_id = cast(object, getattr(table, "id", None))
     if not isinstance(table_id, int):
         return
+    existing_fields = {
+        field.field_name: field
+        for field in session.exec(
+            select(CoreField).where(col(CoreField.table_id) == table_id)
+        ).all()
+    }
     id_list: list[int] = []
     for index, item in enumerate(fields):
-        statement = select(CoreField).where(
-            and_(
-                col(CoreField.table_id) == table_id,
-                col(CoreField.field_name) == item.fieldName,
-            )
-        )
-        record = session.exec(statement).first()
+        record = existing_fields.get(item.fieldName)
         if record is not None:
             id_list.append(record.id)
 

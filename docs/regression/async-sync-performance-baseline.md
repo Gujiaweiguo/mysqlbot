@@ -35,6 +35,22 @@ The introspect phase shows significant improvement (1.75x–2.42x), but total sp
 2. PostgreSQL connection pool contention
 3. Network latency to remote datasource
 
+## Stage Optimization Validation (1000-table rerun — 2026-04-02)
+
+After replacing the per-field `SELECT` loop in `sync_fields()` with a single
+load of existing `CoreField` rows plus in-memory diffing, we reran the
+1,000-table baseline.
+
+| Metric | Before (parallel introspect only) | After (stage optimized) | Speedup |
+|--------|-----------------------------------|--------------------------|---------|
+| Introspect | 6.60s | 8.09s | 0.82x |
+| Stage | 25.54s | 15.88s | 1.61x |
+| Total | 32.32s | 24.14s | 1.34x |
+
+This confirms the stage phase was the dominant bottleneck after the
+introspect optimization, and the `sync_fields()` change materially reduced
+database round-trips in the reconciliation path.
+
 ## Scaling (Current)
 
 - **Introspect** (parallel metadata fetch): ~7ms/table — near-linear, parallelized.
@@ -45,8 +61,10 @@ The introspect phase shows significant improvement (1.75x–2.42x), but total sp
 ## Observations
 
 1. Parallel introspect cuts the introspect phase by 50–60%.
-2. Stage is now the dominant phase (~80% of total time). Further optimization should focus on parallelizing `_reconcile_single_table` or batching inserts.
-3. Post-process embedding dispatch fires 10 parallel threads (chunk_size=50) against the remote embedding API; latency depends on external API.
+2. Replacing per-field lookups inside `sync_fields()` cuts the 1,000-table stage phase from 25.54s to 15.88s.
+3. With both optimizations applied, total 1,000-table runtime dropped from 37.61s (fully sequential) to 24.14s.
+4. Introspect still varies between runs, so the stage-phase improvement is the more reliable signal from the latest rerun.
+5. Post-process embedding dispatch fires 10 parallel threads (chunk_size=50) against the remote embedding API; latency depends on external API.
 
 ## Artifacts
 
