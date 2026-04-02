@@ -1,3 +1,4 @@
+import asyncio
 import os
 from collections.abc import AsyncIterator
 from importlib import import_module
@@ -50,6 +51,7 @@ from common.utils.embedding_threads import (
 )
 from common.utils.sync_job_runtime import (
     recover_stale_sync_jobs,
+    start_periodic_stale_recovery,
     sync_job_session_maker,
 )
 from common.utils.utils import SQLBotLogUtil
@@ -144,6 +146,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         SQLBotLogUtil.info("⏭️ Skipping startup embedding backfill for remote provider")
     init_default_internal_datasource()
     init_stale_datasource_sync_jobs()
+    stale_recovery_task = await start_periodic_stale_recovery()
     if _should_run_embedding_startup_backfill():
         init_table_and_ds_embedding()
     SQLBotLogUtil.info("✅ SQLBot 初始化完成")
@@ -151,6 +154,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await async_model_info()  # 异步加密已有模型的密钥和地址
     await monitor_app(app)
     yield
+    stale_recovery_task.cancel()
+    try:
+        await stale_recovery_task
+    except asyncio.CancelledError:
+        pass
     SQLBotLogUtil.info("SQLBot 应用关闭")
 
 
