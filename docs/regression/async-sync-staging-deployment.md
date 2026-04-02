@@ -125,6 +125,33 @@ GROUP BY status, phase;
 
 Expected: 0 failed jobs, `avg_seconds` < 120 for typical datasources.
 
+### 5.1 Operator Controls: Cancel / Retry
+
+During gray rollout, operators can control async sync jobs through backend-only APIs:
+
+```bash
+# Cancel an active job
+curl -X POST "${BASE_URL}/api/v1/datasource/syncJob/${JOB_ID}/cancel" \
+  -H "X-SQLBOT-TOKEN: Bearer ${JWT}"
+
+# Retry a terminal failed / partial / cancelled job
+curl -X POST "${BASE_URL}/api/v1/datasource/syncJob/${JOB_ID}/retry" \
+  -H "X-SQLBOT-TOKEN: Bearer ${JWT}"
+```
+
+Cancel semantics are cooperative:
+
+- `pending`, `running`, and `finalizing` jobs can be cancelled through the backend API
+- the worker stops at safe phase boundaries rather than force-killing the thread
+- if cancellation is observed before finalize succeeds, the previous visible schema remains unchanged
+- retry creates a brand-new job using the original `requested_tables`
+
+Recommended operator expectations:
+
+- `cancel` returns the updated job status snapshot (`cancelled`)
+- `retry` returns a normal submit response with a new `job_id`
+- retry still obeys the one-active-job-per-datasource protection; if another active job exists, the response follows the existing dedupe contract
+
 Recommended alert rules:
 
 ```yaml
