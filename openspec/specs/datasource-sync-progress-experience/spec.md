@@ -1,7 +1,7 @@
 # datasource-sync-progress-experience Specification
 
 ## Purpose
-TBD - created by archiving change improve-datasource-1000-table-async-sync. Update Purpose after archive.
+Present recoverable progress, deterministic conflict messaging, and terminal status (including aggregate failure details) for large datasource sync jobs, driven by backend-controlled rollout settings.
 ## Requirements
 ### Requirement: Frontend SHALL provide recoverable progress for large datasource sync jobs
 When the async datasource sync path is active, the frontend SHALL show progress and terminal status for large datasource sync jobs without requiring the user to keep a single request open. The frontend SHALL be able to recover active job status after reload or re-entry.
@@ -49,4 +49,3 @@ The frontend SHALL respect backend-backed async rollout settings and threshold p
 - **WHEN** the async rollout setting is enabled and the selected table count exceeds the backend-controlled threshold
 - **THEN** the frontend uses the async submit and progress workflow
 - **AND** the UI messaging reflects that execution is being handled as a background job rather than a blocking save
-

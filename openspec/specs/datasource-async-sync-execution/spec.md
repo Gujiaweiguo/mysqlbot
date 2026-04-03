@@ -1,7 +1,7 @@
 # datasource-async-sync-execution Specification
 
 ## Purpose
-TBD - created by archiving change improve-datasource-1000-table-async-sync. Update Purpose after archive.
+Execute large datasource schema sync operations as durable async jobs with exclusive-per-datasource constraints, schema-stability guarantees, batched writes, cooperative cancellation, retry controls, and per-table failure isolation.
 ## Requirements
 ### Requirement: Large datasource sync SHALL execute as a durable async job
 The system SHALL submit large datasource table sync requests as datasource-scoped async jobs when the async rollout flag is enabled and the selected table count exceeds the configured threshold. The submission endpoint SHALL return without waiting for full schema synchronization to complete.
@@ -163,4 +163,3 @@ The system SHALL wrap each table's introspection and staging in per-table error 
 - **WHEN** a datasource sync job stages metadata for multiple tables and at least one table fails during staging
 - **THEN** the job completes with `PARTIAL` status
 - **AND** the job records aggregate failure details without publishing a partial schema
-
