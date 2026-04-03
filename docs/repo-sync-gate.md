@@ -1,108 +1,59 @@
-# mySQLBot Repo Sync Gate Guide
+# mySQLBot Repository Sync Retirement Guide
 
 ## Goal
 
-`repo-sync` is an operational mirror-maintenance workflow, not a generic pull-request quality gate. Its job is to synchronize the upstream GitHub repository to the configured Gitee destination when maintainers explicitly need that sync path.
+External repository mirror sync is retired in this repository. GitHub is the source of truth, and normal repository health no longer depends on keeping Gitee or CNB mirrors updated.
 
-## Current Execution Policy
+## Current Policy
 
-The `Synchronize to Gitee` workflow runs only in these contexts:
+- The repository does **not** maintain GitHub-to-Gitee sync as a normal `main`/`master` workflow.
+- The repository does **not** treat external mirror sync as part of the standard quality or release contract.
+- If mirror sync is ever needed again, it should be reintroduced through an explicit change rather than assumed from historical behavior.
 
-- push to `main`
-- push to `master`
-- manual `workflow_dispatch`
+## What Changed
 
-It does **not** run for ordinary feature-branch pushes or pull requests.
+Historically, this repository contained mirror workflows for Gitee and CNB. Those paths were retired because they added external-platform failures, credentials, and operational noise to the repository without serving an active maintainer need.
 
-## Why It Is Not a Normal PR Blocker
+As a result:
 
-Repository synchronization depends on external infrastructure that is outside the scope of most application changes:
+- missing Gitee or CNB credentials are no longer part of normal repository health
+- routine pushes should not produce mirror-related failures
+- contributors should not be asked to diagnose external mirror infrastructure for everyday development work
 
-- Gitee credentials
-- Gitee repository existence and permissions
-- SSH private key validity
-- external network access to Gitee
+## Historical Failures
 
-Because of that, `repo-sync` should not be treated as a required check for everyday pull requests unless the team explicitly decides to make repository mirroring part of the normal review contract.
+Older GitHub Actions history may still show `repo-sync` or other mirror-related failures. Those runs belong to the retired mirror-maintenance path and should be read as historical operational context, not as evidence that current application changes are unhealthy.
 
-## Current Targets and Dependencies
+## Historical Failure Meanings
 
-- Source: `github/dataease`
-- Static repository list: `SQLBot`
-- Destination: `gitee/fit2cloud-feizhiyun`
-- Required secrets:
-  - `GITEE_PRIVATE_KEY`
-  - `GITEE_TOKEN`
-
-## Preflight Validation
-
-Before the mirror action runs, the workflow now validates:
-
-- `GITEE_PRIVATE_KEY` exists
-- `GITEE_TOKEN` exists
-- `GITEE_PRIVATE_KEY` can be parsed as a valid SSH private key
-
-This turns silent external failures into explicit prerequisite errors.
-
-## Ownership
-
-Recommended ownership for this gate:
-
-- **Workflow policy:** repository maintainers
-- **Gitee credentials and mirror target access:** release/infrastructure maintainers with Gitee admin access
-
-Application contributors should generally not be expected to diagnose or repair Gitee credential issues as part of ordinary feature work.
-
-## How to Interpret Failures
+The following failure modes apply only to historical runs from before mirror retirement:
 
 ### Failure: missing `GITEE_PRIVATE_KEY`
 
-Meaning: the workflow cannot authenticate to the destination using SSH.
-
-Action:
-- confirm the repository secret exists
-- confirm the stored secret is the full private key content
+Meaning: the historical workflow could not authenticate to the Gitee destination over SSH.
 
 ### Failure: missing `GITEE_TOKEN`
 
-Meaning: the workflow cannot call the Gitee API to create or inspect the destination repository.
-
-Action:
-- confirm the repository secret exists
-- confirm the token is still valid and has the required permissions
+Meaning: the historical workflow could not call the Gitee API to create or inspect the destination repository.
 
 ### Failure: invalid SSH private key
 
-Meaning: the secret is present, but its content is malformed or no longer parsable by SSH tooling.
-
-Action:
-- rotate and re-save the private key secret
-- verify the stored value preserves line breaks correctly
+Meaning: the historical secret content was malformed or no longer parsable by SSH tooling.
 
 ### Failure: `401 Unauthorized` from Gitee API
 
-Meaning: the token exists but is not accepted by Gitee.
-
-Action:
-- rotate `GITEE_TOKEN`
-- verify the token belongs to the expected account and still has the needed scope
+Meaning: the historical Gitee token existed but was not accepted by the destination platform.
 
 ### Failure: `Permission denied (publickey)`
 
-Meaning: the mirror action reached SSH push, but the destination rejected the configured key.
+Meaning: the historical mirror action reached SSH push, but the destination rejected the configured key.
 
-Action:
-- confirm the public key corresponding to `GITEE_PRIVATE_KEY` is registered in the destination Gitee account
-- confirm the account has write access to `fit2cloud-feizhiyun/SQLBot`
+## Maintainer Guidance
 
-## Recovery Path
+- Do not treat `repo-sync` as a required check for current pull requests or routine `main` maintenance.
+- If GitHub branch protection still references historical mirror checks, remove those required checks from repository settings.
+- If repository or organization secrets such as `GITEE_PRIVATE_KEY`, `GITEE_TOKEN`, or `CNB_PASSWORD` still exist only for the retired workflows, they can be removed from GitHub settings as a separate cleanup step.
 
-1. Identify whether the failure is a **preflight failure** or a **mirror execution failure**
-2. If preflight fails, fix repository secrets first
-3. If the Gitee API returns authorization errors, rotate the token
-4. If SSH push fails, verify the registered public key and repository permissions
-5. Re-run the workflow manually after repairing credentials or access
+## Reintroduction Policy
 
-## Branch Protection Recommendation
-
-Do not add `repo-sync` as a required check for normal pull requests unless your team intentionally wants Gitee mirroring to be part of the standard merge contract.
+If the project later decides to restore a mirror destination, define that workflow, ownership, credentials, and gating policy through a new explicit OpenSpec change before re-enabling automation.

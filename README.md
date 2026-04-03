@@ -235,7 +235,7 @@ bash uninstall.sh
 - 运行时与回归门禁：`.github/workflows/integration-test.yml`
 - Embedding provider 说明：`docs/embedding-provider.md`
 - 拼写门禁说明：`docs/typos-gate.md`
-- 仓库同步门禁说明：`docs/repo-sync-gate.md`
+- 仓库同步退役说明：`docs/repo-sync-gate.md`
 - 发布门禁说明：`docs/regression/release-gates.md`
 - Required checks 落地清单：`docs/regression/required-checks-rollout.md`
 - 全量回归执行手册：`docs/regression/full-regression-playbook.md`
