@@ -1,7 +1,7 @@
 # appearance-settings-management Specification
 
 ## Purpose
-TBD - created by archiving change complete-system-config-pages. Update Purpose after archive.
+Allow administrators to persist and update login-page and top-bar appearance settings, including image asset upload and replacement.
 ## Requirements
 ### Requirement: Administrators can load persisted appearance settings
 The system SHALL allow the appearance settings page to load persisted login-page and top-bar appearance settings.
@@ -23,4 +23,3 @@ The system SHALL allow administrators to upload and replace stored appearance im
 #### Scenario: Administrator replaces an appearance image
 - **WHEN** the administrator uploads a new appearance image for an existing appearance field
 - **THEN** the backend SHALL store the new file reference, remove the superseded file if needed, and persist the updated image reference in settings
-

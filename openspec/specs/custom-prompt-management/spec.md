@@ -1,7 +1,7 @@
 # custom-prompt-management Specification
 
 ## Purpose
-TBD - created by archiving change complete-system-config-pages. Update Purpose after archive.
+Allow administrators to browse, read, create/update, delete, and export custom prompt records organized by prompt type, without disrupting runtime prompt lookup behavior.
 ## Requirements
 ### Requirement: Administrators can browse custom prompts by prompt type
 The system SHALL allow administrators to retrieve paginated custom prompt records filtered by prompt type.
@@ -31,4 +31,3 @@ The system SHALL allow administrators to export custom prompts for a selected pr
 #### Scenario: Administrator exports prompt records
 - **WHEN** the administrator triggers export for a prompt type
 - **THEN** the backend SHALL return an Excel file containing the matching prompt records
-
