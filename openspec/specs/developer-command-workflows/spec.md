@@ -1,7 +1,7 @@
 # developer-command-workflows Specification
 
 ## Purpose
-TBD - created by archiving change improve-repo-consistency-and-devex. Update Purpose after archive.
+Provide documented root-level commands for install, development, lint, and test workflows that map to the underlying service-specific implementations.
 ## Requirements
 ### Requirement: Repository SHALL expose canonical root-level developer commands
 The repository SHALL provide a documented root-level command surface for common workflows including install, local development, linting, and testing.
@@ -18,4 +18,3 @@ The repository SHALL document the canonical root-level command workflow in the s
 - **WHEN** a contributor reads repository setup or agent guidance
 - **THEN** the documented commands match the supported root-level workflow
 - **AND** contributors are not directed to stale paths or conflicting entry points
-

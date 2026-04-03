@@ -1,7 +1,7 @@
 # repository-structure-consistency Specification
 
 ## Purpose
-TBD - created by archiving change improve-repo-consistency-and-devex. Update Purpose after archive.
+Enforce canonical naming for backend service-layer directories and imports so that the repository uses a single consistent convention across all modules.
 ## Requirements
 ### Requirement: Backend service-layer directories SHALL use canonical naming
 The repository SHALL use canonical `crud` naming for backend service-layer directories and related imports/documentation.
@@ -18,4 +18,3 @@ The repository SHALL perform naming-normalization changes with coordinated updat
 - **WHEN** a previously inconsistent backend path is renamed to the canonical form
 - **THEN** in-repo import sites and documentation references are updated in the same migration window
 - **AND** contributors are not left with two long-lived supported spellings for the same concept
-
