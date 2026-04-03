@@ -1,7 +1,7 @@
 # admin-api-observability Specification
 
 ## Purpose
-TBD - created by archiving change add-admin-observability-and-alerting. Update Purpose after archive.
+Expose request-outcome, error-rate, and latency signals for critical admin/runtime APIs so that operators can detect abnormal behavior and trigger alerts when thresholds are exceeded.
 ## Requirements
 ### Requirement: Critical admin/runtime APIs are observable
 The system SHALL emit sufficient signals to monitor the health of the critical admin/runtime APIs restored in recent first-party changes.
@@ -23,4 +23,3 @@ The system SHALL allow operators to observe high latency on critical admin/runti
 #### Scenario: Endpoint latency degrades significantly
 - **WHEN** a monitored critical admin/runtime API exceeds a defined latency threshold
 - **THEN** the system SHALL expose a signal that operators can use to detect the degradation
-

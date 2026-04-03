@@ -1,7 +1,7 @@
 # operator-alert-runbooks Specification
 
 ## Purpose
-TBD - created by archiving change add-admin-observability-and-alerting. Update Purpose after archive.
+Provide operators with triage guidance for each critical admin/runtime alert, mapping alert signals to the affected capability, relevant endpoints, and first diagnostic steps.
 ## Requirements
 ### Requirement: Alerts include operator-facing triage guidance
 The system SHALL define operator guidance for each critical admin/runtime alert introduced by this change.
@@ -16,4 +16,3 @@ The system SHALL provide triage guidance specific to the restored admin/runtime 
 #### Scenario: Operator triages a feature-specific alert
 - **WHEN** an alert corresponds to one of the restored admin/runtime capability groups
 - **THEN** the guidance SHALL identify the related page(s), endpoint(s), and the first place to inspect in logs or monitoring output
-
