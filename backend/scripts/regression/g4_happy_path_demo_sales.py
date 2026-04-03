@@ -101,6 +101,15 @@ PROMPT_CASE_SETS: dict[str, tuple[PromptCase, ...]] = {
 }
 
 
+def _default_provider_mode() -> str:
+    provider_mode = os.getenv("G4_PROVIDER_MODE")
+    if isinstance(provider_mode, str) and provider_mode.strip():
+        return provider_mode.strip()
+    if os.getenv("SQLBOT_CI_DETERMINISTIC_LLM") == "1":
+        return "ci-deterministic"
+    return "live"
+
+
 def _select_prompt_cases(schema: str) -> tuple[PromptCase, ...]:
     normalized_schema = schema.strip().lower()
     prompt_cases = PROMPT_CASE_SETS.get(normalized_schema)
@@ -202,6 +211,11 @@ def _parse_args() -> argparse.Namespace:
         type=float,
         default=5.0,
         help="Initial backoff seconds before retrying a rate-limited case",
+    )
+    parser.add_argument(
+        "--provider-mode",
+        default=_default_provider_mode(),
+        help="Provider mode recorded in G4 evidence output",
     )
     return parser.parse_args()
 
@@ -565,6 +579,7 @@ async def _run(args: argparse.Namespace) -> int:
         "created_at": datetime.now().isoformat(),
         "base_url": args.base_url,
         "schema": args.schema,
+        "provider_mode": args.provider_mode,
         "case_count": len(prompt_cases),
         "datasource_id": datasource_id,
         "chat_id": chat_id,

@@ -66,6 +66,7 @@
 ### G4 Functional Happy Path
 
 - 用例：
+- Provider mode:
 - 结果：
 - 证据：
 
