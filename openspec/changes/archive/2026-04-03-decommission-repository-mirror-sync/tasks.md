@@ -12,4 +12,4 @@
 ## 3. Validate repository health after retirement
 
 - [x] 3.1 Check for any branch protection rules, required checks, or references that still assume `repo-sync` must exist
-- [ ] 3.2 Verify the repository no longer reports mirror-related failures as part of normal `main` maintenance
+- [x] 3.2 Verify the repository no longer reports mirror-related failures as part of normal `main` maintenance
