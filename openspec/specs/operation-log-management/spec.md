@@ -1,7 +1,7 @@
 # operation-log-management Specification
 
 ## Purpose
-TBD - created by archiving change restore-operation-log-management. Update Purpose after archive.
+Allow administrators to browse, filter, and export already-recorded operation logs through first-party backend APIs connected to the existing audit infrastructure.
 ## Requirements
 ### Requirement: Administrators can browse operation logs
 The system SHALL allow administrators to retrieve paginated operation logs that reflect events already recorded by the audit infrastructure.
@@ -27,4 +27,3 @@ The system SHALL support exporting the filtered operation log result set as an E
 #### Scenario: Administrator exports operation logs
 - **WHEN** the administrator triggers export from the operation log page
 - **THEN** the backend SHALL return an Excel file containing the operation log rows matching the current filter set
-
