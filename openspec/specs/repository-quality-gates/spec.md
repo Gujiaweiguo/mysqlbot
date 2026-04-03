@@ -1,7 +1,7 @@
 # repository-quality-gates Specification
 
 ## Purpose
-TBD - created by archiving change harden-infra-and-quality-gates. Update Purpose after archive.
+Require both backend and frontend validation gates to run in CI and local pre-merge hooks before changes can be merged.
 ## Requirements
 ### Requirement: Repository SHALL enforce stack-appropriate quality gates in CI
 The repository SHALL define CI validation that covers both backend and frontend changes through stack-appropriate quality gates before merge.
@@ -18,4 +18,3 @@ The repository SHALL provide local pre-merge hooks or equivalent documented entr
 - **WHEN** a contributor commits changes that include Python files and frontend source files
 - **THEN** the local quality workflow includes fast checks for both stacks
 - **AND** the contributor is not required to discover separate undocumented validation steps manually
-

@@ -1,7 +1,7 @@
 # environment-configuration-template Specification
 
 ## Purpose
-TBD - created by archiving change harden-infra-and-quality-gates. Update Purpose after archive.
+Provide a checked-in environment template that documents required variables for supported startup flows while ensuring committed templates never contain active secrets.
 ## Requirements
 ### Requirement: Repository SHALL provide a checked-in environment template
 The repository SHALL include a checked-in environment template that documents the variables required for supported local and containerized startup flows.
@@ -18,4 +18,3 @@ The repository SHALL represent secrets and sensitive deployment values in checke
 - **WHEN** a checked-in environment template is reviewed in the repository
 - **THEN** secret-bearing variables are represented by placeholders or clearly non-sensitive examples
 - **AND** operators are required to provide real sensitive values outside committed source control
-
