@@ -1,4 +1,5 @@
 import json
+import os
 from abc import ABC, abstractmethod
 from functools import lru_cache
 from importlib import import_module
@@ -84,7 +85,7 @@ class OpenAIvLLM(BaseLLM):
     @override
     def _init_llm(self) -> BaseChatModel:
         vllm_cls = import_module("langchain_community.llms").VLLMOpenAI
-        llm = VLLMOpenAI(
+        llm = vllm_cls(
             openai_api_key=self.config.api_key or "Empty",
             openai_api_base=self.config.api_base_url,
             model_name=self.config.model_name,
@@ -105,14 +106,17 @@ class OpenAIAzureLLM(BaseLLM):
         deployment_name = (
             deployment_name_raw if isinstance(deployment_name_raw, str) else None
         )
-        return azure_chat_openai_cls(
-            azure_endpoint=self.config.api_base_url,
-            api_key=SecretStr(self.config.api_key) if self.config.api_key else None,
-            model=self.config.model_name,
-            api_version=api_version,
-            azure_deployment=deployment_name,
-            streaming=True,
-            **params,
+        return cast(
+            AzureChatOpenAI,
+            azure_chat_openai_cls(
+                azure_endpoint=self.config.api_base_url,
+                api_key=SecretStr(self.config.api_key) if self.config.api_key else None,
+                model=self.config.model_name,
+                api_version=api_version,
+                azure_deployment=deployment_name,
+                streaming=True,
+                **params,
+            ),
         )
 
 
@@ -120,12 +124,15 @@ class OpenAILLM(BaseLLM):
     @override
     def _init_llm(self) -> BaseChatModel:
         base_chat_openai_cls = import_module("apps.ai_model.openai.llm").BaseChatOpenAI
-        return base_chat_openai_cls(
-            model=self.config.model_name,
-            api_key=SecretStr(self.config.api_key) if self.config.api_key else None,
-            base_url=self.config.api_base_url,
-            stream_usage=True,
-            **self.config.additional_params,
+        return cast(
+            BaseChatModel,
+            base_chat_openai_cls(
+                model=self.config.model_name,
+                api_key=SecretStr(self.config.api_key) if self.config.api_key else None,
+                base_url=self.config.api_base_url,
+                stream_usage=True,
+                **self.config.additional_params,
+            ),
         )
 
     def generate(self, prompt: str) -> str:
@@ -146,6 +153,10 @@ class LLMFactory:
     @lru_cache(maxsize=32)
     def create_llm(cls, config: LLMConfig) -> BaseLLM:
         llm_class = cls._llm_types.get(config.model_type)
+        if not llm_class and config.model_type == "ci_deterministic":
+            deterministic_module = import_module("apps.ai_model.ci_deterministic")
+            llm_class = cast(type[BaseLLM], deterministic_module.llm_class())
+            cls.register_llm(config.model_type, llm_class)
         if not llm_class:
             raise ValueError(f"Unsupported LLM type: {config.model_type}")
         return llm_class(config)
@@ -197,8 +208,7 @@ async def get_default_config() -> LLMConfig:
             if db_model.api_key:
                 db_model.api_key = await sqlbot_decrypt(db_model.api_key)
 
-        # 构造 LLMConfig
-        return LLMConfig(
+        config = LLMConfig(
             model_id=db_model.id,
             model_type="openai" if db_model.protocol == 1 else "vllm",
             model_name=db_model.base_model,
@@ -206,3 +216,9 @@ async def get_default_config() -> LLMConfig:
             api_base_url=db_model.api_domain,
             additional_params=additional_params,
         )
+        if os.getenv("SQLBOT_CI_DETERMINISTIC_LLM", "0") == "1":
+            deterministic_module = import_module("apps.ai_model.ci_deterministic")
+            return cast(
+                LLMConfig, deterministic_module.build_ci_deterministic_config(config)
+            )
+        return config
