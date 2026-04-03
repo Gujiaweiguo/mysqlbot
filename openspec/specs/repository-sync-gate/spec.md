@@ -35,3 +35,4 @@ The repository MUST document that external repository mirror sync is retired or 
 #### Scenario: Maintainer investigates an old repo-sync failure
 - **WHEN** a maintainer encounters a historical `repo-sync` failure in past workflow history
 - **THEN** the repository documentation explains that such failures belonged to the retired external mirror path and are not part of current repository health expectations
+
