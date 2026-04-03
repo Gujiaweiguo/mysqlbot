@@ -1,7 +1,7 @@
 # platform-integration-management Specification
 
 ## Purpose
-TBD - created by archiving change implement-auth-and-platform-integration. Update Purpose after archive.
+Allow administrators to configure, validate, and enable enterprise platform integrations (WeCom, DingTalk, Lark) so that login and sync runtime flows can consume active integration state.
 ## Requirements
 ### Requirement: Administrators can manage enterprise platform integration settings
 The system SHALL allow administrators to configure supported enterprise platform integrations such as WeCom, DingTalk, and Lark through first-party management APIs.
@@ -23,4 +23,3 @@ The system SHALL expose enabled platform integrations to the runtime paths that 
 #### Scenario: Runtime checks enabled platform integrations
 - **WHEN** runtime login or sync flows need to know which enterprise platforms are active
 - **THEN** the system SHALL derive that state from stored platform integration records
-

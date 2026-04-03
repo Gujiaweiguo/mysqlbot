@@ -1,7 +1,7 @@
 # authentication-settings-management Specification
 
 ## Purpose
-TBD - created by archiving change implement-auth-and-platform-integration. Update Purpose after archive.
+Allow administrators to view, validate, and enable authentication providers (LDAP, OIDC, CAS, OAuth2) so that the login page reflects the currently supported methods from persisted configuration.
 ## Requirements
 ### Requirement: Administrators can manage authentication provider settings
 The system SHALL allow administrators to view and manage authentication provider configurations for supported provider types such as LDAP, OIDC, CAS, and OAuth2 through first-party APIs.
@@ -27,4 +27,3 @@ The system SHALL expose authentication provider status in a form that allows the
 #### Scenario: Login bootstrap reads provider status
 - **WHEN** the login page loads its authentication bootstrap data
 - **THEN** the system SHALL return provider availability derived from persisted configuration rather than hardcoded placeholder values
-

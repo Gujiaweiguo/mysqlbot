@@ -1,7 +1,7 @@
 # third-party-user-provisioning-settings Specification
 
 ## Purpose
-TBD - created by archiving change implement-auth-and-platform-integration. Update Purpose after archive.
+Allow administrators to configure auto-creation behavior, default workspace, and default role for users arriving through external authentication or platform-integration flows.
 ## Requirements
 ### Requirement: Administrators can control third-party auto-user creation defaults
 The system SHALL allow administrators to configure whether externally authenticated users are auto-created and which default workspace and role they receive.
@@ -23,4 +23,3 @@ The system SHALL store and apply third-party provisioning defaults without requi
 #### Scenario: Administrator updates third-party provisioning defaults
 - **WHEN** an administrator saves changes to auto-create behavior, default workspace, or default role
 - **THEN** the system SHALL persist those settings and leave unrelated admin configuration unchanged
-
