@@ -1,7 +1,7 @@
 # spelling-quality-gate Specification
 
 ## Purpose
-TBD - created by archiving change stabilize-typos-gate. Update Purpose after archive.
+Enforce a PR-scoped spelling check that blocks only newly introduced typos while keeping historical typo debt visible through a separate maintenance path.
 ## Requirements
 ### Requirement: Pull request spelling gate is actionable
 The system SHALL enforce a blocking spelling check for pull requests that evaluates files changed by the pull request and reports spelling failures attributable to the current change.
@@ -31,4 +31,3 @@ The system MUST preserve a documented maintenance path for detecting historical 
 #### Scenario: Maintainer reviews historical typo backlog
 - **WHEN** a maintainer runs the broader spelling maintenance path
 - **THEN** the process reports repository-wide historical typos separately from PR-blocking failures
-
