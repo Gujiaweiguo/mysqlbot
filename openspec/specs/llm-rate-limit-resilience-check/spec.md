@@ -1,7 +1,7 @@
 # llm-rate-limit-resilience-check Specification
 
 ## Purpose
-TBD - created by archiving change full-regression-testing. Update Purpose after archive.
+Validate that model-provider rate-limit (HTTP 429) and transient failure conditions produce graceful user-facing errors and that retry/backoff resilience policy meets defined acceptance criteria.
 ## Requirements
 ### Requirement: Rate-limit failure-path validation
 The regression process SHALL include validation of model-provider rate-limit behavior, including HTTP 429 conditions, and verify the product responds with graceful user-facing errors.
@@ -16,4 +16,3 @@ The system MUST define and validate retry/backoff or equivalent resilience polic
 #### Scenario: Transient failure handling
 - **WHEN** a transient LLM failure occurs during regression test execution
 - **THEN** retry/backoff behavior and final outcome are captured and evaluated against acceptance criteria
-

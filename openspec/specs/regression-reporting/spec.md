@@ -1,7 +1,7 @@
 # regression-reporting Specification
 
 ## Purpose
-TBD - created by archiving change full-regression-testing. Update Purpose after archive.
+Require each full-regression run to produce a structured, evidence-linked report capturing scope, gate results, unresolved issues, and a release-readiness decision.
 ## Requirements
 ### Requirement: Structured regression report
 Each full-regression run SHALL produce a structured report that includes scope, environment, executed commands, gate results, evidence references, unresolved issues, and release recommendation.
@@ -16,4 +16,3 @@ Regression reports MUST include evidence references for each gate result so outc
 #### Scenario: Evidence review
 - **WHEN** a reviewer audits regression results
 - **THEN** each gate can be traced to concrete logs, outputs, or screenshots linked from the report
-
