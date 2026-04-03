@@ -1,7 +1,7 @@
 # docker-build-optimization Specification
 
 ## Purpose
-TBD - created by archiving change optimize-docker-build-deployment. Update Purpose after archive.
+Minimize Docker build time by excluding non-runtime artifacts from the build context, isolating dependency layers from source edits, and enabling reusable Buildx cache across CI runs.
 ## Requirements
 ### Requirement: Docker source builds SHALL minimize unrelated build context input
 The repository SHALL exclude generated artifacts, dependency directories, cache directories, repository metadata, and unrelated large local files from the Docker build context used by source-based image builds.
@@ -38,4 +38,3 @@ The repository's GitHub Actions image build workflows SHALL use reusable Buildx 
 #### Scenario: Repeat base-image workflow run uses prior cache
 - **WHEN** the base image workflow runs again for unchanged or partially changed inputs
 - **THEN** the workflow SHALL be configured to import and export a persistent Buildx cache scope for the base image build
-
