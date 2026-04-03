@@ -1,7 +1,7 @@
 # xpack-dependency-removal Specification
 
 ## Purpose
-TBD - created by archiving change decouple-sqlbot-xpack. Update Purpose after archive.
+Support phased migration away from `sqlbot_xpack` so that mixed-mode capability operation, data compatibility, and full dependency removal happen only after first-party replacements are in place.
 ## Requirements
 ### Requirement: The system supports mixed-mode capability migration
 The system SHALL support phased migration where first-party capability providers can replace legacy xpack-backed implementations without forcing all capability areas to migrate at once.
@@ -23,4 +23,3 @@ The system SHALL only remove the `sqlbot-xpack` dependency after runtime entrypo
 #### Scenario: Dependency removal occurs only after first-party replacements exist
 - **WHEN** the change removes `sqlbot-xpack` from runtime or build configuration
 - **THEN** application startup, frontend bootstrap, and required tests/build flows SHALL continue to operate without the external package being installed
-

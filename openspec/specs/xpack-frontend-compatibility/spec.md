@@ -1,7 +1,7 @@
 # xpack-frontend-compatibility Specification
 
 ## Purpose
-TBD - created by archiving change decouple-sqlbot-xpack. Update Purpose after archive.
+Route frontend xpack-dependent behavior (license status, login/model encryption, route bootstrap) through a first-party facade that preserves current runtime compatibility during migration.
 ## Requirements
 ### Requirement: Frontend xpack-dependent behavior is accessed through a first-party facade
 The frontend SHALL access xpack-dependent browser behavior through a first-party facade module instead of direct business-code access to the global `LicenseGenerator` object.
@@ -23,4 +23,3 @@ The frontend SHALL preserve compatibility between login/model-configuration encr
 #### Scenario: Login and model configuration flows continue to work through the facade
 - **WHEN** the frontend encrypts login credentials or model configuration fields during migration
 - **THEN** the encrypted payloads SHALL remain acceptable to the backend capability provider currently serving decrypt operations
-

@@ -1,7 +1,7 @@
 # xpack-backend-compatibility Specification
 
 ## Purpose
-TBD - created by archiving change decouple-sqlbot-xpack. Update Purpose after archive.
+Expose xpack-derived backend capabilities (startup, crypto, auth, license, permissions, prompt, config, file handling) through first-party provider contracts so that business modules no longer import `sqlbot_xpack` directly.
 ## Requirements
 ### Requirement: Backend xpack capabilities are accessed through first-party providers
 The backend SHALL access xpack-derived runtime capabilities through first-party contracts and provider entrypoints instead of direct business-module imports of `sqlbot_xpack`.
@@ -23,4 +23,3 @@ The backend SHALL preserve the current encrypt/decrypt contracts used by login, 
 #### Scenario: Existing callers keep their current crypto contract
 - **WHEN** a backend caller uses the repository's public crypto or AES helper functions during migration
 - **THEN** the caller SHALL continue using the same helper interface and SHALL not need to know whether a legacy adapter or first-party implementation serves the request
-
