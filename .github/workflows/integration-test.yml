@@ -36,6 +36,7 @@ jobs:
 
       - name: Start services
         run: |
+          export SQLBOT_CI_DETERMINISTIC_LLM=1
           docker compose up -d
           echo "Waiting for services to be healthy..."
           for i in {1..60}; do
@@ -125,6 +126,7 @@ jobs:
 
       - name: Start services
         run: |
+          export SQLBOT_CI_DETERMINISTIC_LLM=1
           docker compose up -d
           for i in {1..60}; do
             POSTGRES_STATUS=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' postgresql 2>/dev/null || true)
@@ -230,6 +232,54 @@ jobs:
               session.commit()
           PY
 
+      - name: Seed deterministic G4 model configuration
+        run: |
+          docker exec -i gosqlbot-app python - <<'PY'
+          from sqlalchemy import update
+          from sqlmodel import Session, select
+
+          from apps.system.models.system_model import AiModelDetail
+          from common.core.db import engine
+
+          with Session(engine) as session:
+              session.exec(update(AiModelDetail).values(default_model=False))
+              model = session.exec(
+                  select(AiModelDetail).where(AiModelDetail.name == 'CI Deterministic G4 Model')
+              ).first()
+              if model is None:
+                  model = AiModelDetail.model_validate(
+                      {
+                          'supplier': 1,
+                          'name': 'CI Deterministic G4 Model',
+                          'model_type': 1,
+                          'base_model': 'ci-deterministic-demo-sales',
+                          'default_model': True,
+                          'api_key': '',
+                          'api_domain': 'http://ci-deterministic.local',
+                          'protocol': 1,
+                          'config': '[]',
+                          'status': 1,
+                          'create_time': 0,
+                      }
+                  )
+              else:
+                  model.supplier = 1
+                  model.model_type = 1
+                  model.base_model = 'ci-deterministic-demo-sales'
+                  model.default_model = True
+                  model.api_key = ''
+                  model.api_domain = 'http://ci-deterministic.local'
+                  model.protocol = 1
+                  model.config = '[]'
+                  model.status = 1
+              session.add(model)
+              session.commit()
+          PY
+
+      - name: Seed deterministic G4 model configuration
+        run: |
+          docker exec -i gosqlbot-app python /opt/sqlbot/app/scripts/regression/seed_ci_deterministic_model.py
+
       - name: Check demo_sales schema
         run: |
           SCHEMA=$(docker exec postgresql psql -U root -d sqlbot -t -A -c "SELECT nspname FROM pg_namespace WHERE nspname='demo_sales';")
@@ -284,6 +334,7 @@ jobs:
 
       - name: Start services
         run: |
+          export SQLBOT_CI_DETERMINISTIC_LLM=1
           docker compose up -d
           for i in {1..60}; do
             POSTGRES_STATUS=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' postgresql 2>/dev/null || true)
@@ -387,6 +438,50 @@ jobs:
               session.commit()
           PY
 
+      - name: Seed deterministic G4 model configuration
+        run: |
+          docker exec -i gosqlbot-app python - <<'PY'
+          from sqlalchemy import update
+          from sqlmodel import Session, select
+
+          from apps.system.models.system_model import AiModelDetail
+          from common.core.db import engine
+
+          with Session(engine) as session:
+              session.exec(update(AiModelDetail).values(default_model=False))
+              model = session.exec(
+                  select(AiModelDetail).where(AiModelDetail.name == 'CI Deterministic G4 Model')
+              ).first()
+              if model is None:
+                  model = AiModelDetail.model_validate(
+                      {
+                          'supplier': 1,
+                          'name': 'CI Deterministic G4 Model',
+                          'model_type': 1,
+                          'base_model': 'ci-deterministic-demo-sales',
+                          'default_model': True,
+                          'api_key': '',
+                          'api_domain': 'http://ci-deterministic.local',
+                          'protocol': 1,
+                          'config': '[]',
+                          'status': 1,
+                          'create_time': 0,
+                      }
+                  )
+              else:
+                  model.supplier = 1
+                  model.model_type = 1
+                  model.base_model = 'ci-deterministic-demo-sales'
+                  model.default_model = True
+                  model.api_key = ''
+                  model.api_domain = 'http://ci-deterministic.local'
+                  model.protocol = 1
+                  model.config = '[]'
+                  model.status = 1
+              session.add(model)
+              session.commit()
+          PY
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -402,7 +497,7 @@ jobs:
         working-directory: backend
         run: |
           uv sync
-          G4_ARGS="--base-url http://127.0.0.1:8000"
+          G4_ARGS="--base-url http://127.0.0.1:8000 --provider-mode ci-deterministic"
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             G4_ARGS="$G4_ARGS --max-cases 1 --timeout 45 --rate-limit-retries 0 --case-delay-seconds 0"
           fi
