@@ -1,7 +1,7 @@
 # chat-frontend-boundaries Specification
 
 ## Purpose
-TBD - created by archiving change decompose-chat-modules. Update Purpose after archive.
+Structure the frontend chat surface as a composition shell that delegates message rendering, input handling, and session/stream state to focused collaborators and shared controllers, reused across both embedded and standard chat.
 ## Requirements
 ### Requirement: Chat page shells SHALL delegate to focused frontend collaborators
 The frontend SHALL implement chat page-level views as composition shells that delegate message rendering, input handling, and other focused responsibilities to child components or shared composables.
@@ -26,4 +26,3 @@ The frontend SHALL reuse the same core chat orchestration behavior across embedd
 - **WHEN** a user starts a chat flow from an embedded surface
 - **THEN** the embedded surface reuses the shared chat orchestration and stream-consumption behavior
 - **AND** only surface-specific layout concerns differ from the standard chat page
-
