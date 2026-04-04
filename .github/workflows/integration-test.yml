@@ -276,10 +276,6 @@ jobs:
               session.commit()
           PY
 
-      - name: Seed deterministic G4 model configuration
-        run: |
-          docker exec -i gosqlbot-app python /opt/sqlbot/app/scripts/regression/seed_ci_deterministic_model.py
-
       - name: Check demo_sales schema
         run: |
           SCHEMA=$(docker exec postgresql psql -U root -d sqlbot -t -A -c "SELECT nspname FROM pg_namespace WHERE nspname='demo_sales';")
