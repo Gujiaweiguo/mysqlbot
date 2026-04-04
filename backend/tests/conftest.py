@@ -1,6 +1,17 @@
 import os
 import sys
+from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
+from typing import Any, cast
+
+import pytest
+import pytest_asyncio
+from fastapi.testclient import TestClient
+from httpx import ASGITransport, AsyncClient
+from sqlmodel import Session, create_engine
+
+from apps.system.schemas.system_schema import UserInfoDTO
+from common.core.config import settings
 
 # Add backend to path for imports
 backend_dir = Path(__file__).parent.parent
@@ -19,17 +30,6 @@ _ = os.environ.setdefault("UPLOAD_DIR", str(test_runtime_dir / "data" / "file"))
 _ = os.environ.setdefault("EXCEL_PATH", str(test_runtime_dir / "data" / "excel"))
 _ = os.environ.setdefault("LOCAL_MODEL_PATH", str(test_runtime_dir / "models"))
 _ = os.environ.setdefault("LOG_DIR", str(test_runtime_dir / "logs"))
-from collections.abc import AsyncGenerator, Generator
-from typing import Any
-
-import pytest
-import pytest_asyncio
-from fastapi.testclient import TestClient
-from httpx import ASGITransport, AsyncClient
-from sqlmodel import Session, SQLModel, create_engine
-
-from apps.system.schemas.system_schema import UserInfoDTO
-from common.core.config import settings
 
 
 @pytest.fixture(scope="session")
@@ -49,9 +49,9 @@ def test_db(test_db_engine: Any) -> Generator[Session, None, None]:
 @pytest.fixture
 def test_app(test_db: Session) -> Generator[TestClient, None, None]:
     # Import here to avoid circular import issues
-    import apps.system.api.login as login_api
+    from apps.system.api import login as login_api
+    from common.core import deps as deps_module
     from main import app
-    from common.core.deps import get_session
 
     def override_get_session() -> Generator[Session, None, None]:
         yield test_db
@@ -62,20 +62,21 @@ def test_app(test_db: Session) -> Generator[TestClient, None, None]:
         _ = password
         return None
 
+    get_session = cast(Any, deps_module).get_session
     app.dependency_overrides[get_session] = override_get_session
-    original_authenticate = login_api.authenticate
-    login_api.authenticate = fake_authenticate
+    original_authenticate = cast(Any, login_api).authenticate
+    cast(Any, login_api).authenticate = fake_authenticate
     with TestClient(app, raise_server_exceptions=False) as client:
         yield client
-    login_api.authenticate = original_authenticate
+    cast(Any, login_api).authenticate = original_authenticate
     app.dependency_overrides.clear()
 
 
 @pytest_asyncio.fixture
 async def async_client(test_db: Session) -> AsyncGenerator[AsyncClient, None]:
-    import apps.system.api.login as login_api
+    from apps.system.api import login as login_api
+    from common.core import deps as deps_module
     from main import app
-    from common.core.deps import get_session
 
     def override_get_session() -> Generator[Session, None, None]:
         yield test_db
@@ -86,15 +87,16 @@ async def async_client(test_db: Session) -> AsyncGenerator[AsyncClient, None]:
         _ = password
         return None
 
+    get_session = cast(Any, deps_module).get_session
     app.dependency_overrides[get_session] = override_get_session
-    original_authenticate = login_api.authenticate
-    login_api.authenticate = fake_authenticate
+    original_authenticate = cast(Any, login_api).authenticate
+    cast(Any, login_api).authenticate = fake_authenticate
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
     ) as client:
         yield client
-    login_api.authenticate = original_authenticate
+    cast(Any, login_api).authenticate = original_authenticate
     app.dependency_overrides.clear()
 
 
@@ -121,6 +123,7 @@ def auth_headers(
     monkeypatch: pytest.MonkeyPatch, auth_user: UserInfoDTO
 ) -> dict[str, str]:
     from apps.system.middleware.auth import TokenMiddleware
+    from apps.system.schemas import permission as permission_module
 
     async def fake_validate_token(
         self: TokenMiddleware, token: str | None, trans: object
@@ -130,7 +133,13 @@ def auth_headers(
         assert token == "Bearer test-token"
         return True, auth_user
 
+    async def fake_get_ws_resource(oid: int, type: str) -> list[int]:
+        _ = oid
+        _ = type
+        return list(range(1, 1000))
+
     monkeypatch.setattr(TokenMiddleware, "validateToken", fake_validate_token)
+    monkeypatch.setattr(permission_module, "get_ws_resource", fake_get_ws_resource)
 
     return {
         settings.TOKEN_KEY: "Bearer test-token",

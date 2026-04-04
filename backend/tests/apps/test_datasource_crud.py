@@ -1,15 +1,20 @@
-from typing import cast
+from collections.abc import Iterator
+from typing import Any, cast
 
+import pytest
 from sqlmodel import Session
 
 from apps.datasource.crud.datasource import chooseTables, create_ds, update_ds
 from apps.datasource.models.datasource import (
-    CreateDatasource,
     CoreDatasource,
     CoreTable,
+    CreateDatasource,
+    DatasourceConf,
     SelectedTablePayload,
     UpdateDatasource,
 )
+from apps.db.constant import ConnectType
+from apps.db.db import DatasourceMetadataContext
 from apps.system.schemas.system_schema import UserInfoDTO
 from common.core.deps import Trans
 
@@ -24,7 +29,10 @@ class FakeExecResult:
     def first(self) -> object:
         return self._first_value
 
-    def __iter__(self):
+    def all(self) -> list[object]:
+        return list(self._iterable)
+
+    def __iter__(self) -> Iterator[object]:
         return iter(self._iterable)
 
 
@@ -43,7 +51,7 @@ class FakeDatasourceSession:
     def add(self, obj: object) -> None:
         assert hasattr(obj, "_sa_instance_state")
         if getattr(obj, "id", None) is None:
-            setattr(obj, "id", self._next_id)
+            cast(Any, obj).id = self._next_id
             self._next_id += 1
         self.added_objects.append(obj)
 
@@ -64,7 +72,7 @@ def _fake_trans(key: str) -> str:
 
 class TestDatasourceCrud:
     async def test_create_ds_initializes_embedding_as_none(
-        self, monkeypatch, auth_user: UserInfoDTO
+        self, monkeypatch: pytest.MonkeyPatch, auth_user: UserInfoDTO
     ) -> None:
         session = FakeDatasourceSession([])
 
@@ -97,7 +105,7 @@ class TestDatasourceCrud:
         assert created.embedding is None
 
     def test_choose_tables_accepts_payload_models(
-        self, monkeypatch, auth_user: UserInfoDTO
+        self, monkeypatch: pytest.MonkeyPatch, auth_user: UserInfoDTO
     ) -> None:
         _ = auth_user
         ds = CoreDatasource(
@@ -129,11 +137,23 @@ class TestDatasourceCrud:
         )
         monkeypatch.setattr(
             "apps.datasource.crud.datasource.getFieldsByDs",
-            lambda session, ds, table_name: [],
+            lambda session, ds, table_name, metadata_context=None: [],
+        )
+        monkeypatch.setattr(
+            "apps.datasource.crud.datasource.build_metadata_context",
+            lambda ds: DatasourceMetadataContext(
+                ds_type="pg",
+                conf=DatasourceConf(),
+                connect_type=ConnectType.sqlalchemy,
+            ),
         )
         monkeypatch.setattr(
             "apps.datasource.crud.datasource.run_save_table_embeddings",
             lambda ids: None,
+        )
+        monkeypatch.setattr(
+            "apps.datasource.crud.datasource.sync_fields",
+            lambda session, ds, table, fields, auto_commit=True: None,
         )
         monkeypatch.setattr(
             "apps.datasource.crud.datasource.run_save_ds_embeddings",
@@ -158,7 +178,7 @@ class TestDatasourceCrud:
         assert saved_tables[0].table_name == "demo_table"
 
     def test_update_ds_accepts_request_dto(
-        self, monkeypatch, auth_user: UserInfoDTO
+        self, monkeypatch: pytest.MonkeyPatch, auth_user: UserInfoDTO
     ) -> None:
         ds = CoreDatasource(
             id=1,
