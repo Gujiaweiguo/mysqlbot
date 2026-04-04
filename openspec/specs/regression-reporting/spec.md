@@ -4,7 +4,7 @@
 Require each full-regression run to produce a structured, evidence-linked report capturing scope, gate results, unresolved issues, and a release-readiness decision.
 ## Requirements
 ### Requirement: Structured regression report
-Each full-regression run SHALL produce a structured report that includes scope, environment, executed commands, gate results, evidence references, unresolved issues, and release recommendation. When G4 is executed with the deterministic CI provider path, the report SHALL record that execution mode.
+Each full-regression run SHALL produce a structured report that includes scope, environment, executed commands, gate results, evidence references, unresolved issues, and release recommendation. When deterministic CI-specific regression modes are used for G4 or G5, the report SHALL record that execution mode.
 
 #### Scenario: Report generation after run
 - **WHEN** all regression gates complete
@@ -15,8 +15,13 @@ Each full-regression run SHALL produce a structured report that includes scope, 
 - **THEN** the report records that G4 used the deterministic CI provider path
 - **AND** reviewers can distinguish that run mode from historical external-provider executions
 
+#### Scenario: G5 runs with deterministic failure-path mode
+- **WHEN** a regression report includes G5 failure-path results from CI
+- **THEN** the report records that G5 used the deterministic mock-provider path
+- **AND** reviewers can distinguish that run mode from infrastructure failures unrelated to the intended failure-path scenarios
+
 ### Requirement: Evidence traceability
-Regression reports MUST include evidence references for each gate result so outcomes can be independently verified. G4 evidence MUST remain traceable to the provider mode used for the run.
+Regression reports MUST include evidence references for each gate result so outcomes can be independently verified. Deterministic CI evidence for G4 and G5 MUST remain traceable to the execution mode used for the run.
 
 #### Scenario: Evidence review
 - **WHEN** a reviewer audits regression results
@@ -26,3 +31,6 @@ Regression reports MUST include evidence references for each gate result so outc
 - **WHEN** a reviewer audits G4 evidence from a CI regression run
 - **THEN** the evidence identifies the provider mode used for that run
 
+#### Scenario: Reviewer inspects G5 provider context
+- **WHEN** a reviewer audits G5 evidence from a CI regression run
+- **THEN** the evidence identifies the failure-path execution mode and the observed mock-provider behavior

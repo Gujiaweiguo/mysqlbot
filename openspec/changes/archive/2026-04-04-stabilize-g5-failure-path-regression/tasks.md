@@ -11,4 +11,4 @@
 ## 3. Preserve evidence and validate the gate
 
 - [x] 3.1 Update G5 evidence/reporting output if needed to record deterministic execution mode and mock-provider observations
-- [ ] 3.2 Re-run `Integration Test (G0-G5)` and verify G5 passes after G4 while preserving the intended resilience assertions
+- [x] 3.2 Re-run `Integration Test (G0-G5)` and verify G5 passes after G4 while preserving the intended resilience assertions
