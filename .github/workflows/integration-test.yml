@@ -532,6 +532,9 @@ jobs:
 
       - name: Start services
         run: |
+          export SQLBOT_CI_DETERMINISTIC_LLM=1
+          export SQLBOT_SECRET_KEY=CHANGE_ME_WITH_A_LONG_RANDOM_SECRET
+          export SQLBOT_DEFAULT_PWD=mySQLBot@123456
           docker compose up -d
           for i in {1..60}; do
             POSTGRES_STATUS=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' postgresql 2>/dev/null || true)
@@ -635,6 +638,50 @@ jobs:
               session.commit()
           PY
 
+      - name: Seed deterministic G5 model configuration
+        run: |
+          docker exec -i gosqlbot-app python - <<'PY'
+          from sqlalchemy import update
+          from sqlmodel import Session, select
+
+          from apps.system.models.system_model import AiModelDetail
+          from common.core.db import engine
+
+          with Session(engine) as session:
+              session.exec(update(AiModelDetail).values(default_model=False))
+              model = session.exec(
+                  select(AiModelDetail).where(AiModelDetail.name == 'CI Deterministic G5 Model')
+              ).first()
+              if model is None:
+                  model = AiModelDetail.model_validate(
+                      {
+                          'supplier': 1,
+                          'name': 'CI Deterministic G5 Model',
+                          'model_type': 1,
+                          'base_model': 'ci-deterministic-demo-sales',
+                          'default_model': True,
+                          'api_key': '',
+                          'api_domain': 'http://ci-deterministic.local',
+                          'protocol': 1,
+                          'config': '[]',
+                          'status': 1,
+                          'create_time': 0,
+                      }
+                  )
+              else:
+                  model.supplier = 1
+                  model.model_type = 1
+                  model.base_model = 'ci-deterministic-demo-sales'
+                  model.default_model = True
+                  model.api_key = ''
+                  model.api_domain = 'http://ci-deterministic.local'
+                  model.protocol = 1
+                  model.config = '[]'
+                  model.status = 1
+              session.add(model)
+              session.commit()
+          PY
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -649,6 +696,9 @@ jobs:
       - name: Run G5 Failure Path
         working-directory: backend
         run: |
+          export SECRET_KEY=CHANGE_ME_WITH_A_LONG_RANDOM_SECRET
+          export DEFAULT_PWD=mySQLBot@123456
+          export SQLBOT_CI_DETERMINISTIC_LLM=1
           uv sync
           bash scripts/regression/g5-failure-path-demo-sales.sh --base-url http://127.0.0.1:8000
 

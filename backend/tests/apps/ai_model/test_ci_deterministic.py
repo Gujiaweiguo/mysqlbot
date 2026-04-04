@@ -28,3 +28,17 @@ def test_build_deterministic_response_returns_chart_payload_for_chart_stage() ->
 
     assert '"type": "table"' in response
     assert '"columns"' in response
+
+
+def test_build_deterministic_response_matches_case_from_generated_sql() -> None:
+    response = build_deterministic_response(
+        [
+            SystemMessage(content="dynamic sql stage"),
+            HumanMessage(
+                content="""sql: SELECT SUM("t1"."order_amount") AS "total_amount" FROM "demo_sales"."orders" "t1" LIMIT 1000"""
+            ),
+        ]
+    )
+
+    assert '"success": true' in response
+    assert "SELECT SUM(" in response

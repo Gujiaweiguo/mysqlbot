@@ -70,7 +70,12 @@ def _extract_question(messages: Sequence[BaseMessage]) -> str:
 
 def _match_case(question_text: str) -> DeterministicSQLCase | None:
     for case in DEMO_SALES_SQL_CASES:
-        if case.match_text in question_text:
+        if (
+            case.match_text in question_text
+            or case.sql in question_text
+            or case.brief in question_text
+            or case.chart_title in question_text
+        ):
             return case
     return None
 

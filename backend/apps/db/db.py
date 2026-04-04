@@ -249,6 +249,9 @@ def build_metadata_context(
     ds: CoreDatasource | AssistantOutDsSchema,
 ) -> DatasourceMetadataContext:
     ds_type = _get_ds_type(ds)
+    if isinstance(ds, AssistantOutDsSchema):
+        out_conf = _normalize_out_configuration(get_out_ds_conf(ds, 30))
+        ds.configuration = out_conf
     conf = (
         DatasourceConf(**json.loads(_decrypt_configuration(ds.configuration)))
         if not equals_ignore_case(ds_type, "excel")

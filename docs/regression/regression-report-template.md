@@ -73,6 +73,7 @@
 ### G5 Failure Path (429 / transient)
 
 - 用例：
+- Execution mode:
 - 结果：
 - 证据：
 

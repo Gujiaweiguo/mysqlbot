@@ -20,7 +20,7 @@ MOCK_DS_TEMPLATE: dict[str, Any] = {
     "name": "mock-demo-sales",
     "type": "pg",
     "type_name": "PostgreSQL",
-    "host": "localhost",
+    "host": "postgresql",
     "port": 5432,
     "user": "root",
     "password": "Password123@pg",
@@ -128,6 +128,11 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--timeout", type=float, default=180.0, help="HTTP timeout seconds"
+    )
+    parser.add_argument(
+        "--execution-mode",
+        default="ci-deterministic-mock-provider",
+        help="Execution mode recorded in G5 evidence output",
     )
     return parser.parse_args()
 
@@ -307,8 +312,11 @@ async def _run(args: argparse.Namespace) -> int:
         "report_id": f"g5-failure-path-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
         "created_at": datetime.now().isoformat(),
         "base_url": args.base_url,
+        "execution_mode": args.execution_mode,
         "mock_provider_base": mock_base,
         "overall_passed": overall_passed,
+        "mock_rate_limit_hits": state.rate_limit_hits,
+        "mock_transient_hits": state.transient_hits,
         "cases": [case_429, case_transient],
     }
 
