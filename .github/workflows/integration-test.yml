@@ -532,6 +532,7 @@ jobs:
 
       - name: Start services
         run: |
+          export SQLBOT_PG_PASSWORD=Password123@pg
           export SQLBOT_CI_DETERMINISTIC_LLM=1
           export SQLBOT_SECRET_KEY=CHANGE_ME_WITH_A_LONG_RANDOM_SECRET
           export SQLBOT_DEFAULT_PWD=mySQLBot@123456
