@@ -37,6 +37,8 @@ jobs:
       - name: Start services
         run: |
           export SQLBOT_CI_DETERMINISTIC_LLM=1
+          export SQLBOT_SECRET_KEY=CHANGE_ME_WITH_A_LONG_RANDOM_SECRET
+          export SQLBOT_DEFAULT_PWD=mySQLBot@123456
           docker compose up -d
           echo "Waiting for services to be healthy..."
           for i in {1..60}; do
@@ -127,6 +129,8 @@ jobs:
       - name: Start services
         run: |
           export SQLBOT_CI_DETERMINISTIC_LLM=1
+          export SQLBOT_SECRET_KEY=CHANGE_ME_WITH_A_LONG_RANDOM_SECRET
+          export SQLBOT_DEFAULT_PWD=mySQLBot@123456
           docker compose up -d
           for i in {1..60}; do
             POSTGRES_STATUS=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' postgresql 2>/dev/null || true)
@@ -492,6 +496,9 @@ jobs:
       - name: Run G4 Happy Path
         working-directory: backend
         run: |
+          export SECRET_KEY=CHANGE_ME_WITH_A_LONG_RANDOM_SECRET
+          export DEFAULT_PWD=mySQLBot@123456
+          export SQLBOT_CI_DETERMINISTIC_LLM=1
           uv sync
           G4_ARGS="--base-url http://127.0.0.1:8000 --provider-mode ci-deterministic"
           if [ "${{ github.event_name }}" = "pull_request" ]; then
