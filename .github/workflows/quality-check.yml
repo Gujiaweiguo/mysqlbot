@@ -1,5 +1,8 @@
 name: Quality Check (G1-G2)
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 on:
   push:
     branches: [main, master, dev, develop]
