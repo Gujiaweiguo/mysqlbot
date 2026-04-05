@@ -6,4 +6,4 @@
 ## 2. Verification
 
 - [x] 2.1 Validate workflow file syntax and scope of changes
-- [ ] 2.2 Trigger and observe affected CI workflows to confirm gate outcomes remain healthy without Node 20 deprecation dependence
+- [x] 2.2 Trigger and observe affected CI workflows to confirm gate outcomes remain healthy without Node 20 deprecation dependence
