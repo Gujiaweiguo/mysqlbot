@@ -1,8 +1,5 @@
 name: Integration Test (G0-G5)
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-
 on:
   pull_request:
     branches: [main, master]
@@ -31,7 +28,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build local sqlbot base image
         run: |
@@ -109,7 +106,7 @@ jobs:
           docker compose logs --no-color postgresql > artifacts/runtime-health/postgresql.log || true
 
       - name: Upload runtime diagnostics
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: runtime-health-artifacts
@@ -123,7 +120,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build local sqlbot base image
         run: |
@@ -329,7 +326,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build local sqlbot base image
         run: |
@@ -488,12 +485,12 @@ jobs:
           PY
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: "backend/pyproject.toml"
@@ -512,7 +509,7 @@ jobs:
           bash scripts/regression/g4-happy-path-demo-sales.sh $G4_ARGS
 
       - name: Upload G4 evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: g4-evidence
@@ -527,7 +524,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build local sqlbot base image
         run: |
@@ -687,12 +684,12 @@ jobs:
           PY
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: "backend/pyproject.toml"
@@ -707,7 +704,7 @@ jobs:
           bash scripts/regression/g5-failure-path-demo-sales.sh --base-url http://127.0.0.1:8000
 
       - name: Upload G5 evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: g5-evidence

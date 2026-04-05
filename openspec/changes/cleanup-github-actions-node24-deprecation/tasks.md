@@ -1,6 +1,6 @@
 ## 1. Workflow compatibility update
 
-- [x] 1.1 Add Node 24 JavaScript action runtime compatibility configuration to the targeted CI workflow files
+- [x] 1.1 Add native Node 24 action-version compatibility updates to the targeted CI workflow files
 - [x] 1.2 Keep workflow behavior unchanged aside from runtime compatibility settings
 
 ## 2. Verification
