@@ -1,7 +1,7 @@
 services:
-  gosqlbot-app:
+  mysqlbot-app:
     image: registry.cn-qingdao.aliyuncs.com/dataease/sqlbot:SQLBOT_TAG
-    container_name: sqlbot
+    container_name: mysqlbot-app
     restart: always
     privileged: true
     networks:

@@ -41,6 +41,10 @@ Frontend and backend run locally on the host, while Redis and PostgreSQL run in 
 cp .env.example .env
 ```
 
+> In development, the backend process reads runtime variables such as `POSTGRES_*`, `BASE_DIR`, and `UPLOAD_DIR` directly.
+> The `SQLBOT_DEV_PG_*` variables are mainly used by `docker-compose.dev.yaml` and related setup scripts.
+> The checked-in `.env.example` already aligns these values for the local host-app + containerized-DB workflow.
+
 Key development settings:
 
 | Variable | Default | Description |
@@ -48,6 +52,14 @@ Key development settings:
 | `SQLBOT_DEV_PG_HOST` | `localhost` | Database host |
 | `SQLBOT_DEV_PG_PORT` | `15432` | Database port (avoid conflicts) |
 | `SQLBOT_DEV_PG_USER` | `sqlbot_user` | Database user |
+| `POSTGRES_SERVER` | `localhost` | Actual database host read by the backend |
+| `POSTGRES_PORT` | `15432` | Actual database port read by the backend |
+| `POSTGRES_USER` | `sqlbot_user` | Actual database user read by the backend |
+| `POSTGRES_PASSWORD` | `DevOnly@123456` | Actual database password read by the backend |
+| `BASE_DIR` | `.` | Local runtime root |
+| `UPLOAD_DIR` | `./data/sqlbot/dev/file` | Uploaded file directory |
+| `MCP_IMAGE_PATH` | `./data/sqlbot/dev/images` | Image and embedding asset directory |
+| `EXCEL_PATH` | `./data/sqlbot/dev/excel` | Excel import/export directory |
 | `SQLBOT_CACHE_TYPE` | `memory` | Cache type |
 | `SQLBOT_CACHE_REDIS_URL` | `redis://localhost:16379/0` | Redis URL |
 
@@ -91,6 +103,8 @@ docker compose -f docker-compose.dev.yaml down
 ### Production Environment
 
 Uses prebuilt Docker images. All services run in containers.
+
+The application container is named `mysqlbot-app`.
 
 **1. Install**
 
@@ -145,7 +159,7 @@ bash install.sh
 
 | Aspect | Development | Production |
 |--------|-------------|------------|
-| Frontend | Local `npm run dev` | Embedded in app container |
+| Frontend | `make frontend-dev` writes `frontend/dist`, optionally `make frontend-vite-dev` for internal Vite debugging | Embedded in `mysqlbot-app` |
 | Backend | Local `uv run uvicorn` | Container |
 | Database | Container (port 15432) | Container (port 5432) |
 | Redis | Container (port 16379) | Container (port 6379) |

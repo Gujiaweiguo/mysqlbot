@@ -1,12 +1,12 @@
 name: mysqlbot
 
 services:
-  gosqlbot-app:
+  mysqlbot-app:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ${SQLBOT_IMAGE:-gosqlbot-app:local}
-    container_name: gosqlbot-app
+    image: ${SQLBOT_IMAGE:-mysqlbot-app:local}
+    container_name: mysqlbot-app
     restart: always
     privileged: true
     networks:

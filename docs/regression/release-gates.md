@@ -47,7 +47,7 @@
 
 1. **先看 G0**
    - `docker compose ps`
-   - `runtime-health-artifacts` 中的 `gosqlbot-app.log` / `postgresql.log`
+- `runtime-health-artifacts` 中的 `mysqlbot-app.log` / `postgresql.log`
    - 登录页与 `/api/v1/system/parameter/login` 探针结果
 2. **再看 G3**
    - `demo_sales` schema 是否存在

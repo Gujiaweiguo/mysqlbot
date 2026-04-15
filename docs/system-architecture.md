@@ -68,14 +68,14 @@ flowchart LR
 
 默认部署模式为：
 
-- `gosqlbot-app`
+- `mysqlbot-app`
 - `postgresql`
 - `redis`
 
 启动顺序：
 
 1. `postgresql` 和 `redis` 先通过 healthcheck 达到可用状态。
-2. `gosqlbot-app` 在数据库和缓存就绪后启动。
+2. `mysqlbot-app` 在数据库和缓存就绪后启动。
 3. app 容器内部继续按 `start.sh` 顺序启动 G2-SSR、MCP FastAPI（8001）和主 FastAPI（8000）。
 4. 主 FastAPI 启动期间会自动补齐默认 embedded assistant（`type=4, oid=1`），其 `domain` 默认使用 `FRONTEND_HOST`。
 

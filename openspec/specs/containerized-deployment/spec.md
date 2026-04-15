@@ -4,7 +4,7 @@
 Define the supported containerized deployment shapes, readiness expectations, and configuration boundaries for running the application with externalized backing services.
 ## Requirements
 ### Requirement: Compose SHALL support separated application and PostgreSQL services
-The system SHALL provide a supported Docker Compose deployment mode where the application runs in a dedicated `gosqlbot-app` service and PostgreSQL runs in a dedicated `postgresql` service.
+The system SHALL provide a supported Docker Compose deployment mode where the application runs in a dedicated `mysqlbot-app` service and PostgreSQL runs in a dedicated `postgresql` service.
 
 #### Scenario: Start app with external PostgreSQL service
 - **WHEN** an operator starts the supported Compose deployment for `app + postgresql`
@@ -56,7 +56,7 @@ The system SHALL document the supported Compose deployment shapes, required envi
 - **AND** which volumes and environment values belong to each service
 
 ### Requirement: Application service SHALL expose a Compose-visible health contract
-The deployment contract SHALL define a health signal for `gosqlbot-app` that operators and container orchestration can observe independently from backing-service health.
+The deployment contract SHALL define a health signal for `mysqlbot-app` that operators and container orchestration can observe independently from backing-service health.
 
 #### Scenario: Operator inspects application readiness
 - **WHEN** the Compose deployment starts the application service
@@ -70,4 +70,3 @@ The deployment contract SHALL source sensitive runtime values through environmen
 - **WHEN** an operator prepares a supported containerized deployment
 - **THEN** sensitive values such as application secrets are supplied through environment-driven configuration
 - **AND** committed deployment manifests do not require active secret material to remain checked in
-
