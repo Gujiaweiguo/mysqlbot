@@ -1,5 +1,7 @@
 import asyncio
+import base64
 import json
+import os
 from typing import cast
 
 from fastapi import APIRouter, Request
@@ -87,6 +89,22 @@ def _extract_json_response_payload(response: JSONResponse) -> dict[str, object]:
     if isinstance(raw_body, dict):
         return cast(dict[str, object], raw_body)
     return {"raw": raw_body}
+
+
+def _enrich_payload_with_image_base64(
+    payload: dict[str, object],
+) -> dict[str, object]:
+    image_url = payload.get("image_url")
+    if not isinstance(image_url, str) or not image_url:
+        return payload
+    file_name = image_url.rsplit("/", 1)[-1]
+    file_path = os.path.join(settings.MCP_IMAGE_PATH, file_name)
+    if not os.path.isfile(file_path):
+        return payload
+    with open(file_path, "rb") as f:
+        encoded = base64.b64encode(f.read()).decode("ascii")
+    payload["image_base64"] = encoded
+    return payload
 
 
 def _normalize_message(value: object, fallback: str) -> str:
@@ -401,7 +419,7 @@ async def ask_question(
         {
             "conversation_id": question_request.conversation_id,
             "chat_id": binding.chat_id,
-            "result": payload,
+            "result": _enrich_payload_with_image_base64(payload),
         },
     )
 
@@ -510,7 +528,7 @@ async def run_analysis(
             "chat_id": analysis_request.chat_id,
             "record_id": analysis_request.record_id,
             "action_type": analysis_request.action_type,
-            "result": payload,
+            "result": _enrich_payload_with_image_base64(payload),
         },
     )
 
