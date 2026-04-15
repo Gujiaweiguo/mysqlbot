@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import SQPreview from '@/views/dashboard/preview/SQPreview.vue'
 import { load_resource_prepare } from '@/views/dashboard/utils/canvasUtils.ts'
-import { onMounted, reactive, ref } from 'vue'
+import { reactive, ref, watch } from 'vue'
 import router from '@/router'
 
 const previewCanvasContainer = ref(null)
@@ -9,20 +9,23 @@ const dashboardPreview = ref(null)
 const dataInitState = ref(true)
 const downloadStatus = ref(false)
 const state = reactive({
-  resourceId: null,
+  resourceId: null as string | null,
   canvasDataPreview: [],
   canvasStylePreview: {},
   canvasViewInfoPreview: {},
   dashboardInfo: {},
 })
 
-onMounted(() => {
-  // @ts-expect-error eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  state.resourceId = router.currentRoute.value.query.resourceId
-  if (state.resourceId) {
-    loadCanvasData({ id: state.resourceId })
-  }
-})
+watch(
+  () => router.currentRoute.value.query.resourceId,
+  (resourceId) => {
+    state.resourceId = Array.isArray(resourceId) ? (resourceId[0] ?? null) : (resourceId ?? null)
+    if (state.resourceId) {
+      loadCanvasData({ id: state.resourceId })
+    }
+  },
+  { immediate: true }
+)
 
 const loadCanvasData = (params: any) => {
   dataInitState.value = false

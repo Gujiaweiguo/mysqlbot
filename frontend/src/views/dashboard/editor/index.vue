@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, watch } from 'vue'
 import Toolbar from '@/views/dashboard/editor/Toolbar.vue'
 import DashboardEditor from '@/views/dashboard/editor/DashboardEditor.vue'
 import { findNewComponentFromList } from '@/views/dashboard/components/component-list.ts'
@@ -24,6 +24,33 @@ const state = reactive({
 })
 
 const dashboardEditorInnerRef = ref(null)
+
+const loadFromRoute = () => {
+  // @ts-expect-error eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  state.opt = router.currentRoute.value.query.opt
+  // @ts-expect-error eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  state.resourceId = router.currentRoute.value.query.resourceId
+  // @ts-expect-error eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  state.routerPid = router.currentRoute.value.query.pid
+
+  dashboardStore.canvasDataInit()
+
+  if (state.opt === 'create') {
+    dataInitState.value = true
+    dashboardStore.updateDashboardInfo({
+      dataState: 'prepare',
+      name: t('dashboard.new_dashboard'),
+      pid: state.routerPid,
+    })
+  } else if (state.resourceId) {
+    dataInitState.value = false
+    initCanvasData({ id: state.resourceId }, function () {
+      dataInitState.value = true
+    })
+  } else {
+    dataInitState.value = true
+  }
+}
 const addComponents = (componentType: string, views?: any) => {
   const component = cloneDeep(findNewComponentFromList(componentType))
   // @ts-expect-error eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -74,26 +101,13 @@ const maxYComponentCount = () => {
   }
 }
 
-onMounted(() => {
-  // @ts-expect-error eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  state.opt = router.currentRoute.value.query.opt
-  // @ts-expect-error eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  state.resourceId = router.currentRoute.value.query.resourceId
-  // @ts-expect-error eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  state.routerPid = router.currentRoute.value.query.pid
-  if (state.opt === 'create') {
-    dashboardStore.updateDashboardInfo({
-      dataState: 'prepare',
-      name: t('dashboard.new_dashboard'),
-      pid: state.routerPid,
-    })
-  } else if (state.resourceId) {
-    dataInitState.value = false
-    initCanvasData({ id: state.resourceId }, function () {
-      dataInitState.value = true
-    })
-  }
-})
+watch(
+  () => [router.currentRoute.value.query.opt, router.currentRoute.value.query.resourceId, router.currentRoute.value.query.pid],
+  () => {
+    loadFromRoute()
+  },
+  { immediate: true }
+)
 
 const baseParams = computed(() => {
   return {

@@ -31,15 +31,20 @@ const chartId = computed(() => {
   return 'chart-component-' + params.id
 })
 
+const safeColumns = computed(() => (Array.isArray(params.columns) ? params.columns : []))
+const safeXAxis = computed(() => (Array.isArray(params.x) ? params.x : []))
+const safeYAxis = computed(() => (Array.isArray(params.y) ? params.y : []))
+const safeSeries = computed(() => (Array.isArray(params.series) ? params.series : []))
+
 const axis = computed(() => {
   const _list: Array<ChartAxis> = []
-  params.columns.forEach((column) => {
+  safeColumns.value.forEach((column) => {
     _list.push({ name: column.name, value: column.value })
   })
-  params.x.forEach((column) => {
+  safeXAxis.value.forEach((column) => {
     _list.push({ name: column.name, value: column.value, type: 'x' })
   })
-  params.y.forEach((column) => {
+  safeYAxis.value.forEach((column) => {
     _list.push({
       name: column.name,
       value: column.value,
@@ -47,7 +52,7 @@ const axis = computed(() => {
       'multi-quota': column['multi-quota'],
     })
   })
-  params.series.forEach((column) => {
+  safeSeries.value.forEach((column) => {
     _list.push({ name: column.name, value: column.value, type: 'series' })
   })
   if (params.multiQuotaName) {

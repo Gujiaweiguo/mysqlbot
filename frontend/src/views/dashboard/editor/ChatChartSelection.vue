@@ -173,7 +173,7 @@ function adaptorChartInfoList(chatInfo: ChatInfo) {
           recordeInfo['chart'] = {
             type: chartBaseInfo?.type,
             title: chartBaseInfo?.title,
-            columns: chartBaseInfo?.columns,
+            columns: Array.isArray(chartBaseInfo?.columns) ? chartBaseInfo.columns : [],
             xAxis: axis?.x ? [axis?.x] : [],
             yAxis: yAxis,
             series: axis?.series ? [axis?.series] : [],
