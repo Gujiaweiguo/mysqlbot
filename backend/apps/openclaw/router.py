@@ -174,7 +174,8 @@ def _build_display_hint(payload: dict[str, object]) -> None:
     parts.append(separator)
     parts.extend(body_lines)
     parts.append("")
-    parts.append(f"📊 [点击查看图表]({image_url})")
+    parts.append("📊 点击查看图表：")
+    parts.append(image_url)
 
     payload["display_hint"] = "\n".join(parts)
 
