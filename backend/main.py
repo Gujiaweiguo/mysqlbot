@@ -337,6 +337,7 @@ mcp_app = FastAPI()
 images_path = settings.MCP_IMAGE_PATH
 os.makedirs(images_path, exist_ok=True)
 mcp_app.mount("/images", StaticFiles(directory=images_path), name="images")
+app.mount("/images", StaticFiles(directory=images_path), name="main-images")
 
 if _should_setup_mcp():
     # FastApiMCP.setup_server() runs inside __init__, so the environment gate must
