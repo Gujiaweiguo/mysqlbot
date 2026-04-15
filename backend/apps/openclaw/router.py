@@ -127,7 +127,7 @@ def _build_display_hint(payload: dict[str, object]) -> None:
         return
     rows = data_obj.get("data")
     if not isinstance(rows, list) or not rows:
-        payload["display_hint"] = f"📊 点击查看图表：{image_url}"
+        payload["display_hint"] = f"📊 [点击查看图表]({image_url})"
         return
 
     axis = chart.get("axis")
@@ -174,7 +174,7 @@ def _build_display_hint(payload: dict[str, object]) -> None:
     parts.append(separator)
     parts.extend(body_lines)
     parts.append("")
-    parts.append(f"📊 点击查看图表：{image_url}")
+    parts.append(f"📊 [点击查看图表]({image_url})")
 
     payload["display_hint"] = "\n".join(parts)
 
