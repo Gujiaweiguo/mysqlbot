@@ -56,6 +56,7 @@ class OpenClawQuestionRequest(OpenClawContractBase):
     chat_id: int | None = None
     datasource_id: int | None = None
     language: str = Field(default="zh-CN", min_length=2)
+    include_image_base64: bool = Field(default=False)
 
 
 class OpenClawAnalysisRequest(OpenClawContractBase):
@@ -65,6 +66,7 @@ class OpenClawAnalysisRequest(OpenClawContractBase):
     record_id: int = Field(gt=0)
     action_type: str = Field(default="analysis", min_length=1)
     language: str = Field(default="zh-CN", min_length=2)
+    include_image_base64: bool = Field(default=False)
 
 
 class OpenClawDatasourceListRequest(OpenClawContractBase):

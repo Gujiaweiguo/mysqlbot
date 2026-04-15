@@ -93,7 +93,11 @@ def _extract_json_response_payload(response: JSONResponse) -> dict[str, object]:
 
 def _enrich_payload_with_image_base64(
     payload: dict[str, object],
+    *,
+    include_image_base64: bool = False,
 ) -> dict[str, object]:
+    if not include_image_base64:
+        return payload
     image_url = payload.get("image_url")
     if not isinstance(image_url, str) or not image_url:
         return payload
@@ -419,7 +423,10 @@ async def ask_question(
         {
             "conversation_id": question_request.conversation_id,
             "chat_id": binding.chat_id,
-            "result": _enrich_payload_with_image_base64(payload),
+            "result": _enrich_payload_with_image_base64(
+                payload,
+                include_image_base64=question_request.include_image_base64,
+            ),
         },
     )
 
@@ -528,7 +535,10 @@ async def run_analysis(
             "chat_id": analysis_request.chat_id,
             "record_id": analysis_request.record_id,
             "action_type": analysis_request.action_type,
-            "result": _enrich_payload_with_image_base64(payload),
+            "result": _enrich_payload_with_image_base64(
+                payload,
+                include_image_base64=analysis_request.include_image_base64,
+            ),
         },
     )
 
