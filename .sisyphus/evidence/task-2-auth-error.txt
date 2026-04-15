@@ -1,0 +1,14 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-7.4.4, pluggy-1.6.0 -- /opt/code/mysqlbot/backend/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /opt/code/mysqlbot/backend
+configfile: pyproject.toml
+plugins: anyio-4.12.1, asyncio-0.23.8, cov-5.0.0, langsmith-0.7.16
+asyncio: mode=Mode.AUTO
+collecting ... collected 6 items
+
+tests/apps/openclaw/test_service.py::test_authenticate_openclaw_service_token_rejects_disabled_key PASSED [ 33%]
+tests/apps/openclaw/test_service.py::test_authenticate_openclaw_service_token_rejects_missing_header PASSED [ 50%]
+tests/apps/openclaw/test_service.py::test_bind_openclaw_session_rejects_foreign_chat_scope PASSED [100%]
+
+============================== selected auth-error checks passed ==============================

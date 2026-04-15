@@ -1,0 +1,18 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-7.4.4, pluggy-1.6.0 -- /opt/code/mysqlbot/backend/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /opt/code/mysqlbot/backend
+configfile: pyproject.toml
+plugins: anyio-4.12.1, asyncio-0.23.8, cov-5.0.0, langsmith-0.7.16
+asyncio: mode=Mode.AUTO
+collecting ... collected 7 items
+
+tests/apps/openclaw/test_contract.py::test_contract_constants_lock_v1_defaults PASSED [ 14%]
+tests/apps/openclaw/test_contract.py::test_operation_registry_is_unique PASSED [ 28%]
+tests/apps/openclaw/test_contract.py::test_error_code_registry_is_unique PASSED [ 42%]
+tests/apps/openclaw/test_contract.py::test_request_models_encode_versioned_operations PASSED [ 57%]
+tests/apps/openclaw/test_contract.py::test_request_models_forbid_unknown_fields PASSED [ 71%]
+tests/apps/openclaw/test_contract.py::test_success_envelope_shape_is_stable PASSED [ 85%]
+tests/apps/openclaw/test_contract.py::test_error_envelope_shape_is_stable PASSED [100%]
+
+============================== 7 passed in 0.10s ===============================

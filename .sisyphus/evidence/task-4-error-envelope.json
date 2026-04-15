@@ -1,0 +1,20 @@
+{
+  "source": {
+    "contract_test": "tests/apps/openclaw/test_contract.py::test_error_envelope_shape_is_stable",
+    "router_tests": [
+      "tests/apps/openclaw/test_router.py::TestOpenClawRouter::test_question_route_unexpected_exception_returns_normalized_error",
+      "tests/apps/openclaw/test_router.py::TestOpenClawRouter::test_question_route_upstream_error_response_is_machine_parseable"
+    ],
+    "implementation": "backend/apps/openclaw/contract.py"
+  },
+  "envelope": {
+    "version": "v1",
+    "status": "error",
+    "operation": "question.execute",
+    "error_code": "AUTH_INVALID",
+    "message": "Invalid credential",
+    "detail": {
+      "header": "X-SQLBOT-ASK-TOKEN"
+    }
+  }
+}

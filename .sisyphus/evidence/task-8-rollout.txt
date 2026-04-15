@@ -1,0 +1,42 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-7.4.4, pluggy-1.6.0 -- /opt/code/mysqlbot/backend/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /opt/code/mysqlbot/backend
+configfile: pyproject.toml
+plugins: anyio-4.12.1, asyncio-0.23.8, cov-5.0.0, langsmith-0.7.16
+asyncio: mode=Mode.AUTO
+collecting ... collected 31 items
+
+tests/apps/openclaw/test_integration.py::TestOpenClawIntegrationFlows::test_bind_then_question_flow_returns_stable_success_envelopes PASSED [  3%]
+tests/apps/openclaw/test_integration.py::TestOpenClawIntegrationFlows::test_bind_then_analysis_flow_returns_stable_success_envelopes PASSED [  6%]
+tests/apps/openclaw/test_router.py::TestOpenClawRouter::test_bind_session_returns_contract_envelope PASSED [  9%]
+tests/apps/openclaw/test_router.py::TestOpenClawRouter::test_bind_session_returns_auth_error_envelope PASSED [ 12%]
+tests/apps/openclaw/test_router.py::TestOpenClawRouter::test_question_route_delegates_and_wraps_result PASSED [ 16%]
+tests/apps/openclaw/test_router.py::TestOpenClawRouter::test_analysis_route_delegates_and_wraps_result PASSED [ 19%]
+tests/apps/openclaw/test_router.py::TestOpenClawRouter::test_datasource_route_filters_sensitive_fields PASSED [ 22%]
+tests/apps/openclaw/test_router.py::TestOpenClawRouter::test_question_route_timeout_returns_normalized_timeout_error PASSED [ 25%]
+tests/apps/openclaw/test_router.py::TestOpenClawRouter::test_question_route_concurrency_limit_returns_normalized_error PASSED [ 29%]
+tests/apps/openclaw/test_router.py::TestOpenClawRouter::test_question_route_returns_disabled_error_when_feature_flag_off PASSED [ 32%]
+tests/apps/openclaw/test_router.py::TestOpenClawRouter::test_question_route_unexpected_exception_returns_normalized_error PASSED [ 35%]
+tests/apps/openclaw/test_router.py::TestOpenClawRouter::test_question_route_upstream_error_response_is_machine_parseable PASSED [ 38%]
+tests/apps/openclaw/test_router.py::TestOpenClawRouter::test_openclaw_validation_error_returns_openclaw_envelope PASSED [ 41%]
+tests/apps/openclaw/test_service.py::test_authenticate_openclaw_service_token_accepts_valid_ask_token PASSED [ 45%]
+tests/apps/openclaw/test_service.py::test_authenticate_openclaw_service_token_rejects_disabled_key PASSED [ 48%]
+tests/apps/openclaw/test_service.py::test_authenticate_openclaw_service_token_rejects_missing_header PASSED [ 51%]
+tests/apps/openclaw/test_service.py::test_bind_openclaw_session_reuses_existing_chat PASSED [ 54%]
+tests/apps/openclaw/test_service.py::test_bind_openclaw_session_creates_new_chat_without_orphan_record PASSED [ 58%]
+tests/apps/openclaw/test_service.py::test_bind_openclaw_session_rejects_foreign_chat_scope PASSED [ 61%]
+tests/apps/openclaw/test_contract.py::test_contract_constants_lock_v1_defaults PASSED [ 64%]
+tests/apps/openclaw/test_contract.py::test_operation_registry_is_unique PASSED [ 67%]
+tests/apps/openclaw/test_contract.py::test_error_code_registry_is_unique PASSED [ 70%]
+tests/apps/openclaw/test_contract.py::test_request_models_encode_versioned_operations PASSED [ 74%]
+tests/apps/openclaw/test_contract.py::test_request_models_forbid_unknown_fields PASSED [ 77%]
+tests/apps/openclaw/test_contract.py::test_success_envelope_shape_is_stable PASSED [ 80%]
+tests/apps/openclaw/test_contract.py::test_error_envelope_shape_is_stable PASSED [ 83%]
+tests/apps/chat/api/test_chat_orchestration.py::TestChatOrchestrationDelegation::test_stream_sql_delegates_to_orchestrator PASSED [ 87%]
+tests/apps/chat/api/test_chat_orchestration.py::TestChatOrchestrationDelegation::test_analysis_or_predict_delegates_to_orchestrator PASSED [ 90%]
+tests/apps/chat/api/test_chat_orchestration.py::TestChatOrchestrationDelegation::test_question_answer_inner_delegates_to_orchestrator PASSED [ 93%]
+tests/apps/chat/api/test_chat_orchestration.py::TestChatOrchestrationDelegation::test_ask_recommend_questions_delegates_to_orchestrator PASSED [ 96%]
+tests/test_startup_smoke.py::test_main_import_initializes_mcp_only_when_enabled PASSED [100%]
+
+============================== 31 passed in 2.31s ==============================

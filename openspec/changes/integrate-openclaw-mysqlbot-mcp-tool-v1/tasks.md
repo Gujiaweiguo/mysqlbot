@@ -1,0 +1,219 @@
+## 1. Wave 1 - Contract and boundary lock-in
+
+- [x] 1.1 OCINT-001 Lock OpenClaw-facing contract and transport
+  - **Task ID**: OCINT-001
+  - **Depends On**: none
+  - **Blocks**: OCINT-002, OCINT-003, OCINT-005
+  - **Risk Level**: High
+  - **Inputs**:
+    - Current mysqlbot surfaces in `backend/apps/mcp/mcp.py`, `backend/apps/chat/api/chat.py`, `backend/apps/api.py`, `backend/main.py`
+    - OpenClaw tool/MCP integration requirements from its target environment
+    - Selected path-2 architecture constraints
+  - **Outputs**:
+    - Versioned OpenClaw-facing API/tool contract
+    - Transport decision note (non-streaming default, optional streaming extension)
+    - Error envelope and compatibility rules
+  - **Acceptance Criteria**:
+    - A single contract document or code-adjacent spec exists in-repo and names the exact OpenClaw-facing operations, schemas, auth mode, timeout policy, and versioning rule.
+    - The contract explicitly states that mysqlbot is the sole NL-query/analysis engine and OpenClaw is a caller only.
+    - The contract defines a stable non-streaming success envelope and stable error envelope.
+    - The contract lists any optional streaming behavior as non-blocking to v1.
+  - **Rollback**:
+    - Revert only the new OpenClaw-facing contract artifacts and route registrations introduced for v1.
+    - Leave existing `/chat/*` and `/mcp/*` behaviors untouched.
+
+- [x] 1.2 OCINT-002 Establish service auth and chat/session lifecycle
+  - **Task ID**: OCINT-002
+  - **Depends On**: OCINT-001
+  - **Blocks**: OCINT-003, OCINT-005, OCINT-007
+  - **Risk Level**: High
+  - **Inputs**:
+    - OCINT-001 contract
+    - Existing auth flows in `backend/apps/system/api/login.py`, `backend/apps/system/api/apikey.py`, `apps/system/middleware/auth.py`
+    - Existing chat creation flow in `backend/apps/chat/api/chat.py` and `backend/apps/chat/crud/chat.py`
+  - **Outputs**:
+    - Auth flow implementation or adaptation
+    - Session lifecycle rules
+    - Workspace/chat mapping contract
+  - **Acceptance Criteria**:
+    - OpenClaw can authenticate without end-user password exchange.
+    - A documented chat/session reuse rule exists and is implemented.
+    - Expired or invalid credentials return documented auth errors.
+    - Workspace/user scoping is explicit and test-covered.
+  - **Rollback**:
+    - Disable the new service credential path and fall back to no OpenClaw integration.
+    - Preserve existing login and API key behavior for other callers.
+
+## 2. Wave 2 - Implementation surfaces
+
+- [x] 2.1 OCINT-003 Implement mysqlbot OpenClaw adapter endpoints
+  - **Task ID**: OCINT-003
+  - **Depends On**: OCINT-001, OCINT-002
+  - **Blocks**: OCINT-004, OCINT-006, OCINT-007
+  - **Risk Level**: High
+  - **Inputs**:
+    - OCINT-001 contract
+    - OCINT-002 auth/session decisions
+    - Core execution flow in `backend/apps/chat/api/chat.py` and orchestration modules
+  - **Outputs**:
+    - New or revised adapter routes
+    - Request/response models for OpenClaw integration
+    - Route registration and middleware alignment
+  - **Acceptance Criteria**:
+    - OpenClaw-facing routes compile and register correctly.
+    - Adapter routes reuse mysqlbot orchestration and do not duplicate NL-query pipeline logic.
+    - Minimum capability set is callable through the stable contract.
+    - Existing web chat and legacy MCP paths remain unaffected by regression tests.
+  - **Rollback**:
+    - Unregister only the new adapter routes and models.
+    - Revert to the pre-existing mysqlbot API surface.
+
+- [x] 2.2 OCINT-004 Normalize response, error, and timeout behavior
+  - **Task ID**: OCINT-004
+  - **Depends On**: OCINT-003
+  - **Blocks**: OCINT-005, OCINT-007
+  - **Risk Level**: Medium
+  - **Inputs**:
+    - OCINT-003 adapter implementation
+    - Existing response behaviors from `backend/apps/chat/streaming/events.py`, `backend/apps/chat/task/runner.py`, `backend/apps/chat/task/stages.py`
+  - **Outputs**:
+    - Stable response envelope implementation
+    - Stable error envelope implementation
+    - Timeout and retry semantics for callers
+  - **Acceptance Criteria**:
+    - Every OpenClaw-facing endpoint returns one documented success envelope and one documented error envelope family.
+    - Timeout behavior is deterministic and test-covered.
+    - SQL/LLM/datasource failures are machine-parseable by OpenClaw.
+    - No raw traceback or inconsistent field naming escapes the adapter surface.
+  - **Rollback**:
+    - Revert adapter-specific response normalization.
+    - Disable the OpenClaw-facing endpoints if needed to preserve pre-adapter behavior.
+
+- [x] 2.3 OCINT-005 Implement OpenClaw tool registration and skill policy
+  - **Task ID**: OCINT-005
+  - **Depends On**: OCINT-001, OCINT-002, OCINT-004
+  - **Blocks**: OCINT-007
+  - **Risk Level**: Medium
+  - **Inputs**:
+    - OCINT-001 contract
+    - OCINT-002 auth/session flow
+    - OCINT-004 normalized response contract
+  - **Outputs**:
+    - OpenClaw tool definitions
+    - Skill policy file/package
+    - Mapping of tool outputs to agent-facing summaries
+  - **Acceptance Criteria**:
+    - OpenClaw can discover and invoke the mysqlbot tool(s) without custom shell fallbacks.
+    - The skill explicitly describes when to call mysqlbot and when not to.
+    - Tool invocation handles auth/session according to OCINT-002.
+    - Tool output mapping is stable enough for downstream agent reasoning.
+  - **Rollback**:
+    - Disable or remove the new OpenClaw tool and skill package.
+    - Leave mysqlbot adapter endpoints dormant and undocumented to end users.
+
+## 3. Wave 3 - Hardening and rollout
+
+- [x] 3.1 OCINT-006 Add observability, concurrency, and timeout guardrails
+  - **Task ID**: OCINT-006
+  - **Depends On**: OCINT-003
+  - **Blocks**: OCINT-007, OCINT-008
+  - **Risk Level**: Medium
+  - **Inputs**:
+    - OCINT-003 adapter surface
+    - Existing middleware and observability hooks in `backend/main.py`
+    - Existing logging and audit conventions
+  - **Outputs**:
+    - Structured logs, metrics, or tracing additions
+    - Configurable timeout and concurrency guardrails
+    - Feature flag or rollout switch if needed
+  - **Acceptance Criteria**:
+    - OpenClaw-origin requests are distinguishable in logs and metrics.
+    - Timeout policy is configurable and enforced.
+    - Concurrency or rate failure paths are observable and machine-parseable.
+    - A feature flag or rollout switch exists if rollout requires staged enablement.
+  - **Rollback**:
+    - Turn off the OpenClaw feature flag.
+    - Revert only the adapter-specific observability and guardrail configuration.
+
+- [x] 3.2 OCINT-007 Execute end-to-end integration and regression verification
+  - **Task ID**: OCINT-007
+  - **Depends On**: OCINT-002, OCINT-004, OCINT-005, OCINT-006
+  - **Blocks**: OCINT-008
+  - **Risk Level**: High
+  - **Inputs**:
+    - OCINT-002 auth/session implementation
+    - OCINT-004 response/error normalization
+    - OCINT-005 OpenClaw tool and skill integration
+    - OCINT-006 guardrails
+  - **Outputs**:
+    - Automated end-to-end integration tests
+    - Regression test updates
+    - Evidence bundle for the release gate
+  - **Acceptance Criteria**:
+    - Automated tests cover at least one successful question flow and one successful analysis flow from OpenClaw to mysqlbot.
+    - Automated tests cover at least auth failure and datasource or LLM failure paths.
+    - Regression tests demonstrate no breakage to existing mysqlbot chat and MCP behavior.
+    - Evidence artifacts are saved in the expected `.sisyphus/evidence/` paths during execution.
+  - **Rollback**:
+    - If verification uncovers instability, disable feature rollout.
+    - Revert OCINT-003 through OCINT-006 in reverse dependency order.
+
+- [x] 3.3 OCINT-008 Prepare rollout, release notes, and operational rollback package
+  - **Task ID**: OCINT-008
+  - **Depends On**: OCINT-006, OCINT-007
+  - **Blocks**: final verification wave
+  - **Risk Level**: Medium
+  - **Inputs**:
+    - OCINT-006 guardrails
+    - OCINT-007 verification evidence
+    - Suggested change ID and deployment environment assumptions
+  - **Outputs**:
+    - Rollout checklist
+    - Operational runbook
+    - Ordered rollback steps
+    - Release note summary for stakeholders
+  - **Acceptance Criteria**:
+    - Rollout sequence is explicit, staged, and environment-aware.
+    - Rollback sequence is explicit and ordered by dependency.
+    - Smoke tests are executable by agents or operators without hidden context.
+    - Release notes identify scope, guardrails, known limitations, and fallback path.
+  - **Rollback**:
+    - This task defines the rollback package itself; if incomplete, do not enable production rollout.
+
+## 4. Final verification wave
+
+- [ ] 4.1 F1 Plan Compliance Audit
+  - **Task ID**: F1
+  - **Depends On**: OCINT-008
+  - **Risk Level**: High
+  - **Acceptance Criteria**:
+    - The implemented change is consistent with this OpenSpec change and the source Plan v1.
+  - **Rollback**:
+    - Reopen implementation tasks for correction before approval.
+
+- [ ] 4.2 F2 Code Quality Review
+  - **Task ID**: F2
+  - **Depends On**: OCINT-008
+  - **Risk Level**: High
+  - **Acceptance Criteria**:
+    - Code quality review passes without unresolved blocking defects in the OpenClaw integration path.
+  - **Rollback**:
+    - Reopen the affected implementation tasks and remediate blocking quality issues.
+
+- [ ] 4.3 F3 Real Manual QA
+  - **Task ID**: F3
+  - **Depends On**: OCINT-008
+  - **Risk Level**: High
+  - **Acceptance Criteria**:
+    - Manual or agent-driven QA confirms the OpenClaw integration path and existing mysqlbot chat paths behave as expected.
+  - **Rollback**:
+    - Disable rollout and return to the last known safe pre-release state.
+
+- [ ] 4.4 F4 Scope Fidelity Check
+  - **Task ID**: F4
+  - **Depends On**: OCINT-008
+  - **Risk Level**: High
+  - **Acceptance Criteria**:
+    - The delivered change remains within the approved Path 2 scope and does not introduce a second NL-query implementation.
+  - **Rollback**:
+    - Remove or revert out-of-scope changes before approval.

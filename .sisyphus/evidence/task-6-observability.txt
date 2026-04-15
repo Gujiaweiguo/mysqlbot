@@ -1,0 +1,15 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-7.4.4, pluggy-1.6.0 -- /opt/code/mysqlbot/backend/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /opt/code/mysqlbot/backend
+configfile: pyproject.toml
+plugins: anyio-4.12.1, asyncio-0.23.8, cov-5.0.0, langsmith-0.7.16
+asyncio: mode=Mode.AUTO
+collecting ... collected 4 items
+
+tests/common/observability/test_admin_api_observability.py::test_classify_admin_api_group_matches_critical_paths PASSED [ 25%]
+tests/common/observability/test_admin_api_observability.py::test_observability_logs_success_for_monitored_admin_endpoint PASSED [ 50%]
+tests/common/observability/test_admin_api_observability.py::test_observability_logs_warning_for_failed_admin_endpoint PASSED [ 75%]
+tests/common/observability/test_admin_api_observability.py::test_observability_logs_openclaw_request_with_operation_and_error_code PASSED [100%]
+
+============================== 4 passed in 3.53s ===============================

@@ -1,0 +1,13 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-7.4.4, pluggy-1.6.0 -- /opt/code/mysqlbot/backend/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /opt/code/mysqlbot/backend
+configfile: pyproject.toml
+plugins: anyio-4.12.1, asyncio-0.23.8, cov-5.0.0, langsmith-0.7.16
+asyncio: mode=Mode.AUTO
+collecting ... collected 2 items
+
+tests/apps/openclaw/test_integration.py::TestOpenClawIntegrationFlows::test_bind_then_question_flow_returns_stable_success_envelopes PASSED [ 50%]
+tests/apps/openclaw/test_integration.py::TestOpenClawIntegrationFlows::test_bind_then_analysis_flow_returns_stable_success_envelopes PASSED [100%]
+
+============================== 2 passed in 1.82s ===============================

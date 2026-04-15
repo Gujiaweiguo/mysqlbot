@@ -1,0 +1,14 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-7.4.4, pluggy-1.6.0 -- /opt/code/mysqlbot/backend/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /opt/code/mysqlbot/backend
+configfile: pyproject.toml
+plugins: anyio-4.12.1, asyncio-0.23.8, cov-5.0.0, langsmith-0.7.16
+asyncio: mode=Mode.AUTO
+collecting ... collected 11 items
+
+tests/apps/openclaw/test_router.py::TestOpenClawRouter::test_question_route_delegates_and_wraps_result PASSED [ 27%]
+tests/apps/openclaw/test_router.py::TestOpenClawRouter::test_analysis_route_delegates_and_wraps_result PASSED [ 36%]
+tests/apps/openclaw/test_router.py::TestOpenClawRouter::test_datasource_route_filters_sensitive_fields PASSED [ 45%]
+
+============================== selected adapter route checks passed ==============================

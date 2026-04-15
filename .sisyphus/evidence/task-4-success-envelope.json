@@ -1,0 +1,15 @@
+{
+  "source": {
+    "contract_test": "tests/apps/openclaw/test_contract.py::test_success_envelope_shape_is_stable",
+    "implementation": "backend/apps/openclaw/contract.py"
+  },
+  "envelope": {
+    "version": "v1",
+    "status": "success",
+    "operation": "question.execute",
+    "data": {
+      "chat_id": 1,
+      "record_id": 2
+    }
+  }
+}

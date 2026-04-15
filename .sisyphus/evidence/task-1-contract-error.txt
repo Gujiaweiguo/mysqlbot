@@ -1,0 +1,17 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-7.4.4, pluggy-1.6.0 -- /opt/code/mysqlbot/backend/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /opt/code/mysqlbot/backend
+configfile: pyproject.toml
+plugins: anyio-4.12.1, asyncio-0.23.8, cov-5.0.0, langsmith-0.7.16
+asyncio: mode=Mode.AUTO
+collecting ... collected 11 items
+
+tests/apps/openclaw/test_router.py::TestOpenClawRouter::test_openclaw_validation_error_returns_openclaw_envelope PASSED [100%]
+
+Validation rejection evidence:
+- unknown / malformed request fields are rejected with a normalized OpenClaw envelope
+- no opaque 500 was emitted during the validation path
+
+Reference contract test:
+tests/apps/openclaw/test_contract.py::test_request_models_forbid_unknown_fields PASSED

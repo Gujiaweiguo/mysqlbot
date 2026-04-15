@@ -1,0 +1,16 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-7.4.4, pluggy-1.6.0 -- /opt/code/mysqlbot/backend/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /opt/code/mysqlbot/backend
+configfile: pyproject.toml
+plugins: anyio-4.12.1, asyncio-0.23.8, cov-5.0.0, langsmith-0.7.16
+asyncio: mode=Mode.AUTO
+collecting ... collected 5 items
+
+tests/apps/chat/api/test_chat_orchestration.py::TestChatOrchestrationDelegation::test_stream_sql_delegates_to_orchestrator PASSED [ 20%]
+tests/apps/chat/api/test_chat_orchestration.py::TestChatOrchestrationDelegation::test_analysis_or_predict_delegates_to_orchestrator PASSED [ 40%]
+tests/apps/chat/api/test_chat_orchestration.py::TestChatOrchestrationDelegation::test_question_answer_inner_delegates_to_orchestrator PASSED [ 60%]
+tests/apps/chat/api/test_chat_orchestration.py::TestChatOrchestrationDelegation::test_ask_recommend_questions_delegates_to_orchestrator PASSED [ 80%]
+tests/test_startup_smoke.py::test_main_import_initializes_mcp_only_when_enabled PASSED [100%]
+
+============================== 5 passed in 2.32s ===============================
