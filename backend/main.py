@@ -333,11 +333,21 @@ async def request_validation_handler(request: Request, exc: Exception) -> Respon
 
 
 mcp_app = FastAPI()
-# mcp server, images path
 images_path = settings.MCP_IMAGE_PATH
 os.makedirs(images_path, exist_ok=True)
 mcp_app.mount("/images", StaticFiles(directory=images_path), name="images")
-app.mount("/images", StaticFiles(directory=images_path), name="main-images")
+
+
+@app.get("/images/{file_path:path}")
+async def serve_chart_image(file_path: str) -> FileResponse:
+    import re
+
+    clean = re.sub(r"[^a-zA-Z0-9_./-]", "", file_path)
+    full = os.path.join(images_path, clean)
+    if os.path.isfile(full):
+        return FileResponse(full, media_type="image/png")
+    return Response(status_code=404)
+
 
 if _should_setup_mcp():
     # FastApiMCP.setup_server() runs inside __init__, so the environment gate must
