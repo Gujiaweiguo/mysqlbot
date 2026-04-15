@@ -1,6 +1,10 @@
 BEGIN;
 
 DELETE FROM em_market_plan_logs WHERE id BETWEEN 91001 AND 91009;
+DELETE FROM em_member_integral_logs WHERE id BETWEEN 92001 AND 92012;
+DELETE FROM em_member_statisticals WHERE id BETWEEN 93001 AND 93010;
+DELETE FROM em_sales WHERE id BETWEEN 94001 AND 94020;
+DELETE FROM em_crm_sales_logs WHERE id BETWEEN 95001 AND 95020;
 DELETE FROM em_activity_applies WHERE id BETWEEN 91001 AND 91018;
 DELETE FROM em_order_write_off_records WHERE id BETWEEN 400001 AND 400020;
 DELETE FROM em_member_actives WHERE id BETWEEN 500001 AND 500028;
@@ -11,149 +15,239 @@ DELETE FROM em_members WHERE id BETWEEN 1001001 AND 1001012;
 
 INSERT INTO em_members (
   id, username, mobile, card_code, password, login_type, grade_id, experience,
-  integral, project_id, real_name, sex, register_time, avatar_url, source,
+  integral, project_id, real_name, sex, birthday, register_time, avatar_url, source,
   created_at, updated_at, up_birthday, blacklisted
 ) VALUES
-  (1001001, 'u_ai_1001001', '13970000001', 'AI26030001', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 1, 0, 0, 1, '陈一鸣', '1', '2026-03-01 10:12:00', 'https://oss.lanlnk.com/common/loginAvatar/a1.jpg', 1, '2026-03-01 10:12:00', '2026-03-01 10:12:00', 0, 0),
-  (1001002, 'u_ai_1001002', '13970000002', 'AI26030002', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 1, 0, 0, 1, '林若雪', '2', '2026-03-01 14:35:00', 'https://oss.lanlnk.com/common/loginAvatar/a2.jpg', 0, '2026-03-01 14:35:00', '2026-03-01 14:35:00', 0, 0),
-  (1001003, 'u_ai_1001003', '13970000003', 'AI26030003', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 3, 0, 0, 1, '赵晨', '1', '2026-03-02 09:20:00', 'https://oss.lanlnk.com/common/loginAvatar/a3.jpg', 2, '2026-03-02 09:20:00', '2026-03-02 09:20:00', 0, 0),
-  (1001004, 'u_ai_1001004', '13970000004', 'AI26030004', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 3, 0, 0, 1, '周子涵', '2', '2026-03-03 11:18:00', 'https://oss.lanlnk.com/common/loginAvatar/a4.jpg', 3, '2026-03-03 11:18:00', '2026-03-03 11:18:00', 0, 0),
-  (1001005, 'u_ai_1001005', '13970000005', 'AI26030005', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 5, 0, 0, 1, '吴承泽', NULL, '2026-03-04 16:42:00', 'https://oss.lanlnk.com/common/loginAvatar/a5.jpg', 1, '2026-03-04 16:42:00', '2026-03-04 16:42:00', 0, 0),
-  (1001006, 'u_ai_1001006', '13970000006', 'AI26030006', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 5, 0, 0, 1, '孙可欣', '2', '2026-03-05 13:05:00', 'https://oss.lanlnk.com/common/loginAvatar/a6.jpg', 2, '2026-03-05 13:05:00', '2026-03-05 13:05:00', 0, 0),
-  (1001007, 'u_ai_1001007', '13970000007', 'AI26030007', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 6, 0, 0, 1, '郑浩宇', '1', '2026-03-06 09:48:00', 'https://oss.lanlnk.com/common/loginAvatar/a1.jpg', 3, '2026-03-06 09:48:00', '2026-03-06 09:48:00', 0, 0),
-  (1001008, 'u_ai_1001008', '13970000008', 'AI26030008', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 7, 0, 0, 1, '许诗雨', '2', '2026-03-06 18:15:00', 'https://oss.lanlnk.com/common/loginAvatar/a2.jpg', 0, '2026-03-06 18:15:00', '2026-03-06 18:15:00', 0, 0),
-  (1001009, 'u_ai_1001009', '13970000009', 'AI26030009', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 1, 0, 0, 1, '何景行', '1', '2026-03-07 12:10:00', 'https://oss.lanlnk.com/common/loginAvatar/a3.jpg', 1, '2026-03-07 12:10:00', '2026-03-07 12:10:00', 0, 0),
-  (1001010, 'u_ai_1001010', '13970000010', 'AI26030010', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 3, 0, 0, 1, '唐语宁', NULL, '2026-03-08 15:30:00', 'https://oss.lanlnk.com/common/loginAvatar/a4.jpg', 2, '2026-03-08 15:30:00', '2026-03-08 15:30:00', 0, 0),
-  (1001011, 'u_ai_1001011', '13970000011', 'AI26030011', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 5, 0, 0, 1, '高启航', '2', '2026-03-09 10:05:00', 'https://oss.lanlnk.com/common/loginAvatar/a5.jpg', 3, '2026-03-09 10:05:00', '2026-03-09 10:05:00', 0, 0),
-  (1001012, 'u_ai_1001012', '13970000012', 'AI26030012', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 6, 0, 0, 1, '沈知夏', '1', '2026-03-10 17:25:00', 'https://oss.lanlnk.com/common/loginAvatar/a6.jpg', 0, '2026-03-10 17:25:00', '2026-03-10 17:25:00', 0, 0);
+  (1001001, 'u_ai_1001001', '13970000001', 'AI26030001', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 1, 0, 0, 1, '陈一鸣', '1', DATE '1991-02-11', CURRENT_DATE - INTERVAL '29 day' + TIME '10:12:00', 'https://oss.lanlnk.com/common/loginAvatar/a1.jpg', 1, CURRENT_DATE - INTERVAL '29 day' + TIME '10:12:00', CURRENT_DATE - INTERVAL '29 day' + TIME '10:12:00', 1, 0),
+  (1001002, 'u_ai_1001002', '13970000002', 'AI26030002', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 1, 0, 0, 1, '林若雪', '2', DATE '1995-08-19', CURRENT_DATE - INTERVAL '27 day' + TIME '14:35:00', 'https://oss.lanlnk.com/common/loginAvatar/a2.jpg', 0, CURRENT_DATE - INTERVAL '27 day' + TIME '14:35:00', CURRENT_DATE - INTERVAL '27 day' + TIME '14:35:00', 1, 0),
+  (1001003, 'u_ai_1001003', '13970000003', 'AI26030003', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 3, 0, 0, 1, '赵晨', '1', DATE '1988-05-06', CURRENT_DATE - INTERVAL '24 day' + TIME '09:20:00', 'https://oss.lanlnk.com/common/loginAvatar/a3.jpg', 2, CURRENT_DATE - INTERVAL '24 day' + TIME '09:20:00', CURRENT_DATE - INTERVAL '24 day' + TIME '09:20:00', 1, 0),
+  (1001004, 'u_ai_1001004', '13970000004', 'AI26030004', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 3, 0, 0, 1, '周子涵', '2', DATE '2000-11-02', CURRENT_DATE - INTERVAL '22 day' + TIME '11:18:00', 'https://oss.lanlnk.com/common/loginAvatar/a4.jpg', 3, CURRENT_DATE - INTERVAL '22 day' + TIME '11:18:00', CURRENT_DATE - INTERVAL '22 day' + TIME '11:18:00', 1, 0),
+  (1001005, 'u_ai_1001005', '13970000005', 'AI26030005', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 5, 0, 0, 1, '吴承泽', NULL, NULL, CURRENT_DATE - INTERVAL '19 day' + TIME '16:42:00', 'https://oss.lanlnk.com/common/loginAvatar/a5.jpg', 1, CURRENT_DATE - INTERVAL '19 day' + TIME '16:42:00', CURRENT_DATE - INTERVAL '19 day' + TIME '16:42:00', 0, 0),
+  (1001006, 'u_ai_1001006', '13970000006', 'AI26030006', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 5, 0, 0, 1, '孙可欣', '2', DATE '1997-03-14', CURRENT_DATE - INTERVAL '16 day' + TIME '13:05:00', 'https://oss.lanlnk.com/common/loginAvatar/a6.jpg', 2, CURRENT_DATE - INTERVAL '16 day' + TIME '13:05:00', CURRENT_DATE - INTERVAL '16 day' + TIME '13:05:00', 1, 0),
+  (1001007, 'u_ai_1001007', '13970000007', 'AI26030007', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 6, 0, 0, 1, '郑浩宇', '1', DATE '1986-09-28', CURRENT_DATE - INTERVAL '14 day' + TIME '09:48:00', 'https://oss.lanlnk.com/common/loginAvatar/a1.jpg', 3, CURRENT_DATE - INTERVAL '14 day' + TIME '09:48:00', CURRENT_DATE - INTERVAL '14 day' + TIME '09:48:00', 1, 0),
+  (1001008, 'u_ai_1001008', '13970000008', 'AI26030008', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 7, 0, 0, 1, '许诗雨', '2', DATE '1993-12-05', CURRENT_DATE - INTERVAL '11 day' + TIME '18:15:00', 'https://oss.lanlnk.com/common/loginAvatar/a2.jpg', 0, CURRENT_DATE - INTERVAL '11 day' + TIME '18:15:00', CURRENT_DATE - INTERVAL '11 day' + TIME '18:15:00', 1, 0),
+  (1001009, 'u_ai_1001009', '13970000009', 'AI26030009', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 1, 0, 0, 1, '何景行', '1', DATE '1999-07-16', CURRENT_DATE - INTERVAL '9 day' + TIME '12:10:00', 'https://oss.lanlnk.com/common/loginAvatar/a3.jpg', 1, CURRENT_DATE - INTERVAL '9 day' + TIME '12:10:00', CURRENT_DATE - INTERVAL '9 day' + TIME '12:10:00', 1, 0),
+  (1001010, 'u_ai_1001010', '13970000010', 'AI26030010', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 3, 0, 0, 1, '唐语宁', NULL, NULL, CURRENT_DATE - INTERVAL '6 day' + TIME '15:30:00', 'https://oss.lanlnk.com/common/loginAvatar/a4.jpg', 2, CURRENT_DATE - INTERVAL '6 day' + TIME '15:30:00', CURRENT_DATE - INTERVAL '6 day' + TIME '15:30:00', 0, 0),
+  (1001011, 'u_ai_1001011', '13970000011', 'AI26030011', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 5, 0, 0, 1, '高启航', '2', DATE '1984-10-10', CURRENT_DATE - INTERVAL '4 day' + TIME '10:05:00', 'https://oss.lanlnk.com/common/loginAvatar/a5.jpg', 3, CURRENT_DATE - INTERVAL '4 day' + TIME '10:05:00', CURRENT_DATE - INTERVAL '4 day' + TIME '10:05:00', 1, 0),
+  (1001012, 'u_ai_1001012', '13970000012', 'AI26030012', '$2y$10$RiyZjXJQjbdkw4EiHgjnw.gfT3mVrZtJUUuoP9oi84KSdwoCns5Zm', 'trust_login', 6, 0, 0, 1, '沈知夏', '1', DATE '2002-01-22', CURRENT_DATE - INTERVAL '2 day' + TIME '17:25:00', 'https://oss.lanlnk.com/common/loginAvatar/a6.jpg', 0, CURRENT_DATE - INTERVAL '2 day' + TIME '17:25:00', CURRENT_DATE - INTERVAL '2 day' + TIME '17:25:00', 1, 0);
+
+INSERT INTO em_member_statisticals (
+  id, project_id, date, member_total, member_increase, member_active, gender_data, grade_data, created_at, updated_at
+) VALUES
+  (93001, 1, (CURRENT_DATE - INTERVAL '9 day')::date, 1200, 2, 32, NULL, NULL, CURRENT_DATE - INTERVAL '9 day' + TIME '23:59:00', CURRENT_DATE - INTERVAL '9 day' + TIME '23:59:00'),
+  (93002, 1, (CURRENT_DATE - INTERVAL '8 day')::date, 1203, 3, 36, NULL, NULL, CURRENT_DATE - INTERVAL '8 day' + TIME '23:59:00', CURRENT_DATE - INTERVAL '8 day' + TIME '23:59:00'),
+  (93003, 1, (CURRENT_DATE - INTERVAL '7 day')::date, 1205, 2, 38, NULL, NULL, CURRENT_DATE - INTERVAL '7 day' + TIME '23:59:00', CURRENT_DATE - INTERVAL '7 day' + TIME '23:59:00'),
+  (93004, 1, (CURRENT_DATE - INTERVAL '6 day')::date, 1209, 4, 35, NULL, NULL, CURRENT_DATE - INTERVAL '6 day' + TIME '23:59:00', CURRENT_DATE - INTERVAL '6 day' + TIME '23:59:00'),
+  (93005, 1, (CURRENT_DATE - INTERVAL '5 day')::date, 1210, 1, 33, NULL, NULL, CURRENT_DATE - INTERVAL '5 day' + TIME '23:59:00', CURRENT_DATE - INTERVAL '5 day' + TIME '23:59:00'),
+  (93006, 1, (CURRENT_DATE - INTERVAL '4 day')::date, 1212, 2, 37, NULL, NULL, CURRENT_DATE - INTERVAL '4 day' + TIME '23:59:00', CURRENT_DATE - INTERVAL '4 day' + TIME '23:59:00'),
+  (93007, 1, (CURRENT_DATE - INTERVAL '3 day')::date, 1214, 2, 34, NULL, NULL, CURRENT_DATE - INTERVAL '3 day' + TIME '23:59:00', CURRENT_DATE - INTERVAL '3 day' + TIME '23:59:00'),
+  (93008, 1, (CURRENT_DATE - INTERVAL '2 day')::date, 1216, 2, 39, NULL, NULL, CURRENT_DATE - INTERVAL '2 day' + TIME '23:59:00', CURRENT_DATE - INTERVAL '2 day' + TIME '23:59:00'),
+  (93009, 1, (CURRENT_DATE - INTERVAL '1 day')::date, 1219, 3, 41, NULL, NULL, CURRENT_DATE - INTERVAL '1 day' + TIME '23:59:00', CURRENT_DATE - INTERVAL '1 day' + TIME '23:59:00'),
+  (93010, 1, CURRENT_DATE, 1221, 2, 40, NULL, NULL, CURRENT_DATE + TIME '00:05:00', CURRENT_DATE + TIME '00:05:00');
 
 INSERT INTO em_activities (
   id, class_id, name, img, apply_num, time_start, time_end, place, body,
   is_recommend, is_show, project_id, created_at, updated_at
 ) VALUES
-  (9001, 0, '三月会员积分抽奖', '', 6, '2026-03-12 10:00:00', '2026-03-12 18:00:00', '中庭服务台', '积分抽奖活动测试数据', 1, 1, 1, '2026-03-09 09:00:00', '2026-03-09 09:00:00'),
-  (9002, 0, '周末亲子手作课', '', 6, '2026-03-14 14:00:00', '2026-03-14 16:30:00', 'L1 活动区', '亲子活动测试数据', 0, 1, 1, '2026-03-10 09:00:00', '2026-03-10 09:00:00'),
-  (9003, 0, 'VIP 专场福利日', '', 6, '2026-03-15 19:00:00', '2026-03-15 21:00:00', '华为门店', '高等级会员活动测试数据', 1, 1, 1, '2026-03-11 09:00:00', '2026-03-11 09:00:00');
+  (9001, 0, '三月会员积分抽奖', '', 6, CURRENT_DATE - INTERVAL '10 day' + TIME '10:00:00', CURRENT_DATE - INTERVAL '10 day' + TIME '18:00:00', '中庭服务台', '积分抽奖活动测试数据', 1, 1, 1, CURRENT_DATE - INTERVAL '12 day' + TIME '09:00:00', CURRENT_DATE - INTERVAL '12 day' + TIME '09:00:00'),
+  (9002, 0, '周末亲子手作课', '', 6, CURRENT_DATE - INTERVAL '7 day' + TIME '14:00:00', CURRENT_DATE - INTERVAL '7 day' + TIME '16:30:00', 'L1 活动区', '亲子活动测试数据', 0, 1, 1, CURRENT_DATE - INTERVAL '9 day' + TIME '09:00:00', CURRENT_DATE - INTERVAL '9 day' + TIME '09:00:00'),
+  (9003, 0, 'VIP 专场福利日', '', 6, CURRENT_DATE - INTERVAL '5 day' + TIME '19:00:00', CURRENT_DATE - INTERVAL '5 day' + TIME '21:00:00', '华为门店', '高等级会员活动测试数据', 1, 1, 1, CURRENT_DATE - INTERVAL '8 day' + TIME '09:00:00', CURRENT_DATE - INTERVAL '8 day' + TIME '09:00:00');
 
 INSERT INTO em_activity_applies (id, project_id, member_id, activity_id, created_at, updated_at) VALUES
-  (91001, 1, 1001001, 9001, '2026-03-10 10:10:00', '2026-03-10 10:10:00'),
-  (91002, 1, 1001002, 9001, '2026-03-10 11:00:00', '2026-03-10 11:00:00'),
-  (91003, 1, 1001003, 9001, '2026-03-10 11:20:00', '2026-03-10 11:20:00'),
-  (91004, 1, 1001005, 9001, '2026-03-10 12:10:00', '2026-03-10 12:10:00'),
-  (91005, 1, 1001009, 9001, '2026-03-10 13:30:00', '2026-03-10 13:30:00'),
-  (91006, 1, 1001010, 9001, '2026-03-10 15:05:00', '2026-03-10 15:05:00'),
-  (91007, 1, 1001002, 9002, '2026-03-11 10:15:00', '2026-03-11 10:15:00'),
-  (91008, 1, 1001004, 9002, '2026-03-11 10:25:00', '2026-03-11 10:25:00'),
-  (91009, 1, 1001006, 9002, '2026-03-11 11:00:00', '2026-03-11 11:00:00'),
-  (91010, 1, 1001008, 9002, '2026-03-11 12:40:00', '2026-03-11 12:40:00'),
-  (91011, 1, 1001010, 9002, '2026-03-11 13:10:00', '2026-03-11 13:10:00'),
-  (91012, 1, 1001012, 9002, '2026-03-11 13:45:00', '2026-03-11 13:45:00'),
-  (91013, 1, 1001005, 9003, '2026-03-12 09:00:00', '2026-03-12 09:00:00'),
-  (91014, 1, 1001006, 9003, '2026-03-12 09:10:00', '2026-03-12 09:10:00'),
-  (91015, 1, 1001007, 9003, '2026-03-12 09:15:00', '2026-03-12 09:15:00'),
-  (91016, 1, 1001008, 9003, '2026-03-12 09:40:00', '2026-03-12 09:40:00'),
-  (91017, 1, 1001011, 9003, '2026-03-12 10:00:00', '2026-03-12 10:00:00'),
-  (91018, 1, 1001012, 9003, '2026-03-12 10:20:00', '2026-03-12 10:20:00');
+  (91001, 1, 1001001, 9001, CURRENT_DATE - INTERVAL '11 day' + TIME '10:10:00', CURRENT_DATE - INTERVAL '11 day' + TIME '10:10:00'),
+  (91002, 1, 1001002, 9001, CURRENT_DATE - INTERVAL '11 day' + TIME '11:00:00', CURRENT_DATE - INTERVAL '11 day' + TIME '11:00:00'),
+  (91003, 1, 1001003, 9001, CURRENT_DATE - INTERVAL '11 day' + TIME '11:20:00', CURRENT_DATE - INTERVAL '11 day' + TIME '11:20:00'),
+  (91004, 1, 1001005, 9001, CURRENT_DATE - INTERVAL '11 day' + TIME '12:10:00', CURRENT_DATE - INTERVAL '11 day' + TIME '12:10:00'),
+  (91005, 1, 1001009, 9001, CURRENT_DATE - INTERVAL '11 day' + TIME '13:30:00', CURRENT_DATE - INTERVAL '11 day' + TIME '13:30:00'),
+  (91006, 1, 1001010, 9001, CURRENT_DATE - INTERVAL '11 day' + TIME '15:05:00', CURRENT_DATE - INTERVAL '11 day' + TIME '15:05:00'),
+  (91007, 1, 1001002, 9002, CURRENT_DATE - INTERVAL '8 day' + TIME '10:15:00', CURRENT_DATE - INTERVAL '8 day' + TIME '10:15:00'),
+  (91008, 1, 1001004, 9002, CURRENT_DATE - INTERVAL '8 day' + TIME '10:25:00', CURRENT_DATE - INTERVAL '8 day' + TIME '10:25:00'),
+  (91009, 1, 1001006, 9002, CURRENT_DATE - INTERVAL '8 day' + TIME '11:00:00', CURRENT_DATE - INTERVAL '8 day' + TIME '11:00:00'),
+  (91010, 1, 1001008, 9002, CURRENT_DATE - INTERVAL '8 day' + TIME '12:40:00', CURRENT_DATE - INTERVAL '8 day' + TIME '12:40:00'),
+  (91011, 1, 1001010, 9002, CURRENT_DATE - INTERVAL '8 day' + TIME '13:10:00', CURRENT_DATE - INTERVAL '8 day' + TIME '13:10:00'),
+  (91012, 1, 1001012, 9002, CURRENT_DATE - INTERVAL '8 day' + TIME '13:45:00', CURRENT_DATE - INTERVAL '8 day' + TIME '13:45:00'),
+  (91013, 1, 1001005, 9003, CURRENT_DATE - INTERVAL '6 day' + TIME '09:00:00', CURRENT_DATE - INTERVAL '6 day' + TIME '09:00:00'),
+  (91014, 1, 1001006, 9003, CURRENT_DATE - INTERVAL '6 day' + TIME '09:10:00', CURRENT_DATE - INTERVAL '6 day' + TIME '09:10:00'),
+  (91015, 1, 1001007, 9003, CURRENT_DATE - INTERVAL '6 day' + TIME '09:15:00', CURRENT_DATE - INTERVAL '6 day' + TIME '09:15:00'),
+  (91016, 1, 1001008, 9003, CURRENT_DATE - INTERVAL '6 day' + TIME '09:40:00', CURRENT_DATE - INTERVAL '6 day' + TIME '09:40:00'),
+  (91017, 1, 1001011, 9003, CURRENT_DATE - INTERVAL '6 day' + TIME '10:00:00', CURRENT_DATE - INTERVAL '6 day' + TIME '10:00:00'),
+  (91018, 1, 1001012, 9003, CURRENT_DATE - INTERVAL '6 day' + TIME '10:20:00', CURRENT_DATE - INTERVAL '6 day' + TIME '10:20:00');
 
 INSERT INTO em_marketing_plans (
   id, project_id, plan_name, status, range_type, member_range, shop_range,
   start_time, end_time, condition_type, rules, created_at, updated_at
 ) VALUES
-  (9001, 1, '三月新会员首单礼', 1, 2, '1,3,5,6,7', '1,2,3,4', '2026-03-01 00:00:00', '2026-03-31 23:59:59', 'consume', '{"consume": {"consume_rule": [{"type": "amount", "reward": [{"id": null, "amount": 30, "reward_type": "integral"}], "consume_type": "single", "consume_amount": "50"}], "consume_channel": ["self_help", "manual_rule", "wx_business_circle", "ali_business_circle"]}}', '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
-  (9002, 1, '三月金卡专属券', 1, 2, '5,6,7', '3,4', '2026-03-01 00:00:00', '2026-03-31 23:59:59', 'consume', '{"consume": {"consume_rule": [{"type": "amount", "reward": [{"id": "10025", "amount": 1, "reward_type": "coupon"}], "consume_type": "single", "consume_amount": "200"}], "consume_channel": ["self_help", "manual_rule"]}}', '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
-  (9003, 1, '周末餐饮满额送积分', 1, 2, '1,3,5,6,7', '1,4', '2026-03-01 00:00:00', '2026-03-31 23:59:59', 'consume', '{"consume": {"consume_rule": [{"type": "amount", "reward": [{"id": null, "amount": 50, "reward_type": "integral"}], "consume_type": "single", "consume_amount": "100"}], "consume_channel": ["self_help", "manual_rule", "wx_business_circle"]}}', '2026-03-01 00:00:00', '2026-03-01 00:00:00');
+  (9001, 1, '三月新会员首单礼', 1, 2, '1,3,5,6,7', '1,2,3,4', CURRENT_DATE - INTERVAL '30 day', CURRENT_DATE + INTERVAL '30 day', 'consume', '{"consume": {"consume_rule": [{"type": "amount", "reward": [{"id": null, "amount": 30, "reward_type": "integral"}], "consume_type": "single", "consume_amount": "50"}], "consume_channel": ["self_help", "manual_rule", "wx_business_circle", "ali_business_circle"]}}', CURRENT_DATE - INTERVAL '30 day', CURRENT_DATE - INTERVAL '30 day'),
+  (9002, 1, '三月金卡专属券', 1, 2, '5,6,7', '3,4', CURRENT_DATE - INTERVAL '30 day', CURRENT_DATE + INTERVAL '30 day', 'consume', '{"consume": {"consume_rule": [{"type": "amount", "reward": [{"id": "10025", "amount": 1, "reward_type": "coupon"}], "consume_type": "single", "consume_amount": "200"}], "consume_channel": ["self_help", "manual_rule"]}}', CURRENT_DATE - INTERVAL '30 day', CURRENT_DATE - INTERVAL '30 day'),
+  (9003, 1, '周末餐饮满额送积分', 1, 2, '1,3,5,6,7', '1,4', CURRENT_DATE - INTERVAL '30 day', CURRENT_DATE + INTERVAL '30 day', 'consume', '{"consume": {"consume_rule": [{"type": "amount", "reward": [{"id": null, "amount": 50, "reward_type": "integral"}], "consume_type": "single", "consume_amount": "100"}], "consume_channel": ["self_help", "manual_rule", "wx_business_circle"]}}', CURRENT_DATE - INTERVAL '30 day', CURRENT_DATE - INTERVAL '30 day');
 
 INSERT INTO em_market_plan_logs (
   id, project_id, member_id, plan_id, order_no, amount, integral, source, shop_id, created_at, updated_at
 ) VALUES
-  (91001, 1, 1001001, 9001, 'AISEEDT260301', 58.00, 30.00, 'self_help', 1, '2026-03-11 12:15:00', '2026-03-11 12:15:00'),
-  (91002, 1, 1001003, 9001, 'AISEEDT260305', 88.00, 30.00, 'wx_business_circle', 2, '2026-03-12 18:30:00', '2026-03-12 18:30:00'),
-  (91003, 1, 1001004, 9001, 'AISEEDT260307', 120.00, 30.00, 'ali_business_circle', 4, '2026-03-13 19:15:00', '2026-03-13 19:15:00'),
-  (91004, 1, 1001005, 9002, 'AISEEDT260308', 399.00, 0.00, 'manual_rule', 3, '2026-03-14 15:20:00', '2026-03-14 15:20:00'),
-  (91005, 1, 1001007, 9002, 'AISEEDT260312', 699.00, 0.00, 'manual_rule', 3, '2026-03-15 11:30:00', '2026-03-15 11:30:00'),
-  (91006, 1, 1001011, 9002, 'AISEEDT260319', 460.00, 0.00, 'self_help', 3, '2026-03-15 20:05:00', '2026-03-15 20:05:00'),
-  (91007, 1, 1001006, 9003, 'AISEEDT260310', 268.00, 50.00, 'self_help', 4, '2026-03-14 20:20:00', '2026-03-14 20:20:00'),
-  (91008, 1, 1001009, 9003, 'AISEEDT260316', 48.00, 0.00, 'self_help', 1, '2026-03-16 12:10:00', '2026-03-16 12:10:00'),
-  (91009, 1, 1001011, 9003, 'AISEEDT260318', 320.00, 50.00, 'wx_business_circle', 4, '2026-03-17 18:15:00', '2026-03-17 18:15:00');
+  (91001, 1, 1001001, 9001, 'AISEEDT260301', 58.00, 30.00, 'self_help', 1, CURRENT_DATE - INTERVAL '18 day' + TIME '12:15:00', CURRENT_DATE - INTERVAL '18 day' + TIME '12:15:00'),
+  (91002, 1, 1001003, 9001, 'AISEEDT260305', 88.00, 30.00, 'wx_business_circle', 2, CURRENT_DATE - INTERVAL '17 day' + TIME '18:30:00', CURRENT_DATE - INTERVAL '17 day' + TIME '18:30:00'),
+  (91003, 1, 1001004, 9001, 'AISEEDT260307', 120.00, 30.00, 'ali_business_circle', 4, CURRENT_DATE - INTERVAL '16 day' + TIME '19:15:00', CURRENT_DATE - INTERVAL '16 day' + TIME '19:15:00'),
+  (91004, 1, 1001005, 9002, 'AISEEDT260308', 399.00, 0.00, 'manual_rule', 3, CURRENT_DATE - INTERVAL '15 day' + TIME '15:20:00', CURRENT_DATE - INTERVAL '15 day' + TIME '15:20:00'),
+  (91005, 1, 1001007, 9002, 'AISEEDT260312', 699.00, 0.00, 'manual_rule', 3, CURRENT_DATE - INTERVAL '14 day' + TIME '11:30:00', CURRENT_DATE - INTERVAL '14 day' + TIME '11:30:00'),
+  (91006, 1, 1001011, 9002, 'AISEEDT260319', 460.00, 0.00, 'self_help', 3, CURRENT_DATE - INTERVAL '12 day' + TIME '20:05:00', CURRENT_DATE - INTERVAL '12 day' + TIME '20:05:00'),
+  (91007, 1, 1001006, 9003, 'AISEEDT260310', 268.00, 50.00, 'self_help', 4, CURRENT_DATE - INTERVAL '13 day' + TIME '20:20:00', CURRENT_DATE - INTERVAL '13 day' + TIME '20:20:00'),
+  (91008, 1, 1001009, 9003, 'AISEEDT260316', 48.00, 0.00, 'self_help', 1, CURRENT_DATE - INTERVAL '10 day' + TIME '12:10:00', CURRENT_DATE - INTERVAL '10 day' + TIME '12:10:00'),
+  (91009, 1, 1001011, 9003, 'AISEEDT260318', 320.00, 50.00, 'wx_business_circle', 4, CURRENT_DATE - INTERVAL '9 day' + TIME '18:15:00', CURRENT_DATE - INTERVAL '9 day' + TIME '18:15:00');
 
 INSERT INTO em_trades (
   id, tid, payment_id, project_id, member_id, status, pay_type, amount, total_fee,
   receiver_name, receiver_area, receiver_address, receiver_tel, pay_time, created_at, updated_at
 ) VALUES
-  (200001, 'AISEEDT260301', 'AISEEDP260301', 1, 1001001, 'TRADE_FINISHED', 'online', 58.00, 58.00, '陈一鸣', '广东省', '测试地址1', '13970000001', '2026-03-11 12:15:00', '2026-03-11 12:15:00', '2026-03-11 12:15:00'),
-  (200002, 'AISEEDT260302', 'AISEEDP260302', 1, 1001001, 'TRADE_FINISHED', 'online', 128.00, 128.00, '陈一鸣', '广东省', '测试地址1', '13970000001', '2026-03-16 19:20:00', '2026-03-16 19:20:00', '2026-03-16 19:20:00'),
-  (200003, 'AISEEDT260303', 'AISEEDP260303', 1, 1001002, 'TRADE_FINISHED', 'online', 35.00, 35.00, '林若雪', '广东省', '测试地址2', '13970000002', '2026-03-12 12:05:00', '2026-03-12 12:05:00', '2026-03-12 12:05:00'),
-  (200004, 'AISEEDT260304', 'AISEEDP260304', 1, 1001002, 'TRADE_FINISHED', 'online', 42.00, 42.00, '林若雪', '广东省', '测试地址2', '13970000002', '2026-03-17 18:45:00', '2026-03-17 18:45:00', '2026-03-17 18:45:00'),
-  (200005, 'AISEEDT260305', 'AISEEDP260305', 1, 1001003, 'TRADE_FINISHED', 'online', 88.00, 88.00, '赵晨', '广东省', '测试地址3', '13970000003', '2026-03-12 18:30:00', '2026-03-12 18:30:00', '2026-03-12 18:30:00'),
-  (200006, 'AISEEDT260306', 'AISEEDP260306', 1, 1001003, 'TRADE_FINISHED', 'online', 66.00, 66.00, '赵晨', '广东省', '测试地址3', '13970000003', '2026-03-15 13:40:00', '2026-03-15 13:40:00', '2026-03-15 13:40:00'),
-  (200007, 'AISEEDT260307', 'AISEEDP260307', 1, 1001004, 'TRADE_FINISHED', 'online', 120.00, 120.00, '周子涵', '广东省', '测试地址4', '13970000004', '2026-03-13 19:15:00', '2026-03-13 19:15:00', '2026-03-13 19:15:00'),
-  (200008, 'AISEEDT260308', 'AISEEDP260308', 1, 1001005, 'TRADE_FINISHED', 'online', 399.00, 399.00, '吴承泽', '广东省', '测试地址5', '13970000005', '2026-03-14 15:20:00', '2026-03-14 15:20:00', '2026-03-14 15:20:00'),
-  (200009, 'AISEEDT260309', 'AISEEDP260309', 1, 1001005, 'TRADE_FINISHED', 'online', 599.00, 599.00, '吴承泽', '广东省', '测试地址5', '13970000005', '2026-03-18 16:20:00', '2026-03-18 16:20:00', '2026-03-18 16:20:00'),
-  (200010, 'AISEEDT260310', 'AISEEDP260310', 1, 1001006, 'TRADE_FINISHED', 'online', 268.00, 268.00, '孙可欣', '广东省', '测试地址6', '13970000006', '2026-03-14 20:20:00', '2026-03-14 20:20:00', '2026-03-14 20:20:00'),
-  (200011, 'AISEEDT260311', 'AISEEDP260311', 1, 1001006, 'TRADE_FINISHED', 'online', 188.00, 188.00, '孙可欣', '广东省', '测试地址6', '13970000006', '2026-03-19 17:10:00', '2026-03-19 17:10:00', '2026-03-19 17:10:00'),
-  (200012, 'AISEEDT260312', 'AISEEDP260312', 1, 1001007, 'TRADE_FINISHED', 'online', 699.00, 699.00, '郑浩宇', '广东省', '测试地址7', '13970000007', '2026-03-15 11:30:00', '2026-03-15 11:30:00', '2026-03-15 11:30:00'),
-  (200013, 'AISEEDT260313', 'AISEEDP260313', 1, 1001007, 'TRADE_FINISHED', 'online', 120.00, 120.00, '郑浩宇', '广东省', '测试地址7', '13970000007', '2026-03-20 15:05:00', '2026-03-20 15:05:00', '2026-03-20 15:05:00'),
-  (200014, 'AISEEDT260314', 'AISEEDP260314', 1, 1001008, 'TRADE_FINISHED', 'online', 880.00, 880.00, '许诗雨', '广东省', '测试地址8', '13970000008', '2026-03-15 20:00:00', '2026-03-15 20:00:00', '2026-03-15 20:00:00'),
-  (200015, 'AISEEDT260315', 'AISEEDP260315', 1, 1001009, 'TRADE_FINISHED', 'online', 48.00, 48.00, '何景行', '广东省', '测试地址9', '13970000009', '2026-03-16 12:10:00', '2026-03-16 12:10:00', '2026-03-16 12:10:00'),
-  (200016, 'AISEEDT260316', 'AISEEDP260316', 1, 1001009, 'TRADE_FINISHED', 'online', 52.00, 52.00, '何景行', '广东省', '测试地址9', '13970000009', '2026-03-21 12:40:00', '2026-03-21 12:40:00', '2026-03-21 12:40:00'),
-  (200017, 'AISEEDT260317', 'AISEEDP260317', 1, 1001010, 'TRADE_FINISHED', 'online', 95.00, 95.00, '唐语宁', '广东省', '测试地址10', '13970000010', '2026-03-17 13:25:00', '2026-03-17 13:25:00', '2026-03-17 13:25:00'),
-  (200018, 'AISEEDT260318', 'AISEEDP260318', 1, 1001011, 'TRADE_FINISHED', 'online', 320.00, 320.00, '高启航', '广东省', '测试地址11', '13970000011', '2026-03-17 18:15:00', '2026-03-17 18:15:00', '2026-03-17 18:15:00'),
-  (200019, 'AISEEDT260319', 'AISEEDP260319', 1, 1001011, 'TRADE_FINISHED', 'online', 460.00, 460.00, '高启航', '广东省', '测试地址11', '13970000011', '2026-03-22 19:50:00', '2026-03-22 19:50:00', '2026-03-22 19:50:00'),
-  (200020, 'AISEEDT260320', 'AISEEDP260320', 1, 1001012, 'TRADE_FINISHED', 'online', 210.00, 210.00, '沈知夏', '广东省', '测试地址12', '13970000012', '2026-03-18 20:30:00', '2026-03-18 20:30:00', '2026-03-18 20:30:00');
+  (200001, 'AISEEDT260301', 'AISEEDP260301', 1, 1001001, 'TRADE_FINISHED', 'online', 58.00, 58.00, '陈一鸣', '广东省', '测试地址1', '13970000001', CURRENT_DATE - INTERVAL '18 day' + TIME '12:15:00', CURRENT_DATE - INTERVAL '18 day' + TIME '12:15:00', CURRENT_DATE - INTERVAL '18 day' + TIME '12:15:00'),
+  (200002, 'AISEEDT260302', 'AISEEDP260302', 1, 1001001, 'TRADE_FINISHED', 'online', 128.00, 128.00, '陈一鸣', '广东省', '测试地址1', '13970000001', CURRENT_DATE - INTERVAL '13 day' + TIME '19:20:00', CURRENT_DATE - INTERVAL '13 day' + TIME '19:20:00', CURRENT_DATE - INTERVAL '13 day' + TIME '19:20:00'),
+  (200003, 'AISEEDT260303', 'AISEEDP260303', 1, 1001002, 'TRADE_FINISHED', 'online', 35.00, 35.00, '林若雪', '广东省', '测试地址2', '13970000002', CURRENT_DATE - INTERVAL '17 day' + TIME '12:05:00', CURRENT_DATE - INTERVAL '17 day' + TIME '12:05:00', CURRENT_DATE - INTERVAL '17 day' + TIME '12:05:00'),
+  (200004, 'AISEEDT260304', 'AISEEDP260304', 1, 1001002, 'TRADE_FINISHED', 'online', 42.00, 42.00, '林若雪', '广东省', '测试地址2', '13970000002', CURRENT_DATE - INTERVAL '12 day' + TIME '18:45:00', CURRENT_DATE - INTERVAL '12 day' + TIME '18:45:00', CURRENT_DATE - INTERVAL '12 day' + TIME '18:45:00'),
+  (200005, 'AISEEDT260305', 'AISEEDP260305', 1, 1001003, 'TRADE_FINISHED', 'online', 88.00, 88.00, '赵晨', '广东省', '测试地址3', '13970000003', CURRENT_DATE - INTERVAL '17 day' + TIME '18:30:00', CURRENT_DATE - INTERVAL '17 day' + TIME '18:30:00', CURRENT_DATE - INTERVAL '17 day' + TIME '18:30:00'),
+  (200006, 'AISEEDT260306', 'AISEEDP260306', 1, 1001003, 'TRADE_FINISHED', 'online', 66.00, 66.00, '赵晨', '广东省', '测试地址3', '13970000003', CURRENT_DATE - INTERVAL '14 day' + TIME '13:40:00', CURRENT_DATE - INTERVAL '14 day' + TIME '13:40:00', CURRENT_DATE - INTERVAL '14 day' + TIME '13:40:00'),
+  (200007, 'AISEEDT260307', 'AISEEDP260307', 1, 1001004, 'TRADE_FINISHED', 'online', 120.00, 120.00, '周子涵', '广东省', '测试地址4', '13970000004', CURRENT_DATE - INTERVAL '16 day' + TIME '19:15:00', CURRENT_DATE - INTERVAL '16 day' + TIME '19:15:00', CURRENT_DATE - INTERVAL '16 day' + TIME '19:15:00'),
+  (200008, 'AISEEDT260308', 'AISEEDP260308', 1, 1001005, 'TRADE_FINISHED', 'online', 399.00, 399.00, '吴承泽', '广东省', '测试地址5', '13970000005', CURRENT_DATE - INTERVAL '15 day' + TIME '15:20:00', CURRENT_DATE - INTERVAL '15 day' + TIME '15:20:00', CURRENT_DATE - INTERVAL '15 day' + TIME '15:20:00'),
+  (200009, 'AISEEDT260309', 'AISEEDP260309', 1, 1001005, 'TRADE_FINISHED', 'online', 599.00, 599.00, '吴承泽', '广东省', '测试地址5', '13970000005', CURRENT_DATE - INTERVAL '10 day' + TIME '16:20:00', CURRENT_DATE - INTERVAL '10 day' + TIME '16:20:00', CURRENT_DATE - INTERVAL '10 day' + TIME '16:20:00'),
+  (200010, 'AISEEDT260310', 'AISEEDP260310', 1, 1001006, 'TRADE_FINISHED', 'online', 268.00, 268.00, '孙可欣', '广东省', '测试地址6', '13970000006', CURRENT_DATE - INTERVAL '15 day' + TIME '20:20:00', CURRENT_DATE - INTERVAL '15 day' + TIME '20:20:00', CURRENT_DATE - INTERVAL '15 day' + TIME '20:20:00'),
+  (200011, 'AISEEDT260311', 'AISEEDP260311', 1, 1001006, 'TRADE_FINISHED', 'online', 188.00, 188.00, '孙可欣', '广东省', '测试地址6', '13970000006', CURRENT_DATE - INTERVAL '9 day' + TIME '17:10:00', CURRENT_DATE - INTERVAL '9 day' + TIME '17:10:00', CURRENT_DATE - INTERVAL '9 day' + TIME '17:10:00'),
+  (200012, 'AISEEDT260312', 'AISEEDP260312', 1, 1001007, 'TRADE_FINISHED', 'online', 699.00, 699.00, '郑浩宇', '广东省', '测试地址7', '13970000007', CURRENT_DATE - INTERVAL '14 day' + TIME '11:30:00', CURRENT_DATE - INTERVAL '14 day' + TIME '11:30:00', CURRENT_DATE - INTERVAL '14 day' + TIME '11:30:00'),
+  (200013, 'AISEEDT260313', 'AISEEDP260313', 1, 1001007, 'TRADE_FINISHED', 'online', 120.00, 120.00, '郑浩宇', '广东省', '测试地址7', '13970000007', CURRENT_DATE - INTERVAL '8 day' + TIME '15:05:00', CURRENT_DATE - INTERVAL '8 day' + TIME '15:05:00', CURRENT_DATE - INTERVAL '8 day' + TIME '15:05:00'),
+  (200014, 'AISEEDT260314', 'AISEEDP260314', 1, 1001008, 'TRADE_FINISHED', 'online', 880.00, 880.00, '许诗雨', '广东省', '测试地址8', '13970000008', CURRENT_DATE - INTERVAL '14 day' + TIME '20:00:00', CURRENT_DATE - INTERVAL '14 day' + TIME '20:00:00', CURRENT_DATE - INTERVAL '14 day' + TIME '20:00:00'),
+  (200015, 'AISEEDT260315', 'AISEEDP260315', 1, 1001009, 'TRADE_FINISHED', 'online', 48.00, 48.00, '何景行', '广东省', '测试地址9', '13970000009', CURRENT_DATE - INTERVAL '13 day' + TIME '12:10:00', CURRENT_DATE - INTERVAL '13 day' + TIME '12:10:00', CURRENT_DATE - INTERVAL '13 day' + TIME '12:10:00'),
+  (200016, 'AISEEDT260316', 'AISEEDP260316', 1, 1001009, 'TRADE_FINISHED', 'online', 52.00, 52.00, '何景行', '广东省', '测试地址9', '13970000009', CURRENT_DATE - INTERVAL '7 day' + TIME '12:40:00', CURRENT_DATE - INTERVAL '7 day' + TIME '12:40:00', CURRENT_DATE - INTERVAL '7 day' + TIME '12:40:00'),
+  (200017, 'AISEEDT260317', 'AISEEDP260317', 1, 1001010, 'TRADE_FINISHED', 'online', 95.00, 95.00, '唐语宁', '广东省', '测试地址10', '13970000010', CURRENT_DATE - INTERVAL '12 day' + TIME '13:25:00', CURRENT_DATE - INTERVAL '12 day' + TIME '13:25:00', CURRENT_DATE - INTERVAL '12 day' + TIME '13:25:00'),
+  (200018, 'AISEEDT260318', 'AISEEDP260318', 1, 1001011, 'TRADE_FINISHED', 'online', 320.00, 320.00, '高启航', '广东省', '测试地址11', '13970000011', CURRENT_DATE - INTERVAL '9 day' + TIME '18:15:00', CURRENT_DATE - INTERVAL '9 day' + TIME '18:15:00', CURRENT_DATE - INTERVAL '9 day' + TIME '18:15:00'),
+  (200019, 'AISEEDT260319', 'AISEEDP260319', 1, 1001011, 'TRADE_FINISHED', 'online', 460.00, 460.00, '高启航', '广东省', '测试地址11', '13970000011', CURRENT_DATE - INTERVAL '4 day' + TIME '19:50:00', CURRENT_DATE - INTERVAL '4 day' + TIME '19:50:00', CURRENT_DATE - INTERVAL '4 day' + TIME '19:50:00'),
+  (200020, 'AISEEDT260320', 'AISEEDP260320', 1, 1001012, 'TRADE_FINISHED', 'online', 210.00, 210.00, '沈知夏', '广东省', '测试地址12', '13970000012', CURRENT_DATE - INTERVAL '6 day' + TIME '20:30:00', CURRENT_DATE - INTERVAL '6 day' + TIME '20:30:00', CURRENT_DATE - INTERVAL '6 day' + TIME '20:30:00');
+
+INSERT INTO em_sales (
+  id, project_id, shop_id, seller_id, amount, start_time, created_at, updated_at, remarks
+) VALUES
+  (94001, 1, 1, 1, 58.00, TO_CHAR(CURRENT_DATE - INTERVAL '18 day' + TIME '12:15:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '18 day' + TIME '12:15:00', CURRENT_DATE - INTERVAL '18 day' + TIME '12:15:00', 'seed'),
+  (94002, 1, 2, 2, 128.00, TO_CHAR(CURRENT_DATE - INTERVAL '13 day' + TIME '19:20:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '13 day' + TIME '19:20:00', CURRENT_DATE - INTERVAL '13 day' + TIME '19:20:00', 'seed'),
+  (94003, 1, 1, 1, 35.00, TO_CHAR(CURRENT_DATE - INTERVAL '17 day' + TIME '12:05:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '17 day' + TIME '12:05:00', CURRENT_DATE - INTERVAL '17 day' + TIME '12:05:00', 'seed'),
+  (94004, 1, 1, 1, 42.00, TO_CHAR(CURRENT_DATE - INTERVAL '12 day' + TIME '18:45:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '12 day' + TIME '18:45:00', CURRENT_DATE - INTERVAL '12 day' + TIME '18:45:00', 'seed'),
+  (94005, 1, 2, 2, 88.00, TO_CHAR(CURRENT_DATE - INTERVAL '17 day' + TIME '18:30:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '17 day' + TIME '18:30:00', CURRENT_DATE - INTERVAL '17 day' + TIME '18:30:00', 'seed'),
+  (94006, 1, 4, 4, 66.00, TO_CHAR(CURRENT_DATE - INTERVAL '14 day' + TIME '13:40:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '14 day' + TIME '13:40:00', CURRENT_DATE - INTERVAL '14 day' + TIME '13:40:00', 'seed'),
+  (94007, 1, 4, 4, 120.00, TO_CHAR(CURRENT_DATE - INTERVAL '16 day' + TIME '19:15:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '16 day' + TIME '19:15:00', CURRENT_DATE - INTERVAL '16 day' + TIME '19:15:00', 'seed'),
+  (94008, 1, 3, 3, 399.00, TO_CHAR(CURRENT_DATE - INTERVAL '15 day' + TIME '15:20:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '15 day' + TIME '15:20:00', CURRENT_DATE - INTERVAL '15 day' + TIME '15:20:00', 'seed'),
+  (94009, 1, 3, 3, 599.00, TO_CHAR(CURRENT_DATE - INTERVAL '10 day' + TIME '16:20:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '10 day' + TIME '16:20:00', CURRENT_DATE - INTERVAL '10 day' + TIME '16:20:00', 'seed'),
+  (94010, 1, 4, 4, 268.00, TO_CHAR(CURRENT_DATE - INTERVAL '15 day' + TIME '20:20:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '15 day' + TIME '20:20:00', CURRENT_DATE - INTERVAL '15 day' + TIME '20:20:00', 'seed'),
+  (94011, 1, 2, 2, 188.00, TO_CHAR(CURRENT_DATE - INTERVAL '9 day' + TIME '17:10:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '9 day' + TIME '17:10:00', CURRENT_DATE - INTERVAL '9 day' + TIME '17:10:00', 'seed'),
+  (94012, 1, 3, 3, 699.00, TO_CHAR(CURRENT_DATE - INTERVAL '14 day' + TIME '11:30:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '14 day' + TIME '11:30:00', CURRENT_DATE - INTERVAL '14 day' + TIME '11:30:00', 'seed'),
+  (94013, 1, 3, 3, 120.00, TO_CHAR(CURRENT_DATE - INTERVAL '8 day' + TIME '15:05:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '8 day' + TIME '15:05:00', CURRENT_DATE - INTERVAL '8 day' + TIME '15:05:00', 'seed'),
+  (94014, 1, 3, 3, 880.00, TO_CHAR(CURRENT_DATE - INTERVAL '14 day' + TIME '20:00:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '14 day' + TIME '20:00:00', CURRENT_DATE - INTERVAL '14 day' + TIME '20:00:00', 'seed'),
+  (94015, 1, 1, 1, 48.00, TO_CHAR(CURRENT_DATE - INTERVAL '13 day' + TIME '12:10:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '13 day' + TIME '12:10:00', CURRENT_DATE - INTERVAL '13 day' + TIME '12:10:00', 'seed'),
+  (94016, 1, 1, 1, 52.00, TO_CHAR(CURRENT_DATE - INTERVAL '7 day' + TIME '12:40:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '7 day' + TIME '12:40:00', CURRENT_DATE - INTERVAL '7 day' + TIME '12:40:00', 'seed'),
+  (94017, 1, 2, 2, 95.00, TO_CHAR(CURRENT_DATE - INTERVAL '12 day' + TIME '13:25:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '12 day' + TIME '13:25:00', CURRENT_DATE - INTERVAL '12 day' + TIME '13:25:00', 'seed'),
+  (94018, 1, 4, 4, 320.00, TO_CHAR(CURRENT_DATE - INTERVAL '9 day' + TIME '18:15:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '9 day' + TIME '18:15:00', CURRENT_DATE - INTERVAL '9 day' + TIME '18:15:00', 'seed'),
+  (94019, 1, 3, 3, 460.00, TO_CHAR(CURRENT_DATE - INTERVAL '4 day' + TIME '19:50:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '4 day' + TIME '19:50:00', CURRENT_DATE - INTERVAL '4 day' + TIME '19:50:00', 'seed'),
+  (94020, 1, 2, 2, 210.00, TO_CHAR(CURRENT_DATE - INTERVAL '6 day' + TIME '20:30:00', 'YYYY-MM-DD HH24:MI:SS'), CURRENT_DATE - INTERVAL '6 day' + TIME '20:30:00', CURRENT_DATE - INTERVAL '6 day' + TIME '20:30:00', 'seed');
+
+ALTER TABLE em_crm_sales_logs ADD COLUMN IF NOT EXISTS shop_id BIGINT;
+ALTER TABLE em_crm_sales_logs ADD COLUMN IF NOT EXISTS amount NUMERIC(10, 2);
+
+INSERT INTO em_crm_sales_logs (
+  id, project_id, member_id, mobile, "transTime", "storeCode", "cardCode", "receiptNo",
+  "payableAmount", "netAmount", "discountAmount", "getPointAmount", source, pushed, created_at, updated_at
+) VALUES
+  (95001, 1, 1001001, '13970000001', CURRENT_DATE - INTERVAL '18 day' + TIME '12:15:00', '123123', 'AI26030001', 'AISEEDT260301', 58.00, 58.00, 0.00, 30.00, 0, 1, CURRENT_DATE - INTERVAL '18 day' + TIME '12:15:00', CURRENT_DATE - INTERVAL '18 day' + TIME '12:15:00'),
+  (95002, 1, 1001001, '13970000001', CURRENT_DATE - INTERVAL '13 day' + TIME '19:20:00', '1515', 'AI26030001', 'AISEEDT260302', 128.00, 128.00, 0.00, 20.00, 0, 1, CURRENT_DATE - INTERVAL '13 day' + TIME '19:20:00', CURRENT_DATE - INTERVAL '13 day' + TIME '19:20:00'),
+  (95003, 1, 1001002, '13970000002', CURRENT_DATE - INTERVAL '17 day' + TIME '12:05:00', '123123', 'AI26030002', 'AISEEDT260303', 35.00, 35.00, 0.00, 10.00, 0, 1, CURRENT_DATE - INTERVAL '17 day' + TIME '12:05:00', CURRENT_DATE - INTERVAL '17 day' + TIME '12:05:00'),
+  (95004, 1, 1001002, '13970000002', CURRENT_DATE - INTERVAL '12 day' + TIME '18:45:00', '123123', 'AI26030002', 'AISEEDT260304', 42.00, 42.00, 0.00, 12.00, 0, 1, CURRENT_DATE - INTERVAL '12 day' + TIME '18:45:00', CURRENT_DATE - INTERVAL '12 day' + TIME '18:45:00'),
+  (95005, 1, 1001003, '13970000003', CURRENT_DATE - INTERVAL '17 day' + TIME '18:30:00', '1515', 'AI26030003', 'AISEEDT260305', 88.00, 88.00, 0.00, 18.00, 0, 1, CURRENT_DATE - INTERVAL '17 day' + TIME '18:30:00', CURRENT_DATE - INTERVAL '17 day' + TIME '18:30:00'),
+  (95006, 1, 1001003, '13970000003', CURRENT_DATE - INTERVAL '14 day' + TIME '13:40:00', 'B134', 'AI26030003', 'AISEEDT260306', 66.00, 66.00, 0.00, 15.00, 0, 1, CURRENT_DATE - INTERVAL '14 day' + TIME '13:40:00', CURRENT_DATE - INTERVAL '14 day' + TIME '13:40:00'),
+  (95007, 1, 1001004, '13970000004', CURRENT_DATE - INTERVAL '16 day' + TIME '19:15:00', 'B134', 'AI26030004', 'AISEEDT260307', 120.00, 120.00, 0.00, 25.00, 0, 1, CURRENT_DATE - INTERVAL '16 day' + TIME '19:15:00', CURRENT_DATE - INTERVAL '16 day' + TIME '19:15:00'),
+  (95008, 1, 1001005, '13970000005', CURRENT_DATE - INTERVAL '15 day' + TIME '15:20:00', '233284', 'AI26030005', 'AISEEDT260308', 399.00, 399.00, 0.00, 60.00, 0, 1, CURRENT_DATE - INTERVAL '15 day' + TIME '15:20:00', CURRENT_DATE - INTERVAL '15 day' + TIME '15:20:00'),
+  (95009, 1, 1001005, '13970000005', CURRENT_DATE - INTERVAL '10 day' + TIME '16:20:00', '233284', 'AI26030005', 'AISEEDT260309', 599.00, 599.00, 0.00, 80.00, 0, 1, CURRENT_DATE - INTERVAL '10 day' + TIME '16:20:00', CURRENT_DATE - INTERVAL '10 day' + TIME '16:20:00'),
+  (95010, 1, 1001006, '13970000006', CURRENT_DATE - INTERVAL '15 day' + TIME '20:20:00', 'B134', 'AI26030006', 'AISEEDT260310', 268.00, 268.00, 0.00, 40.00, 0, 1, CURRENT_DATE - INTERVAL '15 day' + TIME '20:20:00', CURRENT_DATE - INTERVAL '15 day' + TIME '20:20:00'),
+  (95011, 1, 1001006, '13970000006', CURRENT_DATE - INTERVAL '9 day' + TIME '17:10:00', '1515', 'AI26030006', 'AISEEDT260311', 188.00, 188.00, 0.00, 28.00, 0, 1, CURRENT_DATE - INTERVAL '9 day' + TIME '17:10:00', CURRENT_DATE - INTERVAL '9 day' + TIME '17:10:00'),
+  (95012, 1, 1001007, '13970000007', CURRENT_DATE - INTERVAL '14 day' + TIME '11:30:00', '233284', 'AI26030007', 'AISEEDT260312', 699.00, 699.00, 0.00, 90.00, 0, 1, CURRENT_DATE - INTERVAL '14 day' + TIME '11:30:00', CURRENT_DATE - INTERVAL '14 day' + TIME '11:30:00'),
+  (95013, 1, 1001007, '13970000007', CURRENT_DATE - INTERVAL '8 day' + TIME '15:05:00', '233284', 'AI26030007', 'AISEEDT260313', 120.00, 120.00, 0.00, 20.00, 0, 1, CURRENT_DATE - INTERVAL '8 day' + TIME '15:05:00', CURRENT_DATE - INTERVAL '8 day' + TIME '15:05:00'),
+  (95014, 1, 1001008, '13970000008', CURRENT_DATE - INTERVAL '14 day' + TIME '20:00:00', '233284', 'AI26030008', 'AISEEDT260314', 880.00, 880.00, 0.00, 120.00, 0, 1, CURRENT_DATE - INTERVAL '14 day' + TIME '20:00:00', CURRENT_DATE - INTERVAL '14 day' + TIME '20:00:00'),
+  (95015, 1, 1001009, '13970000009', CURRENT_DATE - INTERVAL '13 day' + TIME '12:10:00', '123123', 'AI26030009', 'AISEEDT260315', 48.00, 48.00, 0.00, 8.00, 0, 1, CURRENT_DATE - INTERVAL '13 day' + TIME '12:10:00', CURRENT_DATE - INTERVAL '13 day' + TIME '12:10:00'),
+  (95016, 1, 1001009, '13970000009', CURRENT_DATE - INTERVAL '7 day' + TIME '12:40:00', '123123', 'AI26030009', 'AISEEDT260316', 52.00, 52.00, 0.00, 9.00, 0, 1, CURRENT_DATE - INTERVAL '7 day' + TIME '12:40:00', CURRENT_DATE - INTERVAL '7 day' + TIME '12:40:00'),
+  (95017, 1, 1001010, '13970000010', CURRENT_DATE - INTERVAL '12 day' + TIME '13:25:00', '1515', 'AI26030010', 'AISEEDT260317', 95.00, 95.00, 0.00, 14.00, 0, 1, CURRENT_DATE - INTERVAL '12 day' + TIME '13:25:00', CURRENT_DATE - INTERVAL '12 day' + TIME '13:25:00'),
+  (95018, 1, 1001011, '13970000011', CURRENT_DATE - INTERVAL '9 day' + TIME '18:15:00', 'B134', 'AI26030011', 'AISEEDT260318', 320.00, 320.00, 0.00, 45.00, 0, 1, CURRENT_DATE - INTERVAL '9 day' + TIME '18:15:00', CURRENT_DATE - INTERVAL '9 day' + TIME '18:15:00'),
+  (95019, 1, 1001011, '13970000011', CURRENT_DATE - INTERVAL '4 day' + TIME '19:50:00', '233284', 'AI26030011', 'AISEEDT260319', 460.00, 460.00, 0.00, 55.00, 0, 1, CURRENT_DATE - INTERVAL '4 day' + TIME '19:50:00', CURRENT_DATE - INTERVAL '4 day' + TIME '19:50:00'),
+  (95020, 1, 1001012, '13970000012', CURRENT_DATE - INTERVAL '6 day' + TIME '20:30:00', '1515', 'AI26030012', 'AISEEDT260320', 210.00, 210.00, 0.00, 30.00, 0, 1, CURRENT_DATE - INTERVAL '6 day' + TIME '20:30:00', CURRENT_DATE - INTERVAL '6 day' + TIME '20:30:00');
+
+UPDATE em_crm_sales_logs l
+SET amount = l."payableAmount",
+    shop_id = s.id
+FROM em_shops s
+WHERE l.id BETWEEN 95001 AND 95020
+  AND l."storeCode" = s.shop_code;
 
 INSERT INTO em_order_write_off_records (
   id, tid, oid, goods_id, sku_id, quantity, write_off_num, status, member_id,
   project_id, write_off_shop, write_off_seller, created_at, updated_at, coupon_num
 ) VALUES
-  (400001, 'AISEEDT260301', 500001, 201, 1, 1, 1, 1, 1001001, 1, 1, 1, '2026-03-11 12:20:00', '2026-03-11 12:20:00', 0),
-  (400002, 'AISEEDT260302', 500002, 202, 1, 1, 1, 1, 1001001, 1, 2, 2, '2026-03-16 19:25:00', '2026-03-16 19:25:00', 0),
-  (400003, 'AISEEDT260303', 500003, 203, 1, 1, 1, 1, 1001002, 1, 1, 1, '2026-03-12 12:10:00', '2026-03-12 12:10:00', 0),
-  (400004, 'AISEEDT260304', 500004, 204, 1, 1, 1, 1, 1001002, 1, 1, 1, '2026-03-17 18:50:00', '2026-03-17 18:50:00', 0),
-  (400005, 'AISEEDT260305', 500005, 205, 1, 1, 1, 1, 1001003, 1, 2, 2, '2026-03-12 18:35:00', '2026-03-12 18:35:00', 0),
-  (400006, 'AISEEDT260306', 500006, 206, 1, 1, 1, 1, 1001003, 1, 4, 4, '2026-03-15 13:45:00', '2026-03-15 13:45:00', 0),
-  (400007, 'AISEEDT260307', 500007, 207, 1, 1, 1, 1, 1001004, 1, 4, 4, '2026-03-13 19:20:00', '2026-03-13 19:20:00', 0),
-  (400008, 'AISEEDT260308', 500008, 208, 1, 1, 1, 1, 1001005, 1, 3, 3, '2026-03-14 15:25:00', '2026-03-14 15:25:00', 0),
-  (400009, 'AISEEDT260309', 500009, 209, 1, 1, 1, 1, 1001005, 1, 3, 3, '2026-03-18 16:25:00', '2026-03-18 16:25:00', 0),
-  (400010, 'AISEEDT260310', 500010, 210, 1, 1, 1, 1, 1001006, 1, 4, 4, '2026-03-14 20:25:00', '2026-03-14 20:25:00', 0),
-  (400011, 'AISEEDT260311', 500011, 211, 1, 1, 1, 1, 1001006, 1, 2, 2, '2026-03-19 17:15:00', '2026-03-19 17:15:00', 0),
-  (400012, 'AISEEDT260312', 500012, 212, 1, 1, 1, 1, 1001007, 1, 3, 3, '2026-03-15 11:35:00', '2026-03-15 11:35:00', 0),
-  (400013, 'AISEEDT260313', 500013, 213, 1, 1, 1, 1, 1001007, 1, 3, 3, '2026-03-20 15:10:00', '2026-03-20 15:10:00', 0),
-  (400014, 'AISEEDT260314', 500014, 214, 1, 1, 1, 1, 1001008, 1, 3, 3, '2026-03-15 20:05:00', '2026-03-15 20:05:00', 0),
-  (400015, 'AISEEDT260315', 500015, 215, 1, 1, 1, 1, 1001009, 1, 1, 1, '2026-03-16 12:15:00', '2026-03-16 12:15:00', 0),
-  (400016, 'AISEEDT260316', 500016, 216, 1, 1, 1, 1, 1001009, 1, 1, 1, '2026-03-21 12:45:00', '2026-03-21 12:45:00', 0),
-  (400017, 'AISEEDT260317', 500017, 217, 1, 1, 1, 1, 1001010, 1, 2, 2, '2026-03-17 13:30:00', '2026-03-17 13:30:00', 0),
-  (400018, 'AISEEDT260318', 500018, 218, 1, 1, 1, 1, 1001011, 1, 4, 4, '2026-03-17 18:20:00', '2026-03-17 18:20:00', 0),
-  (400019, 'AISEEDT260319', 500019, 219, 1, 1, 1, 1, 1001011, 1, 3, 3, '2026-03-22 19:55:00', '2026-03-22 19:55:00', 0),
-  (400020, 'AISEEDT260320', 500020, 220, 1, 1, 1, 1, 1001012, 1, 2, 2, '2026-03-18 20:35:00', '2026-03-18 20:35:00', 0);
+  (400001, 'AISEEDT260301', 500001, 201, 1, 1, 1, 1, 1001001, 1, 1, 1, CURRENT_DATE - INTERVAL '18 day' + TIME '12:20:00', CURRENT_DATE - INTERVAL '18 day' + TIME '12:20:00', 0),
+  (400002, 'AISEEDT260302', 500002, 202, 1, 1, 1, 1, 1001001, 1, 2, 2, CURRENT_DATE - INTERVAL '13 day' + TIME '19:25:00', CURRENT_DATE - INTERVAL '13 day' + TIME '19:25:00', 0),
+  (400003, 'AISEEDT260303', 500003, 203, 1, 1, 1, 1, 1001002, 1, 1, 1, CURRENT_DATE - INTERVAL '17 day' + TIME '12:10:00', CURRENT_DATE - INTERVAL '17 day' + TIME '12:10:00', 0),
+  (400004, 'AISEEDT260304', 500004, 204, 1, 1, 1, 1, 1001002, 1, 1, 1, CURRENT_DATE - INTERVAL '12 day' + TIME '18:50:00', CURRENT_DATE - INTERVAL '12 day' + TIME '18:50:00', 0),
+  (400005, 'AISEEDT260305', 500005, 205, 1, 1, 1, 1, 1001003, 1, 2, 2, CURRENT_DATE - INTERVAL '17 day' + TIME '18:35:00', CURRENT_DATE - INTERVAL '17 day' + TIME '18:35:00', 0),
+  (400006, 'AISEEDT260306', 500006, 206, 1, 1, 1, 1, 1001003, 1, 4, 4, CURRENT_DATE - INTERVAL '14 day' + TIME '13:45:00', CURRENT_DATE - INTERVAL '14 day' + TIME '13:45:00', 0),
+  (400007, 'AISEEDT260307', 500007, 207, 1, 1, 1, 1, 1001004, 1, 4, 4, CURRENT_DATE - INTERVAL '16 day' + TIME '19:20:00', CURRENT_DATE - INTERVAL '16 day' + TIME '19:20:00', 0),
+  (400008, 'AISEEDT260308', 500008, 208, 1, 1, 1, 1, 1001005, 1, 3, 3, CURRENT_DATE - INTERVAL '15 day' + TIME '15:25:00', CURRENT_DATE - INTERVAL '15 day' + TIME '15:25:00', 0),
+  (400009, 'AISEEDT260309', 500009, 209, 1, 1, 1, 1, 1001005, 1, 3, 3, CURRENT_DATE - INTERVAL '10 day' + TIME '16:25:00', CURRENT_DATE - INTERVAL '10 day' + TIME '16:25:00', 0),
+  (400010, 'AISEEDT260310', 500010, 210, 1, 1, 1, 1, 1001006, 1, 4, 4, CURRENT_DATE - INTERVAL '15 day' + TIME '20:25:00', CURRENT_DATE - INTERVAL '15 day' + TIME '20:25:00', 0),
+  (400011, 'AISEEDT260311', 500011, 211, 1, 1, 1, 1, 1001006, 1, 2, 2, CURRENT_DATE - INTERVAL '9 day' + TIME '17:15:00', CURRENT_DATE - INTERVAL '9 day' + TIME '17:15:00', 0),
+  (400012, 'AISEEDT260312', 500012, 212, 1, 1, 1, 1, 1001007, 1, 3, 3, CURRENT_DATE - INTERVAL '14 day' + TIME '11:35:00', CURRENT_DATE - INTERVAL '14 day' + TIME '11:35:00', 0),
+  (400013, 'AISEEDT260313', 500013, 213, 1, 1, 1, 1, 1001007, 1, 3, 3, CURRENT_DATE - INTERVAL '8 day' + TIME '15:10:00', CURRENT_DATE - INTERVAL '8 day' + TIME '15:10:00', 0),
+  (400014, 'AISEEDT260314', 500014, 214, 1, 1, 1, 1, 1001008, 1, 3, 3, CURRENT_DATE - INTERVAL '14 day' + TIME '20:05:00', CURRENT_DATE - INTERVAL '14 day' + TIME '20:05:00', 0),
+  (400015, 'AISEEDT260315', 500015, 215, 1, 1, 1, 1, 1001009, 1, 1, 1, CURRENT_DATE - INTERVAL '13 day' + TIME '12:15:00', CURRENT_DATE - INTERVAL '13 day' + TIME '12:15:00', 0),
+  (400016, 'AISEEDT260316', 500016, 216, 1, 1, 1, 1, 1001009, 1, 1, 1, CURRENT_DATE - INTERVAL '7 day' + TIME '12:45:00', CURRENT_DATE - INTERVAL '7 day' + TIME '12:45:00', 0),
+  (400017, 'AISEEDT260317', 500017, 217, 1, 1, 1, 1, 1001010, 1, 2, 2, CURRENT_DATE - INTERVAL '12 day' + TIME '13:30:00', CURRENT_DATE - INTERVAL '12 day' + TIME '13:30:00', 0),
+  (400018, 'AISEEDT260318', 500018, 218, 1, 1, 1, 1, 1001011, 1, 4, 4, CURRENT_DATE - INTERVAL '9 day' + TIME '18:20:00', CURRENT_DATE - INTERVAL '9 day' + TIME '18:20:00', 0),
+  (400019, 'AISEEDT260319', 500019, 219, 1, 1, 1, 1, 1001011, 1, 3, 3, CURRENT_DATE - INTERVAL '4 day' + TIME '19:55:00', CURRENT_DATE - INTERVAL '4 day' + TIME '19:55:00', 0),
+  (400020, 'AISEEDT260320', 500020, 220, 1, 1, 1, 1, 1001012, 1, 2, 2, CURRENT_DATE - INTERVAL '6 day' + TIME '20:35:00', CURRENT_DATE - INTERVAL '6 day' + TIME '20:35:00', 0);
 
 INSERT INTO em_member_actives (id, project_id, member_id, date, created_at, updated_at) VALUES
-  (500001, 1, 1001001, '2026-03-11', '2026-03-11 09:00:00', '2026-03-11 09:00:00'),
-  (500002, 1, 1001001, '2026-03-12', '2026-03-12 09:10:00', '2026-03-12 09:10:00'),
-  (500003, 1, 1001001, '2026-03-14', '2026-03-14 10:00:00', '2026-03-14 10:00:00'),
-  (500004, 1, 1001001, '2026-03-16', '2026-03-16 11:20:00', '2026-03-16 11:20:00'),
-  (500005, 1, 1001005, '2026-03-12', '2026-03-12 15:00:00', '2026-03-12 15:00:00'),
-  (500006, 1, 1001005, '2026-03-14', '2026-03-14 15:30:00', '2026-03-14 15:30:00'),
-  (500007, 1, 1001005, '2026-03-18', '2026-03-18 16:00:00', '2026-03-18 16:00:00'),
-  (500008, 1, 1001005, '2026-03-19', '2026-03-19 19:00:00', '2026-03-19 19:00:00'),
-  (500009, 1, 1001007, '2026-03-15', '2026-03-15 10:30:00', '2026-03-15 10:30:00'),
-  (500010, 1, 1001007, '2026-03-16', '2026-03-16 10:40:00', '2026-03-16 10:40:00'),
-  (500011, 1, 1001007, '2026-03-20', '2026-03-20 15:20:00', '2026-03-20 15:20:00'),
-  (500012, 1, 1001007, '2026-03-22', '2026-03-22 17:00:00', '2026-03-22 17:00:00'),
-  (500013, 1, 1001011, '2026-03-17', '2026-03-17 18:00:00', '2026-03-17 18:00:00'),
-  (500014, 1, 1001011, '2026-03-18', '2026-03-18 18:10:00', '2026-03-18 18:10:00'),
-  (500015, 1, 1001011, '2026-03-22', '2026-03-22 19:10:00', '2026-03-22 19:10:00'),
-  (500016, 1, 1001011, '2026-03-23', '2026-03-23 20:00:00', '2026-03-23 20:00:00'),
-  (500017, 1, 1001002, '2026-03-12', '2026-03-12 11:00:00', '2026-03-12 11:00:00'),
-  (500018, 1, 1001002, '2026-03-17', '2026-03-17 18:00:00', '2026-03-17 18:00:00'),
-  (500019, 1, 1001003, '2026-03-12', '2026-03-12 18:00:00', '2026-03-12 18:00:00'),
-  (500020, 1, 1001003, '2026-03-15', '2026-03-15 13:00:00', '2026-03-15 13:00:00'),
-  (500021, 1, 1001006, '2026-03-14', '2026-03-14 20:00:00', '2026-03-14 20:00:00'),
-  (500022, 1, 1001006, '2026-03-19', '2026-03-19 17:00:00', '2026-03-19 17:00:00'),
-  (500023, 1, 1001009, '2026-03-16', '2026-03-16 12:00:00', '2026-03-16 12:00:00'),
-  (500024, 1, 1001009, '2026-03-21', '2026-03-21 12:30:00', '2026-03-21 12:30:00'),
-  (500025, 1, 1001010, '2026-03-17', '2026-03-17 13:00:00', '2026-03-17 13:00:00'),
-  (500026, 1, 1001010, '2026-03-18', '2026-03-18 13:15:00', '2026-03-18 13:15:00'),
-  (500027, 1, 1001012, '2026-03-18', '2026-03-18 20:00:00', '2026-03-18 20:00:00'),
-  (500028, 1, 1001012, '2026-03-20', '2026-03-20 20:20:00', '2026-03-20 20:20:00');
+  (500001, 1, 1001001, (CURRENT_DATE - INTERVAL '18 day')::date, CURRENT_DATE - INTERVAL '18 day' + TIME '09:00:00', CURRENT_DATE - INTERVAL '18 day' + TIME '09:00:00'),
+  (500002, 1, 1001001, (CURRENT_DATE - INTERVAL '17 day')::date, CURRENT_DATE - INTERVAL '17 day' + TIME '09:10:00', CURRENT_DATE - INTERVAL '17 day' + TIME '09:10:00'),
+  (500003, 1, 1001001, (CURRENT_DATE - INTERVAL '15 day')::date, CURRENT_DATE - INTERVAL '15 day' + TIME '10:00:00', CURRENT_DATE - INTERVAL '15 day' + TIME '10:00:00'),
+  (500004, 1, 1001001, (CURRENT_DATE - INTERVAL '13 day')::date, CURRENT_DATE - INTERVAL '13 day' + TIME '11:20:00', CURRENT_DATE - INTERVAL '13 day' + TIME '11:20:00'),
+  (500005, 1, 1001005, (CURRENT_DATE - INTERVAL '17 day')::date, CURRENT_DATE - INTERVAL '17 day' + TIME '15:00:00', CURRENT_DATE - INTERVAL '17 day' + TIME '15:00:00'),
+  (500006, 1, 1001005, (CURRENT_DATE - INTERVAL '15 day')::date, CURRENT_DATE - INTERVAL '15 day' + TIME '15:30:00', CURRENT_DATE - INTERVAL '15 day' + TIME '15:30:00'),
+  (500007, 1, 1001005, (CURRENT_DATE - INTERVAL '10 day')::date, CURRENT_DATE - INTERVAL '10 day' + TIME '16:00:00', CURRENT_DATE - INTERVAL '10 day' + TIME '16:00:00'),
+  (500008, 1, 1001005, (CURRENT_DATE - INTERVAL '9 day')::date, CURRENT_DATE - INTERVAL '9 day' + TIME '19:00:00', CURRENT_DATE - INTERVAL '9 day' + TIME '19:00:00'),
+  (500009, 1, 1001007, (CURRENT_DATE - INTERVAL '14 day')::date, CURRENT_DATE - INTERVAL '14 day' + TIME '10:30:00', CURRENT_DATE - INTERVAL '14 day' + TIME '10:30:00'),
+  (500010, 1, 1001007, (CURRENT_DATE - INTERVAL '13 day')::date, CURRENT_DATE - INTERVAL '13 day' + TIME '10:40:00', CURRENT_DATE - INTERVAL '13 day' + TIME '10:40:00'),
+  (500011, 1, 1001007, (CURRENT_DATE - INTERVAL '8 day')::date, CURRENT_DATE - INTERVAL '8 day' + TIME '15:20:00', CURRENT_DATE - INTERVAL '8 day' + TIME '15:20:00'),
+  (500012, 1, 1001007, (CURRENT_DATE - INTERVAL '6 day')::date, CURRENT_DATE - INTERVAL '6 day' + TIME '17:00:00', CURRENT_DATE - INTERVAL '6 day' + TIME '17:00:00'),
+  (500013, 1, 1001011, (CURRENT_DATE - INTERVAL '12 day')::date, CURRENT_DATE - INTERVAL '12 day' + TIME '18:00:00', CURRENT_DATE - INTERVAL '12 day' + TIME '18:00:00'),
+  (500014, 1, 1001011, (CURRENT_DATE - INTERVAL '11 day')::date, CURRENT_DATE - INTERVAL '11 day' + TIME '18:10:00', CURRENT_DATE - INTERVAL '11 day' + TIME '18:10:00'),
+  (500015, 1, 1001011, (CURRENT_DATE - INTERVAL '5 day')::date, CURRENT_DATE - INTERVAL '5 day' + TIME '19:10:00', CURRENT_DATE - INTERVAL '5 day' + TIME '19:10:00'),
+  (500016, 1, 1001011, (CURRENT_DATE - INTERVAL '4 day')::date, CURRENT_DATE - INTERVAL '4 day' + TIME '20:00:00', CURRENT_DATE - INTERVAL '4 day' + TIME '20:00:00'),
+  (500017, 1, 1001002, (CURRENT_DATE - INTERVAL '17 day')::date, CURRENT_DATE - INTERVAL '17 day' + TIME '11:00:00', CURRENT_DATE - INTERVAL '17 day' + TIME '11:00:00'),
+  (500018, 1, 1001002, (CURRENT_DATE - INTERVAL '12 day')::date, CURRENT_DATE - INTERVAL '12 day' + TIME '18:00:00', CURRENT_DATE - INTERVAL '12 day' + TIME '18:00:00'),
+  (500019, 1, 1001003, (CURRENT_DATE - INTERVAL '17 day')::date, CURRENT_DATE - INTERVAL '17 day' + TIME '18:00:00', CURRENT_DATE - INTERVAL '17 day' + TIME '18:00:00'),
+  (500020, 1, 1001003, (CURRENT_DATE - INTERVAL '14 day')::date, CURRENT_DATE - INTERVAL '14 day' + TIME '13:00:00', CURRENT_DATE - INTERVAL '14 day' + TIME '13:00:00'),
+  (500021, 1, 1001006, (CURRENT_DATE - INTERVAL '15 day')::date, CURRENT_DATE - INTERVAL '15 day' + TIME '20:00:00', CURRENT_DATE - INTERVAL '15 day' + TIME '20:00:00'),
+  (500022, 1, 1001006, (CURRENT_DATE - INTERVAL '9 day')::date, CURRENT_DATE - INTERVAL '9 day' + TIME '17:00:00', CURRENT_DATE - INTERVAL '9 day' + TIME '17:00:00'),
+  (500023, 1, 1001009, (CURRENT_DATE - INTERVAL '13 day')::date, CURRENT_DATE - INTERVAL '13 day' + TIME '12:00:00', CURRENT_DATE - INTERVAL '13 day' + TIME '12:00:00'),
+  (500024, 1, 1001009, (CURRENT_DATE - INTERVAL '7 day')::date, CURRENT_DATE - INTERVAL '7 day' + TIME '12:30:00', CURRENT_DATE - INTERVAL '7 day' + TIME '12:30:00'),
+  (500025, 1, 1001010, (CURRENT_DATE - INTERVAL '12 day')::date, CURRENT_DATE - INTERVAL '12 day' + TIME '13:00:00', CURRENT_DATE - INTERVAL '12 day' + TIME '13:00:00'),
+  (500026, 1, 1001010, (CURRENT_DATE - INTERVAL '11 day')::date, CURRENT_DATE - INTERVAL '11 day' + TIME '13:15:00', CURRENT_DATE - INTERVAL '11 day' + TIME '13:15:00'),
+  (500027, 1, 1001012, (CURRENT_DATE - INTERVAL '11 day')::date, CURRENT_DATE - INTERVAL '11 day' + TIME '20:00:00', CURRENT_DATE - INTERVAL '11 day' + TIME '20:00:00'),
+  (500028, 1, 1001012, (CURRENT_DATE - INTERVAL '4 day')::date, CURRENT_DATE - INTERVAL '4 day' + TIME '20:20:00', CURRENT_DATE - INTERVAL '4 day' + TIME '20:20:00');
+
+INSERT INTO em_member_integral_logs (
+  id, member_id, integral, multiple, pre, after, type, source_type, source_desc,
+  amount, small_ticket_code, shop_id, project_id, format_id, expire_time, operator, created_at, updated_at
+) VALUES
+  (92001, 1001001, 30, 1, 0, 30, 'add', 'consume', '消费获得积分', 58.00, 'AISEEDT260301', 1, 1, 0, (CURRENT_DATE + INTERVAL '270 day')::date, '{"id": 0, "model": "system", "username": "system"}', CURRENT_DATE - INTERVAL '18 day' + TIME '12:16:00', CURRENT_DATE - INTERVAL '18 day' + TIME '12:16:00'),
+  (92002, 1001002, 20, 1, 0, 20, 'add', 'consume', '消费获得积分', 35.00, 'AISEEDT260303', 1, 1, 0, (CURRENT_DATE + INTERVAL '270 day')::date, '{"id": 0, "model": "system", "username": "system"}', CURRENT_DATE - INTERVAL '17 day' + TIME '12:06:00', CURRENT_DATE - INTERVAL '17 day' + TIME '12:06:00'),
+  (92003, 1001003, 40, 1, 0, 40, 'add', 'marketing', '营销活动赠送积分', 88.00, 'AISEEDT260305', 2, 1, 0, (CURRENT_DATE + INTERVAL '270 day')::date, '{"id": 0, "model": "system", "username": "system"}', CURRENT_DATE - INTERVAL '17 day' + TIME '18:31:00', CURRENT_DATE - INTERVAL '17 day' + TIME '18:31:00'),
+  (92004, 1001004, 45, 1, 0, 45, 'add', 'consume', '消费获得积分', 120.00, 'AISEEDT260307', 4, 1, 0, (CURRENT_DATE + INTERVAL '270 day')::date, '{"id": 0, "model": "system", "username": "system"}', CURRENT_DATE - INTERVAL '16 day' + TIME '19:16:00', CURRENT_DATE - INTERVAL '16 day' + TIME '19:16:00'),
+  (92005, 1001005, 120, 1, 0, 120, 'add', 'consume', '消费获得积分', 399.00, 'AISEEDT260308', 3, 1, 0, (CURRENT_DATE + INTERVAL '270 day')::date, '{"id": 0, "model": "system", "username": "system"}', CURRENT_DATE - INTERVAL '15 day' + TIME '15:21:00', CURRENT_DATE - INTERVAL '15 day' + TIME '15:21:00'),
+  (92006, 1001006, 80, 1, 0, 80, 'add', 'consume', '消费获得积分', 268.00, 'AISEEDT260310', 4, 1, 0, (CURRENT_DATE + INTERVAL '270 day')::date, '{"id": 0, "model": "system", "username": "system"}', CURRENT_DATE - INTERVAL '15 day' + TIME '20:21:00', CURRENT_DATE - INTERVAL '15 day' + TIME '20:21:00'),
+  (92007, 1001007, 160, 1, 0, 160, 'add', 'activity', '活动报名奖励积分', 699.00, 'AISEEDT260312', 3, 1, 0, (CURRENT_DATE + INTERVAL '270 day')::date, '{"id": 0, "model": "system", "username": "system"}', CURRENT_DATE - INTERVAL '14 day' + TIME '11:31:00', CURRENT_DATE - INTERVAL '14 day' + TIME '11:31:00'),
+  (92008, 1001008, 200, 1, 0, 200, 'add', 'marketing', '营销活动赠送积分', 880.00, 'AISEEDT260314', 3, 1, 0, (CURRENT_DATE + INTERVAL '270 day')::date, '{"id": 0, "model": "system", "username": "system"}', CURRENT_DATE - INTERVAL '14 day' + TIME '20:01:00', CURRENT_DATE - INTERVAL '14 day' + TIME '20:01:00'),
+  (92009, 1001009, 15, 1, 0, 15, 'add', 'consume', '消费获得积分', 48.00, 'AISEEDT260315', 1, 1, 0, (CURRENT_DATE + INTERVAL '270 day')::date, '{"id": 0, "model": "system", "username": "system"}', CURRENT_DATE - INTERVAL '13 day' + TIME '12:11:00', CURRENT_DATE - INTERVAL '13 day' + TIME '12:11:00'),
+  (92010, 1001010, 35, 1, 0, 35, 'add', 'join_gift', '新会员入会礼积分', 95.00, 'AISEEDT260317', 2, 1, 0, (CURRENT_DATE + INTERVAL '270 day')::date, '{"id": 0, "model": "system", "username": "system"}', CURRENT_DATE - INTERVAL '12 day' + TIME '13:26:00', CURRENT_DATE - INTERVAL '12 day' + TIME '13:26:00'),
+  (92011, 1001011, 95, 1, 0, 95, 'add', 'consume', '消费获得积分', 320.00, 'AISEEDT260318', 4, 1, 0, (CURRENT_DATE + INTERVAL '270 day')::date, '{"id": 0, "model": "system", "username": "system"}', CURRENT_DATE - INTERVAL '9 day' + TIME '18:16:00', CURRENT_DATE - INTERVAL '9 day' + TIME '18:16:00'),
+  (92012, 1001012, 60, 1, 0, 60, 'add', 'consume', '消费获得积分', 210.00, 'AISEEDT260320', 2, 1, 0, (CURRENT_DATE + INTERVAL '270 day')::date, '{"id": 0, "model": "system", "username": "system"}', CURRENT_DATE - INTERVAL '6 day' + TIME '20:31:00', CURRENT_DATE - INTERVAL '6 day' + TIME '20:31:00');
 
 COMMIT;

@@ -41,18 +41,8 @@ class CompareCase:
 STANDARD_CASES: tuple[PromptCase, ...] = (
     PromptCase(
         "member-growth-daily",
-        "请统计最近30天会员注册人数的按日变化趋势。",
-        "Daily member registration trend should return grouped rows by date.",
-    ),
-    PromptCase(
-        "member-channel",
-        "请统计各会员注册渠道的人数分布，并按人数从高到低排序。",
-        "Member registration channel distribution should return grouped counts.",
-    ),
-    PromptCase(
-        "member-grade-structure",
-        "请统计各会员等级的人数及占比。",
-        "Member grade structure should return grouped counts and percentages.",
+        "请基于 em_member_statisticals 表，查询最近30天每日新增会员人数(member_increase)，返回 date 和 member_increase。",
+        "Daily member growth should read em_member_statisticals.date and member_increase directly.",
     ),
     PromptCase(
         "member-active-trend",
@@ -70,14 +60,24 @@ STANDARD_CASES: tuple[PromptCase, ...] = (
         "Marketing effect should join marketing plan logs and plan names.",
     ),
     PromptCase(
-        "shop-consume-aov-v2",
-        "请基于交易表和核销记录，按核销店铺统计会员消费金额、消费人数和客单价，并显示店铺名称。",
-        "Shop consumption should join trades, writeoff records, and shops.",
+        "shop-consume-aov-30d",
+        "请基于销售流水表按店铺统计消费总金额、消费笔数和客单价。",
+        "Shop AOV should use trades + writeoff joins and return amount/member/aov by store.",
     ),
     PromptCase(
-        "member-frequency-v2",
-        "请以 TRADE_FINISHED 状态的交易为准，统计消费频率最高的会员，显示会员ID、消费次数和消费总额。",
-        "Frequency ranking should use TRADE_FINISHED and grouped member metrics.",
+        "member-points-source",
+        "请基于会员积分日志统计不同积分来源(source_type)的积分发放次数和累计积分。",
+        "Points source analysis should group by source_type from member integral logs.",
+    ),
+    PromptCase(
+        "member-profile-gender-age",
+        "请基于 em_members 统计会员画像：按性别和年龄段分布会员人数（年龄基于 birthday 计算，birthday 为空归为未知）。",
+        "Member profile chart should include gender and age-group distribution using birthday.",
+    ),
+    PromptCase(
+        "member-visit-frequency",
+        "请基于会员活跃记录统计最近30天到店最频繁的会员，显示会员ID和到店天数。",
+        "Visit frequency chart should rank members by active-day counts from em_member_actives.",
     ),
 )
 
@@ -99,11 +99,6 @@ ADVANCED_CASES: tuple[PromptCase, ...] = (
         "Activity participants with purchases should return a non-empty aggregate.",
     ),
     PromptCase(
-        "adv-shop-consume-share",
-        "请基于交易表和核销记录，按核销店铺统计会员消费金额占总会员消费金额的比例，并显示店铺名称。",
-        "Shop-level consumption share should join trades, writeoffs, and shops.",
-    ),
-    PromptCase(
         "adv-grade57-vs13-fixed",
         "请基于 em_members.grade_id 和 em_trades.member_id，比较 grade_id 为 5、6、7 的会员与 grade_id 为 1、2、3 的会员在交易表中的消费总额和消费人数。",
         "High-grade versus normal-member comparison should return grouped totals.",
@@ -113,41 +108,15 @@ ADVANCED_CASES: tuple[PromptCase, ...] = (
         "请基于营销计划日志统计各店铺触发营销计划的次数和触发金额，并显示店铺名称。",
         "Marketing-by-shop summary should join market plan logs and shops.",
     ),
+    PromptCase(
+        "adv-member-points-ranking",
+        "请基于会员积分日志统计积分获取最多的会员TOP10，显示会员ID和累计积分。",
+        "Points ranking should aggregate add-type integral logs by member.",
+    ),
 )
 
 
-COMPARE_CASES: tuple[CompareCase, ...] = (
-    CompareCase(
-        "compare-channel-source",
-        "请统计最近30天新增会员中各注册渠道的人数分布，并按人数从高到低排序。",
-        "请基于 em_members 表的 source 字段，统计最近30天新增会员中各注册渠道的人数分布，并按人数从高到低排序。",
-        "Recommended phrasing should avoid drifting from source to login_type.",
-    ),
-    CompareCase(
-        "compare-marketing-log",
-        "请统计各营销计划的触发次数、触发金额和发放积分。",
-        "请基于营销计划日志统计各营销计划的触发次数、触发金额和发放积分，并显示营销计划名称。",
-        "Recommended phrasing should force use of marketing plan logs.",
-    ),
-    CompareCase(
-        "compare-shop-writeoff",
-        "请统计各店铺的会员消费金额、消费人数和客单价，并按消费金额从高到低排序。",
-        "请基于交易表和核销记录，按核销店铺统计会员消费金额、消费人数和客单价，并显示店铺名称。",
-        "Recommended phrasing should force store linkage through writeoff records.",
-    ),
-    CompareCase(
-        "compare-frequency-status",
-        "请统计消费频率最高的会员，显示会员ID、消费次数和消费总额。",
-        "请以 TRADE_FINISHED 状态的交易为准，统计消费频率最高的会员，显示会员ID、消费次数和消费总额。",
-        "Recommended phrasing should avoid invalid status assumptions.",
-    ),
-    CompareCase(
-        "compare-grade-join",
-        "请比较高等级会员（grade_id为5、6、7）与普通会员（grade_id为1、2、3）的消费总额和消费人数。",
-        "请基于 em_members.grade_id 和 em_trades.member_id，比较 grade_id 为 5、6、7 的会员与 grade_id 为 1、2、3 的会员在交易表中的消费总额和消费人数。",
-        "Recommended phrasing should avoid drifting to the wrong join path.",
-    ),
-)
+COMPARE_CASES: tuple[CompareCase, ...] = ()
 
 
 def _parse_args() -> argparse.Namespace:

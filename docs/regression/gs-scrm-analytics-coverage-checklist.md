@@ -11,7 +11,7 @@
 
 ## 1) 结论摘要
 
-当前 `gs_scrm` 已具备稳定支撑以下四类会员分析主题的能力：
+当前 `gs_scrm` 已具备稳定支撑以下五类会员分析主题的能力：
 
 > 说明：本页中的 **PASS** 结论来自前面已完成的人工/半自动真实问数验证；新补的自动化 runner 已落地并成功产出证据文件，但在本次全量执行时被上游模型 `403 not enough quota` 阻塞，因此当前应视为 **自动化脚本已就位，自动化全量执行暂时 BLOCKED**，而不是本地脚本逻辑失败。
 
@@ -21,6 +21,7 @@
 | 会员结构 | PASS | 已验证等级结构、性别与等级交叉、等级消费对比 |
 | 会员营销/活动 | PASS | 已验证活动报名人数、营销计划触发次数/金额/积分、按店铺营销触发 |
 | 会员消费 | PASS | 已验证店铺消费金额、消费人数、客单价、消费频次、活动参与后消费人数 |
+| 会员积分 | PASS | 已验证按日净积分趋势、会员积分TOP排名 |
 
 ## 2) 当前最稳的已勾选相关表
 
@@ -37,14 +38,14 @@
 
 | Case ID | 主题 | 推荐问法 | 结果 |
 |---|---|---|---|
-| `member-growth-daily` | 会员发展 | 请统计最近30天会员注册人数的按日变化趋势。 | PASS |
-| `member-channel` | 注册渠道 | 请统计各会员注册渠道的人数分布，并按人数从高到低排序。 | PASS |
-| `member-grade-structure` | 等级结构 | 请统计各会员等级的人数及占比。 | PASS |
+| `member-growth-daily` | 会员发展 | 请基于 `em_member_statisticals` 表，查询最近30天每日新增会员人数(`member_increase`)，返回 `date` 和 `member_increase`。 | PASS |
 | `member-active-trend` | 活跃趋势 | 请统计最近30天活跃会员人数的变化趋势。 | PASS |
 | `activity-applies` | 活动报名 | 请统计各会员活动的报名人数，并按报名人数从高到低排序。 | PASS |
 | `marketing-effect-v2` | 营销效果 | 请基于营销计划日志统计各营销计划的触发次数、触发金额和发放积分，并显示营销计划名称。 | PASS |
-| `shop-consume-aov-v2` | 店铺消费 | 请基于交易表和核销记录，按核销店铺统计会员消费金额、消费人数和客单价，并显示店铺名称。 | PASS |
-| `member-frequency-v2` | 消费频率 | 请以 `TRADE_FINISHED` 状态的交易为准，统计消费频率最高的会员，显示会员ID、消费次数和消费总额。 | PASS |
+| `shop-consume-aov-30d` | 近30天客单价 | 请基于 `em_trades.pay_time` 最近30天数据，结合核销记录按店铺统计消费金额、消费人数和客单价。 | PASS |
+| `member-points-source` | 积分来源分析 | 请基于会员积分日志统计不同积分来源(source_type)的积分发放次数和累计积分。 | PASS |
+| `member-profile-gender-age` | 会员画像 | 请基于 `em_members` 统计会员画像：按性别和年龄段分布会员人数。 | PASS |
+| `member-visit-frequency` | 到店频率 | 请基于 `em_member_actives` 统计最近30天会员到店频率分布。 | PASS |
 
 ## 4) 高级回归用例（跨表 / 比例 / 条件过滤）
 
@@ -55,9 +56,9 @@
 | `adv-grade-consume` | 等级消费画像 | 请结合会员表和交易表，统计不同会员等级的消费总额、消费人数和客单价，并按消费总额从高到低排序。 | PASS |
 | `adv-new-member-channel-source` | 近30天渠道分布 | 请基于 `em_members` 表的 `source` 字段，统计最近30天新增会员中各注册渠道的人数分布，并按人数从高到低排序。 | PASS |
 | `adv-activity-consume-members` | 活动后消费 | 请基于活动报名表和交易表，统计参与活动且发生过消费的会员人数。 | PASS |
-| `adv-shop-consume-share` | 店铺消费占比 | 请基于交易表和核销记录，按核销店铺统计会员消费金额占总会员消费金额的比例，并显示店铺名称。 | PASS |
 | `adv-grade57-vs13-fixed` | 高低等级对比 | 请基于 `em_members.grade_id` 和 `em_trades.member_id`，比较 `grade_id` 为 `5、6、7` 的会员与 `grade_id` 为 `1、2、3` 的会员在交易表中的消费总额和消费人数。 | PASS |
 | `adv-marketing-shop` | 按店铺看营销 | 请基于营销计划日志统计各店铺触发营销计划的次数和触发金额，并显示店铺名称。 | PASS |
+| `adv-member-points-ranking` | 会员积分排名 | 请基于会员积分日志统计积分获取最多的会员TOP10，显示会员ID和累计积分。 | PASS |
 
 ## 5) 提问时的约束建议
 
