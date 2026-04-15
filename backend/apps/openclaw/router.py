@@ -111,6 +111,74 @@ def _enrich_payload_with_image_base64(
     return payload
 
 
+def _build_display_hint(payload: dict[str, object]) -> None:
+    image_url = payload.get("image_url")
+    if not isinstance(image_url, str) or not image_url:
+        return
+
+    chart = payload.get("chart")
+    if not isinstance(chart, dict):
+        return
+
+    title = chart.get("title") or payload.get("title") or ""
+
+    data_obj = payload.get("data")
+    if not isinstance(data_obj, dict):
+        return
+    rows = data_obj.get("data")
+    if not isinstance(rows, list) or not rows:
+        payload["display_hint"] = f"📊 点击查看图表：{image_url}"
+        return
+
+    axis = chart.get("axis")
+    col_names: list[str] = []
+    col_keys: list[str] = []
+
+    if isinstance(axis, dict):
+        x = axis.get("x")
+        if isinstance(x, dict) and "name" in x and "value" in x:
+            col_names.append(str(x["name"]))
+            col_keys.append(str(x["value"]))
+        y_list = axis.get("y")
+        if isinstance(y_list, list):
+            for y_item in y_list:
+                if isinstance(y_item, dict) and "name" in y_item and "value" in y_item:
+                    col_names.append(str(y_item["name"]))
+                    col_keys.append(str(y_item["value"]))
+
+    if not col_keys:
+        fields = data_obj.get("fields")
+        if isinstance(fields, list) and fields:
+            col_names = [str(f) for f in fields]
+            col_keys = col_names
+
+    if not col_keys:
+        first_row = rows[0]
+        if isinstance(first_row, dict):
+            col_keys = list(first_row.keys())
+            col_names = col_keys
+
+    header = "| " + " | ".join(col_names) + " |"
+    separator = "| " + " | ".join("---" for _ in col_names) + " |"
+    body_lines: list[str] = []
+    for row in rows:
+        if isinstance(row, dict):
+            cells = [str(row.get(k, "")) for k in col_keys]
+            body_lines.append("| " + " | ".join(cells) + " |")
+
+    parts: list[str] = []
+    if title:
+        parts.append(f"## {title}")
+        parts.append("")
+    parts.append(header)
+    parts.append(separator)
+    parts.extend(body_lines)
+    parts.append("")
+    parts.append(f"📊 点击查看图表：{image_url}")
+
+    payload["display_hint"] = "\n".join(parts)
+
+
 def _normalize_message(value: object, fallback: str) -> str:
     if isinstance(value, str):
         stripped = value.strip()
@@ -418,6 +486,7 @@ async def ask_question(
             status_code=response.status_code,
         )
 
+    _build_display_hint(payload)
     return _success_response(
         OpenClawOperation.QUESTION_EXECUTE,
         {
@@ -528,6 +597,7 @@ async def run_analysis(
             status_code=response.status_code,
         )
 
+    _build_display_hint(payload)
     return _success_response(
         OpenClawOperation.ANALYSIS_EXECUTE,
         {
