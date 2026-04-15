@@ -108,6 +108,9 @@ class Settings(BaseSettings):
     REMOTE_EMBEDDING_API_KEY: str | None = None
     REMOTE_EMBEDDING_MODEL: str | None = None
     REMOTE_EMBEDDING_TIMEOUT_SECONDS: int = 30
+    OPENCLAW_ENABLED: bool = True
+    OPENCLAW_REQUEST_TIMEOUT_SECONDS: float = 120
+    OPENCLAW_MAX_CONCURRENT_REQUESTS: int = 8
     EMBEDDING_STARTUP_BACKFILL_POLICY: Literal["eager", "deferred", "manual"] = (
         "deferred"
     )
@@ -151,6 +154,7 @@ class Settings(BaseSettings):
     @field_validator(
         "SQL_DEBUG",
         "EMBEDDING_ENABLED",
+        "OPENCLAW_ENABLED",
         "GENERATE_SQL_QUERY_LIMIT_ENABLED",
         "PARSE_REASONING_BLOCK_ENABLED",
         "PG_POOL_PRE_PING",
