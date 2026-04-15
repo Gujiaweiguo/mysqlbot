@@ -38,6 +38,7 @@ class ResponseMiddleware(BaseHTTPMiddleware):
             isinstance(response, JSONResponse)
             or request.url.path == f"{settings.API_V1_STR}/openapi.json"
             or path_pattern in direct_paths
+            or request.url.path.startswith(f"{settings.API_V1_STR}/openclaw")
         ):
             return response
         if response.status_code != 200:

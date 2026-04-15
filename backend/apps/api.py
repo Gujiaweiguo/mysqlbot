@@ -1,8 +1,7 @@
 from fastapi import APIRouter
 
 from apps.audit.api import router as audit_router
-from apps.chat.api import custom_prompt
-from apps.chat.api import chat
+from apps.chat.api import chat, custom_prompt
 from apps.dashboard.api import dashboard_api
 from apps.data_training.api import data_training
 from apps.datasource.api import (
@@ -12,15 +11,16 @@ from apps.datasource.api import (
     table_relation,
 )
 from apps.mcp import mcp
+from apps.openclaw.router import router as openclaw_router
 from apps.settings.api import base
 from apps.system.api import (
+    aimodel,
+    apikey,
     appearance,
+    assistant,
     authentication,
     embedded,
     embedding,
-    aimodel,
-    apikey,
-    assistant,
     license,
     login,
     parameter,
@@ -56,6 +56,7 @@ api_router.include_router(custom_prompt.router)
 api_router.include_router(chat.router)
 api_router.include_router(dashboard_api.router)
 api_router.include_router(mcp.router)
+api_router.include_router(openclaw_router)
 api_router.include_router(table_relation.router)
 api_router.include_router(parameter.router)
 api_router.include_router(apikey.router)

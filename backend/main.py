@@ -8,6 +8,10 @@ from typing import Any
 from alembic.config import Config
 from fastapi import FastAPI, Request
 from fastapi.concurrency import asynccontextmanager
+from fastapi.exception_handlers import (
+    request_validation_exception_handler as fastapi_request_validation_exception_handler,
+)
+from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.routing import APIRoute
@@ -19,6 +23,7 @@ from starlette.middleware.cors import CORSMiddleware
 from alembic import command
 from apps.api import api_router
 from apps.datasource.crud.datasource import ensure_internal_pg_datasource
+from apps.openclaw.router import openclaw_validation_error_response
 from apps.swagger.i18n import (
     DEFAULT_LANG,
     PLACEHOLDER_PREFIX,
@@ -249,7 +254,7 @@ def generate_openapi_for_lang(lang: str) -> dict[str, Any]:
 def _frontend_dist_dir() -> Path | None:
     candidates = [
         Path(settings.BASE_DIR) / "frontend" / "dist",
-        Path(__file__).resolve().parents[2] / "frontend" / "dist",
+        Path(__file__).resolve().parents[1] / "frontend" / "dist",
     ]
     for candidate in candidates:
         if candidate.exists() and candidate.is_dir():
@@ -316,6 +321,17 @@ async def starlette_http_exception_handler(
     return await exception_handler.global_exception_handler(request, exc)
 
 
+async def request_validation_handler(request: Request, exc: Exception) -> Response:
+    if not isinstance(exc, RequestValidationError):
+        return await exception_handler.global_exception_handler(request, exc)
+
+    openclaw_response = openclaw_validation_error_response(request, exc)
+    if openclaw_response is not None:
+        return openclaw_response
+
+    return await fastapi_request_validation_exception_handler(request, exc)
+
+
 mcp_app = FastAPI()
 # mcp server, images path
 images_path = settings.MCP_IMAGE_PATH
@@ -337,6 +353,10 @@ if _should_setup_mcp():
             "mcp_question",
             "mcp_start",
             "mcp_assistant",
+            "openclaw_session_bind",
+            "openclaw_question_execute",
+            "openclaw_analysis_execute",
+            "openclaw_datasource_list",
         ],
     )
     mcp.mount(mcp_app)
@@ -360,6 +380,7 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # Register exception handlers
 app.add_exception_handler(StarletteHTTPException, starlette_http_exception_handler)
+app.add_exception_handler(RequestValidationError, request_validation_handler)
 app.add_exception_handler(Exception, exception_handler.global_exception_handler)
 
 init_xpack_fastapi_app(app)

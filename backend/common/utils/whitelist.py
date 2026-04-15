@@ -28,6 +28,7 @@ wlist = [
     "*.otf",
     "*.css.map",
     "/mcp*",
+    "/openclaw*",
     "/system/license",
     "/system/license/version",
     "/system/config/key",
