@@ -37,6 +37,16 @@ class OpenClawSessionBinding:
     datasource_id: int | None
 
 
+def _normalize_api_key(
+    raw_api_key: ApiKeyModel | dict[str, object] | None,
+) -> ApiKeyModel | None:
+    if raw_api_key is None:
+        return None
+    if isinstance(raw_api_key, ApiKeyModel):
+        return raw_api_key
+    return ApiKeyModel.model_validate(raw_api_key)
+
+
 def _normalize_service_user(
     raw_user: UserInfoDTO | dict[str, object] | None,
 ) -> UserInfoDTO | None:
@@ -87,7 +97,12 @@ async def authenticate_openclaw_service_token(
             message="Missing access_key payload",
         )
 
-    api_key = cast(ApiKeyModel | None, await get_api_key(session, access_key))
+    api_key = _normalize_api_key(
+        cast(
+            ApiKeyModel | dict[str, object] | None,
+            await get_api_key(session, access_key),
+        )
+    )
     if api_key is None:
         raise OpenClawServiceError(
             error_code=OpenClawErrorCode.AUTH_INVALID,

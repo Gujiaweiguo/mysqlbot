@@ -111,6 +111,50 @@ async def test_authenticate_openclaw_service_token_accepts_valid_ask_token(
 
 
 @pytest.mark.asyncio
+async def test_authenticate_openclaw_service_token_accepts_cached_dict_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+    test_db: object,
+) -> None:
+    token = jwt.encode(
+        {"access_key": "ak-dict-key"},
+        "secret-dict-key-secret-dict-key-secret",
+        algorithm="HS256",
+    )
+
+    async def fake_get_api_key(
+        session: object, access_key: str
+    ) -> dict[str, object] | None:
+        _ = session
+        return {
+            "id": 1,
+            "access_key": access_key,
+            "secret_key": "secret-dict-key-secret-dict-key-secret",
+            "uid": 7,
+            "status": True,
+            "create_time": 0,
+        }
+
+    async def fake_get_user_info(
+        *, session: object, user_id: int
+    ) -> UserInfoDTO | None:
+        _ = session
+        _ = user_id
+        return _build_user()
+
+    monkeypatch.setattr("apps.openclaw.service.get_api_key", fake_get_api_key)
+    monkeypatch.setattr("apps.openclaw.service.get_user_info", fake_get_user_info)
+
+    user = await authenticate_openclaw_service_token(
+        cast(Session, test_db),
+        f"sk {token}",
+    )
+
+    assert user.account == "openclaw-service"
+    assert user.status == 1
+    assert user.oid == 9
+
+
+@pytest.mark.asyncio
 async def test_authenticate_openclaw_service_token_accepts_cached_dict_user(
     monkeypatch: pytest.MonkeyPatch,
     test_db: object,
