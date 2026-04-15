@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 
 import pytest
 from fastapi.responses import JSONResponse
@@ -20,7 +21,8 @@ class _FakeDatasource:
     def __init__(self, **payload: object) -> None:
         self._payload: dict[str, object] = payload
 
-    def model_dump(self) -> dict[str, object]:
+    def model_dump(self, *, mode: str = "python") -> dict[str, object]:
+        _ = mode
         return dict(self._payload)
 
 
@@ -280,6 +282,7 @@ class TestOpenClawRouter:
                     id=1,
                     name="Sales DB",
                     type="pg",
+                    create_time=datetime(2026, 4, 15, 14, 0, 0),
                     embedding="secret",
                     table_relation=[{"a": 1}],
                     recommended_config=2,
@@ -306,7 +309,12 @@ class TestOpenClawRouter:
         payload = response.json()
         assert payload["operation"] == "datasource.list"
         item = payload["data"]["items"][0]
-        assert item == {"id": 1, "name": "Sales DB", "type": "pg"}
+        assert item == {
+            "id": 1,
+            "name": "Sales DB",
+            "type": "pg",
+            "create_time": "2026-04-15T14:00:00",
+        }
 
     def test_question_route_timeout_returns_normalized_timeout_error(
         self,

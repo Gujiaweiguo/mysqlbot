@@ -78,7 +78,7 @@ def _error_response(
 
 def _success_response(operation: str, data: dict[str, object]) -> JSONResponse:
     envelope = OpenClawSuccessEnvelope(operation=operation, data=data)
-    return JSONResponse(status_code=200, content=envelope.model_dump())
+    return JSONResponse(status_code=200, content=envelope.model_dump(mode="json"))
 
 
 def _extract_json_response_payload(response: JSONResponse) -> dict[str, object]:
@@ -547,7 +547,7 @@ async def list_datasources(
     datasource_items: list[dict[str, object]] = []
     try:
         for item in get_datasource_list(session=session, user=current_user):
-            item_data = dict(item.model_dump())
+            item_data = dict(item.model_dump(mode="json"))
             item_data.pop("embedding", None)
             item_data.pop("table_relation", None)
             item_data.pop("recommended_config", None)
