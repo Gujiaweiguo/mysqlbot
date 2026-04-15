@@ -37,6 +37,16 @@ class OpenClawSessionBinding:
     datasource_id: int | None
 
 
+def _normalize_service_user(
+    raw_user: UserInfoDTO | dict[str, object] | None,
+) -> UserInfoDTO | None:
+    if raw_user is None:
+        return None
+    if isinstance(raw_user, UserInfoDTO):
+        return raw_user
+    return UserInfoDTO.model_validate(raw_user)
+
+
 async def authenticate_openclaw_service_token(
     session: SessionDep, ask_token: str | None
 ) -> UserInfoDTO:
@@ -102,8 +112,11 @@ async def authenticate_openclaw_service_token(
             message="Invalid service credential signature",
         ) from exc
 
-    session_user = cast(
-        UserInfoDTO | None, await get_user_info(session=session, user_id=api_key.uid)
+    session_user = _normalize_service_user(
+        cast(
+            UserInfoDTO | dict[str, object] | None,
+            await get_user_info(session=session, user_id=api_key.uid),
+        )
     )
     if session_user is None:
         raise OpenClawServiceError(
