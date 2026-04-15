@@ -20,6 +20,7 @@ Run from the target directory shown below.
 
 Canonical root-level entrypoints:
 - `make install`
+- `make setup-mallbi-demo`
 - `make backend-dev`
 - `make frontend-dev`
 - `make lint`
@@ -61,6 +62,7 @@ Notes:
 - Build image: `docker build -t sqlbot .`
 - Start stack: `docker-compose up -d`
 - Bootstrap env: `cp .env.example .env`
+- Demo BI setup: `make setup-mallbi-demo` (pass extra CLI flags via `SETUP_MALLBI_DEMO_ARGS='...'`)
 - App health: `http://localhost:8000/health`
 
 ## 4) Single-Test Commands (Priority)

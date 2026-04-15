@@ -63,6 +63,10 @@ cp .env.example .env
 # 修改 .env 中的数据库和 Redis 连接配置
 ```
 
+> 开发环境下，后端进程直接读取 `POSTGRES_*`、`BASE_DIR`、`UPLOAD_DIR` 等运行时变量；
+> `SQLBOT_DEV_PG_*` 主要用于 `docker-compose.dev.yaml` 和相关初始化脚本。
+> 因此复制 `.env.example` 后，建议直接沿用其中已经对齐好的 `POSTGRES_*` 本地开发值。
+
 开发环境关键配置：
 
 | 变量 | 开发环境默认值 | 说明 |
@@ -71,6 +75,14 @@ cp .env.example .env
 | `SQLBOT_DEV_PG_PORT` | `15432` | 数据库端口（避免冲突） |
 | `SQLBOT_DEV_PG_USER` | `sqlbot_user` | 数据库用户名 |
 | `SQLBOT_DEV_PG_PASSWORD` | `DevOnly@123456` | 数据库密码 |
+| `POSTGRES_SERVER` | `localhost` | 后端实际读取的数据库地址 |
+| `POSTGRES_PORT` | `15432` | 后端实际读取的数据库端口 |
+| `POSTGRES_USER` | `sqlbot_user` | 后端实际读取的数据库用户名 |
+| `POSTGRES_PASSWORD` | `DevOnly@123456` | 后端实际读取的数据库密码 |
+| `BASE_DIR` | `.` | 本地开发运行根目录 |
+| `UPLOAD_DIR` | `./data/sqlbot/dev/file` | 上传文件目录 |
+| `MCP_IMAGE_PATH` | `./data/sqlbot/dev/images` | 图片与嵌入资源目录 |
+| `EXCEL_PATH` | `./data/sqlbot/dev/excel` | Excel 导入导出目录 |
 | `SQLBOT_CACHE_TYPE` | `memory` | 缓存类型 |
 | `SQLBOT_CACHE_REDIS_URL` | `redis://localhost:16379/0` | Redis URL |
 
@@ -127,7 +139,7 @@ docker compose -f docker-compose.dev.yaml down
 使用预构建镜像安装运行，所有服务以容器方式运行。
 
 ```
-浏览器 → gosqlbot-app(:8000/:8001)
+浏览器 → mysqlbot-app(:8000/:8001)
         ├── main FastAPI :8000
         ├── MCP FastAPI :8001
         └── g2-ssr :3000
@@ -199,8 +211,8 @@ bash uninstall.sh
 
 | 服务 | 端口 | 用途 |
 |------|------|------|
-| gosqlbot-app | 8000 | Web UI + API |
-| gosqlbot-app | 8001 | MCP 服务 |
+| mysqlbot-app | 8000 | Web UI + API |
+| mysqlbot-app | 8001 | MCP 服务 |
 | postgresql | 5432 | 数据库 |
 | redis | 6379 | 缓存 |
 
