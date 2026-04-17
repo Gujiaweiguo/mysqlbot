@@ -29,6 +29,21 @@ OpenClaw request logs also include:
 - `operation`
 - `error_code`
 
+Canonical MCP service logs include:
+
+- `event = openclaw_mcp_observability`
+- `group = openclaw_mcp`
+- `channel_path` (`mcp`, `health`, or `metrics`)
+- `result`
+- `connection_failed`
+- `capability_discovery_failed`
+
+Degraded MCP health checks also emit:
+
+- `event = openclaw_mcp_health_state`
+- `ready`
+- `issues`
+
 ## Suggested alert conditions
 
 ### Authentication and platform
@@ -68,6 +83,18 @@ First checks:
 - Inspect `openclaw_api_observability` events and group by `operation` / `error_code`
 - Check `sqlbot_openclaw_requests_total` and `sqlbot_openclaw_request_duration_seconds`
 - Verify the service credential and datasource scope for the affected workspace
+
+### Canonical MCP service
+- Alert on repeated non-success `openclaw_mcp_observability` events on `channel_path = mcp` or `health`
+- Alert when `capability_discovery_failed = true`
+- Alert when `openclaw_mcp_health_state.ready = false`
+- Alert on sustained latency in `sqlbot_openclaw_mcp_request_duration_seconds`
+
+First checks:
+- `curl http://localhost:8001/health` and inspect `ready` / `issues`
+- Query `GET /api/v1/system/openclaw/mcp-config` and compare the returned endpoint/auth metadata with the OpenClaw registration
+- Check `sqlbot_openclaw_mcp_requests_total` and `sqlbot_openclaw_mcp_request_duration_seconds`
+- Confirm `SKIP_MCP_SETUP`, `MCP_PUBLIC_BASE_URL`, `MCP_BIND_HOST`, and `MCP_PORT` are correct in the active environment
 
 ## Known intent
 

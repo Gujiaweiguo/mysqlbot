@@ -43,6 +43,10 @@ The rollout depends on these backend settings from `backend/common/core/config.p
 - `OPENCLAW_ENABLED` — global rollout switch
 - `OPENCLAW_REQUEST_TIMEOUT_SECONDS` — request timeout for question and analysis execution
 - `OPENCLAW_MAX_CONCURRENT_REQUESTS` — route-level admission control limit
+- `MCP_BIND_HOST` — MCP service bind address
+- `MCP_PORT` — canonical MCP service port
+- `MCP_PUBLIC_BASE_URL` — public MCP base URL used to generate OpenClaw registration metadata
+- `SKIP_MCP_SETUP` — disables canonical MCP mounting when set to `true`
 
 Suggested initial values:
 
@@ -65,6 +69,16 @@ The stable adapter routes are:
 - `POST /api/v1/openclaw/question`
 - `POST /api/v1/openclaw/analysis`
 - `POST /api/v1/openclaw/datasources`
+
+The canonical MCP service endpoints are:
+
+- `GET http://localhost:8001/health`
+- `GET http://localhost:8001/metrics`
+- `POST http://localhost:8001/mcp`
+
+Administrators can also inspect the current generated MCP onboarding metadata through:
+
+- `GET /api/v1/system/openclaw/mcp-config`
 
 ## 3. Staged rollout sequence
 
@@ -123,11 +137,16 @@ Check logs for structured OpenClaw events:
 
 - event name: `openclaw_api_observability`
 - group: `openclaw`
+- event name: `openclaw_mcp_observability`
+- group: `openclaw_mcp`
+- degraded health event: `openclaw_mcp_health_state`
 
 Check `/metrics` output for:
 
 - `sqlbot_openclaw_requests_total`
 - `sqlbot_openclaw_request_duration_seconds`
+- `sqlbot_openclaw_mcp_requests_total`
+- `sqlbot_openclaw_mcp_request_duration_seconds`
 
 ## 4. Smoke test commands
 
@@ -151,7 +170,15 @@ uv run pytest tests/apps/chat/api/test_chat_orchestration.py -v
 uv run pytest tests/test_startup_smoke.py::test_main_import_initializes_mcp_only_when_enabled -v
 ```
 
-### 4.4 Rollback-state regression
+### 4.4 MCP readiness and onboarding metadata
+
+```bash
+curl http://localhost:8001/health
+curl http://localhost:8001/metrics | grep sqlbot_openclaw_mcp
+curl -H "X-SQLBOT-TOKEN: Bearer <admin-token>" http://localhost:8000/api/v1/system/openclaw/mcp-config
+```
+
+### 4.5 Rollback-state regression
 
 ```bash
 OPENCLAW_ENABLED=false uv run pytest tests/apps/chat/api/test_chat_orchestration.py tests/test_startup_smoke.py::test_main_import_initializes_mcp_only_when_enabled -v
@@ -181,7 +208,27 @@ If operators observe elevated errors or latency:
 4. Compare `OPENCLAW_MAX_CONCURRENT_REQUESTS` and `OPENCLAW_REQUEST_TIMEOUT_SECONDS` with current traffic shape.
 5. Re-run the smoke commands from Section 4.
 
-### 5.2 Common signal meanings
+### 5.2 First checks for canonical MCP reachability alerts
+
+If OpenClaw cannot connect to mysqlbot through the MCP surface, check in this order:
+
+1. `curl http://localhost:8001/health` and inspect the returned `ready` and `issues` fields.
+2. Confirm `SKIP_MCP_SETUP` is not set to `true` in the active environment.
+3. Confirm `MCP_PUBLIC_BASE_URL`, `MCP_PORT`, and `MCP_BIND_HOST` match the target deployment topology.
+4. Query `GET /api/v1/system/openclaw/mcp-config` from an admin session and compare the reported `endpoint`, `health_url`, `auth_header`, and `auth_scheme` against the OpenClaw registration.
+5. Inspect structured logs for `openclaw_mcp_observability` and `openclaw_mcp_health_state` events.
+6. Check `/metrics` for `sqlbot_openclaw_mcp_requests_total` and `sqlbot_openclaw_mcp_request_duration_seconds` to see whether requests are reaching the MCP service and how they are failing.
+
+### 5.3 Capability discovery and authentication failures
+
+- `capability_discovery_failed = true` on `openclaw_mcp_observability` indicates OpenClaw reached `/mcp` but the canonical MCP capability handshake failed.
+- `connection_failed = true` on `openclaw_mcp_observability` indicates the MCP surface returned a non-success result on `/mcp` or `/health`.
+- If `/api/v1/system/openclaw/mcp-config` reports the correct endpoint but OpenClaw still fails, verify the registration uses:
+  - header `X-SQLBOT-ASK-TOKEN`
+  - scheme `sk`
+  - a valid service token for the expected workspace scope
+
+### 5.4 Common signal meanings
 
 - `AUTH_INVALID` / `AUTH_EXPIRED` / `AUTH_DISABLED` → credential or service-token issue
 - `SESSION_INVALID` → conversation/chat binding problem
@@ -190,6 +237,30 @@ If operators observe elevated errors or latency:
 - `CONCURRENCY_EXCEEDED` → admission control threshold hit
 - `LLM_FAILURE` / `EXECUTION_FAILURE` → upstream mysqlbot execution issue
 - `INTEGRATION_DISABLED` → rollout switch is off
+
+### 5.5 Group-session isolation troubleshooting
+
+If operators suspect cross-group context leakage or incorrect chat reuse:
+
+1. Confirm the affected requests used distinct OpenClaw `conversation_id` values.
+2. Inspect the persisted `external_session_key` for the involved chats. The expected format is `openclaw:{conversation_id}`.
+3. Confirm the reused chat was created with `origin = 1` (OpenClaw-managed) and belongs to the expected `oid` and `create_by` scope.
+4. Verify the bind request did not reuse a `chat_id` with a mismatched `external_session_key` or datasource.
+5. Re-run the OpenClaw service tests if the behavior is ambiguous:
+
+```bash
+uv run pytest tests/apps/openclaw/test_service.py tests/apps/openclaw/test_integration.py -v
+```
+
+Example SQL for a targeted inspection:
+
+```sql
+SELECT id, origin, oid, create_by, external_session_key
+FROM chat
+WHERE origin = 1
+ORDER BY id DESC
+LIMIT 20;
+```
 
 ## 6. Ordered rollback steps
 
@@ -240,6 +311,9 @@ Do not revert earlier tasks unless the rollback explicitly requires removing the
 - [ ] `OPENCLAW_ENABLED` remains off until baseline regressions pass.
 - [ ] OpenClaw smoke commands from Section 4 pass in the target environment.
 - [ ] Logs contain `openclaw_api_observability` events.
+- [ ] Logs contain `openclaw_mcp_observability` events and degraded health logs if MCP is not ready.
 - [ ] Metrics contain `sqlbot_openclaw_requests_total` and `sqlbot_openclaw_request_duration_seconds`.
+- [ ] Metrics contain `sqlbot_openclaw_mcp_requests_total` and `sqlbot_openclaw_mcp_request_duration_seconds`.
+- [ ] `/api/v1/system/openclaw/mcp-config` matches the MCP endpoint registered in OpenClaw.
 - [ ] Evidence files for tasks 7 and 8 are attached or preserved.
 - [ ] Operators know the immediate fallback is `OPENCLAW_ENABLED=false`.
