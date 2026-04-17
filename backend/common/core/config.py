@@ -20,6 +20,21 @@ def parse_cors(v: Any) -> list[str] | str:
     raise ValueError(v)
 
 
+def _replace_host_port(base_url: str, *, port: int) -> str:
+    parsed = urllib.parse.urlsplit(base_url)
+    scheme = parsed.scheme or "http"
+    hostname = parsed.hostname or "localhost"
+    credentials = ""
+    if parsed.username:
+        credentials = parsed.username
+        if parsed.password:
+            credentials += f":{parsed.password}"
+        credentials += "@"
+    return urllib.parse.urlunsplit(
+        (scheme, f"{credentials}{hostname}:{port}", "", "", "")
+    )
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         # Use top level .env file (one level above ./backend/)
@@ -97,9 +112,31 @@ class Settings(BaseSettings):
 
     MCP_IMAGE_PATH: str = "/opt/sqlbot/images"
     EXCEL_PATH: str = "/opt/sqlbot/data/excel"
+    MCP_BIND_HOST: str = "0.0.0.0"
+    MCP_PORT: int = 8001
+    MCP_PATH: str = "/mcp"
+    MCP_HEALTH_PATH: str = "/health"
+    MCP_PUBLIC_BASE_URL: str = ""
     MCP_IMAGE_HOST: str = "http://localhost:3000"
     SERVER_IMAGE_HOST: str = "http://YOUR_SERVE_IP:MCP_PORT/images/"
     SERVER_IMAGE_TIMEOUT: int = 15
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def MCP_BASE_URL(self) -> str:
+        if self.MCP_PUBLIC_BASE_URL:
+            return self.MCP_PUBLIC_BASE_URL.rstrip("/")
+        return _replace_host_port(self.FRONTEND_HOST, port=self.MCP_PORT).rstrip("/")
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def MCP_ENDPOINT(self) -> str:
+        return f"{self.MCP_BASE_URL}{self.MCP_PATH}"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def MCP_HEALTH_URL(self) -> str:
+        return f"{self.MCP_BASE_URL}{self.MCP_HEALTH_PATH}"
 
     LOCAL_MODEL_PATH: str = "/opt/sqlbot/models"
     EMBEDDING_PROVIDER: Literal["local", "remote"] = "remote"
