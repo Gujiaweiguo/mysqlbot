@@ -250,6 +250,29 @@ def get_chat(session: SessionDep, chat_id: int) -> Chat | None:
     return chat
 
 
+def get_chat_by_external_session_key(
+    session: SessionDep,
+    *,
+    user_id: int,
+    workspace_id: int,
+    external_session_key: str,
+) -> Chat | None:
+    statement = (
+        select(Chat)
+        .where(
+            and_(
+                col(Chat.create_by) == user_id,
+                col(Chat.oid) == workspace_id,
+                col(Chat.origin) == 1,
+                col(Chat.external_session_key) == external_session_key,
+            )
+        )
+        .order_by(desc(col(Chat.create_time)))
+        .limit(1)
+    )
+    return session.scalars(statement).first()
+
+
 def list_chats(session: SessionDep, current_user: CurrentUser) -> list[Chat]:
     oid = current_user.oid or 1
     chart_list = list(
@@ -1080,6 +1103,7 @@ def create_chat(
         "brief": create_chat_obj.question.strip()[:20],
         "origin": create_chat_obj.origin if create_chat_obj.origin is not None else 0,
         "datasource": create_chat_obj.datasource,
+        "external_session_key": create_chat_obj.external_session_key,
         "engine_type": "",
         "recommended_question_answer": None,
         "recommended_question": None,

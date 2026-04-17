@@ -137,6 +137,9 @@ class Chat(SQLModel, table=True):
     origin: int | None = Field(
         sa_column=Column(Integer, nullable=False, default=0)
     )  # 0: default, 1: mcp, 2: assistant
+    external_session_key: str | None = Field(
+        default=None, max_length=255, nullable=True
+    )
     brief_generate: bool = Field(default=False)
     recommended_question_answer: str | None = Field(
         default=None, sa_column=Column(Text, nullable=True)
@@ -243,6 +246,7 @@ class CreateChat(BaseModel):
     question: str | None = None
     datasource: int | None = None
     origin: int | None = 0  # 0是页面上，mcp是1，小助手是2
+    external_session_key: str | None = None
 
 
 class RenameChat(BaseModel):
