@@ -153,6 +153,12 @@ export const routes = [
         },
       },
       {
+        path: 'openclaw',
+        name: 'openclaw',
+        component: () => import('@/views/system/openclaw/index.vue'),
+        meta: { title: t('openclaw.title') },
+      },
+      {
         path: 'setting',
         component: SinglePage,
         meta: { title: t('system.system_settings'), iconActive: 'set', iconDeActive: 'noSet' },
