@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import importlib
 import json
 from typing import Any
 
 import pytest
+from fastapi.testclient import TestClient
 
 import apps.system.api.authentication as authentication_api
 from apps.openclaw.contract import OpenClawSessionBindRequest
-from common.observability.admin_api_observability import classify_admin_api_group
+from common.observability.admin_api_observability import (
+    classify_admin_api_group,
+    classify_mcp_channel_path,
+)
 from common.utils.utils import SQLBotLogUtil
 
 
@@ -24,6 +29,14 @@ def test_classify_admin_api_group_matches_critical_paths() -> None:
     assert classify_admin_api_group("/api/v1/ds_permission/list") == "permission"
     assert classify_admin_api_group("/api/v1/openclaw/question") == "openclaw"
     assert classify_admin_api_group("/api/v1/workspace") is None
+
+
+def test_classify_mcp_channel_path_matches_canonical_routes() -> None:
+    assert classify_mcp_channel_path("/health") == "health"
+    assert classify_mcp_channel_path("/mcp") == "mcp"
+    assert classify_mcp_channel_path("/mcp/messages") == "mcp"
+    assert classify_mcp_channel_path("/metrics") == "metrics"
+    assert classify_mcp_channel_path("/openapi.json") is None
 
 
 def test_observability_logs_success_for_monitored_admin_endpoint(
@@ -155,3 +168,41 @@ def test_observability_logs_openclaw_request_with_operation_and_error_code(
     assert captured[-1]["group"] == "openclaw"
     assert captured[-1]["operation"] == "session.bind"
     assert captured[-1]["error_code"] == "none"
+
+
+def test_mcp_observability_logs_degraded_health_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SKIP_MCP_SETUP", "true")
+
+    import main as main_module
+
+    captured: list[dict[str, Any]] = []
+
+    monkeypatch.setattr(
+        SQLBotLogUtil, "info", staticmethod(lambda *args, **kwargs: None)
+    )
+    monkeypatch.setattr(
+        SQLBotLogUtil, "warning", staticmethod(lambda *args, **kwargs: None)
+    )
+    monkeypatch.setattr(
+        SQLBotLogUtil,
+        "error",
+        staticmethod(lambda msg, *args, **kwargs: captured.append(json.loads(msg))),
+    )
+
+    main_module = importlib.reload(main_module)
+
+    with TestClient(main_module.mcp_app) as client:
+        response = client.get(main_module.settings.MCP_HEALTH_PATH)
+
+    assert response.status_code == 503
+    assert captured
+    health_events = [
+        event for event in captured if event.get("event") == "openclaw_mcp_health_state"
+    ]
+    assert health_events
+    assert health_events[-1]["group"] == "openclaw_mcp"
+    assert health_events[-1]["channel_path"] == "health"
+    assert health_events[-1]["ready"] is False
+    assert health_events[-1]["issues"] == ["MCP setup is disabled via SKIP_MCP_SETUP"]
