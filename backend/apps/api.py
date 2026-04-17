@@ -13,6 +13,7 @@ from apps.datasource.api import (
 from apps.mcp import mcp
 from apps.openclaw.router import router as openclaw_router
 from apps.settings.api import base
+from apps.system.api.openclaw import router as openclaw_admin_router
 from apps.system.api import (
     aimodel,
     apikey,
@@ -48,6 +49,7 @@ api_router.include_router(assistant.router)
 api_router.include_router(aimodel.router)
 api_router.include_router(embedding.router)
 api_router.include_router(base.router)
+api_router.include_router(openclaw_admin_router)
 api_router.include_router(terminology.router)
 api_router.include_router(data_training.router)
 api_router.include_router(datasource.router)
