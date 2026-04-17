@@ -91,14 +91,18 @@ def require_permissions(permission: SqlbotPermission) -> Callable[[F], F]:
             if role_list:
                 if "admin" in role_list and not current_user.isAdmin:
                     # raise Exception('no permission to execute, only for admin')
-                    raise Exception(trans("i18n_permission.only_admin"))
+                    raise HTTPException(
+                        status_code=403, detail=trans("i18n_permission.only_admin")
+                    )
                 if (
                     "ws_admin" in role_list
                     and current_user.weight == 0
                     and not current_user.isAdmin
                 ):
                     # raise Exception('no permission to execute, only for workspace admin')
-                    raise Exception(trans("i18n_permission.only_ws_admin"))
+                    raise HTTPException(
+                        status_code=403, detail=trans("i18n_permission.only_ws_admin")
+                    )
             if not resource_type:
                 return await func(*args, **kwargs)
             if keyExpression:
@@ -113,8 +117,9 @@ def require_permissions(permission: SqlbotPermission) -> Callable[[F], F]:
                         if await check_ws_permission(current_oid, resource_type, value):
                             return await func(*args, **kwargs)
                         # raise Exception('no permission to execute or resource do not exist!')
-                        raise Exception(
-                            trans("i18n_permission.permission_resource_limit")
+                        raise HTTPException(
+                            status_code=403,
+                            detail=trans("i18n_permission.permission_resource_limit"),
                         )
 
                 parts = keyExpression.split(".")
@@ -125,7 +130,10 @@ def require_permissions(permission: SqlbotPermission) -> Callable[[F], F]:
                     value = getattr(value, part)
                 if await check_ws_permission(current_oid, resource_type, value):
                     return await func(*args, **kwargs)
-                raise Exception(trans("i18n_permission.permission_resource_limit"))
+                raise HTTPException(
+                    status_code=403,
+                    detail=trans("i18n_permission.permission_resource_limit"),
+                )
 
             return await func(*args, **kwargs)
 

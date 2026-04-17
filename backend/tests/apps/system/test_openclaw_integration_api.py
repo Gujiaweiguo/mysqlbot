@@ -115,7 +115,7 @@ class TestOpenClawIntegrationApi:
             headers={settings.TOKEN_KEY: "Bearer test-token"},
         )
 
-        assert response.status_code == 500
+        assert response.status_code == 403
         assert "Only administrators are allowed to call" in response.text
 
 
