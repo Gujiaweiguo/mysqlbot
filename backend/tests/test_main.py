@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 import apps.openclaw.router as openclaw_router_module
 from apps.openclaw.contract import OpenClawSessionBindRequest
+from common.core.config import settings
 from apps.system.schemas.system_schema import UserInfoDTO
 
 
@@ -76,10 +77,31 @@ class TestHealthEndpoint:
         assert "mysqlbot__openclaw_question_execute" in skill_text
         assert "When not to call mysqlbot" in skill_text
 
+    def test_canonical_mcp_discovery_is_limited_to_openclaw_contract(self) -> None:
+        from main import OPENCLAW_MCP_OPERATION_IDS
+
+        assert OPENCLAW_MCP_OPERATION_IDS == (
+            "openclaw_session_bind",
+            "openclaw_question_execute",
+            "openclaw_analysis_execute",
+            "openclaw_datasource_list",
+        )
+        assert "mcp_start" not in OPENCLAW_MCP_OPERATION_IDS
+        assert "mcp_question" not in OPENCLAW_MCP_OPERATION_IDS
+        assert "mcp_datasource_list" not in OPENCLAW_MCP_OPERATION_IDS
+
     def test_health_endpoint(self, test_app: TestClient) -> None:
         response = test_app.get("/health")
         assert response.status_code == 200
         assert response.json() == {"code": 0, "data": {"status": "ok"}, "msg": None}
+
+    def test_mcp_contract_defaults_are_published(self) -> None:
+        assert settings.MCP_BIND_HOST == "0.0.0.0"
+        assert settings.MCP_PORT == 8001
+        assert settings.MCP_PATH == "/mcp"
+        assert settings.MCP_HEALTH_PATH == "/health"
+        assert settings.MCP_ENDPOINT == "http://localhost:8001/mcp"
+        assert settings.MCP_HEALTH_URL == "http://localhost:8001/health"
 
     def test_metrics_endpoint(self, test_app: TestClient) -> None:
         response = test_app.get("/metrics")
@@ -141,3 +163,5 @@ class TestHealthEndpoint:
         body = response.text
         assert "sqlbot_openclaw_requests_total" in body
         assert "sqlbot_openclaw_request_duration_seconds" in body
+        assert "sqlbot_openclaw_mcp_requests_total" in body
+        assert "sqlbot_openclaw_mcp_request_duration_seconds" in body

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from collections.abc import AsyncIterator
 from importlib import import_module
@@ -23,6 +24,11 @@ from starlette.middleware.cors import CORSMiddleware
 from alembic import command
 from apps.api import api_router
 from apps.datasource.crud.datasource import ensure_internal_pg_datasource
+from apps.openclaw.mcp_metadata import (
+    OPENCLAW_MCP_OPERATION_IDS,
+    build_openclaw_mcp_runtime_contract,
+    openclaw_mcp_setup_enabled,
+)
 from apps.openclaw.router import openclaw_validation_error_response
 from apps.swagger.i18n import (
     DEFAULT_LANG,
@@ -48,7 +54,11 @@ from common.core.config import settings
 from common.core.db import engine
 from common.core.response_middleware import ResponseMiddleware, exception_handler
 from common.core.sqlbot_cache import init_sqlbot_cache
-from common.observability import AdminApiObservabilityMiddleware, metrics_view
+from common.observability import (
+    AdminApiObservabilityMiddleware,
+    McpObservabilityMiddleware,
+    metrics_view,
+)
 from common.utils.embedding_threads import (
     fill_empty_data_training_embeddings,
     fill_empty_table_and_ds_embeddings,
@@ -118,7 +128,7 @@ def _should_run_startup_tasks() -> bool:
 
 
 def _should_setup_mcp() -> bool:
-    return os.getenv("SKIP_MCP_SETUP", "false").lower() not in {"1", "true", "yes"}
+    return openclaw_mcp_setup_enabled()
 
 
 def _should_run_embedding_startup_backfill() -> bool:
@@ -338,6 +348,36 @@ os.makedirs(images_path, exist_ok=True)
 mcp_app.mount("/images", StaticFiles(directory=images_path), name="images")
 
 
+@mcp_app.get(settings.MCP_HEALTH_PATH, include_in_schema=False)
+async def mcp_health_check() -> JSONResponse:
+    contract = build_openclaw_mcp_runtime_contract()
+    if not contract["ready"]:
+        SQLBotLogUtil.error(
+            json.dumps(
+                {
+                    "event": "openclaw_mcp_health_state",
+                    "group": "openclaw_mcp",
+                    "channel_path": "health",
+                    "status_code": 503,
+                    "ready": contract["ready"],
+                    "issues": contract["issues"],
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+            exc_info=False,
+        )
+    return JSONResponse(
+        status_code=200 if contract["ready"] else 503,
+        content=contract,
+    )
+
+
+@mcp_app.get("/metrics", include_in_schema=False)
+async def mcp_prometheus_metrics(request: Request) -> Response:
+    return await metrics_view(request)
+
+
 @app.get("/images/{file_path:path}")
 async def serve_chart_image(file_path: str) -> FileResponse:
     import re
@@ -358,17 +398,7 @@ if _should_setup_mcp():
         description="SQLBot MCP Server",
         describe_all_responses=True,
         describe_full_response_schema=True,
-        include_operations=[
-            "mcp_datasource_list",
-            "get_model_list",
-            "mcp_question",
-            "mcp_start",
-            "mcp_assistant",
-            "openclaw_session_bind",
-            "openclaw_question_execute",
-            "openclaw_analysis_execute",
-            "openclaw_datasource_list",
-        ],
+        include_operations=list(OPENCLAW_MCP_OPERATION_IDS),
     )
     mcp.mount(mcp_app)
 
@@ -387,6 +417,7 @@ app.add_middleware(ResponseMiddleware)
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(RequestContextMiddlewareCommon)
 app.add_middleware(AdminApiObservabilityMiddleware)
+mcp_app.add_middleware(McpObservabilityMiddleware)
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # Register exception handlers

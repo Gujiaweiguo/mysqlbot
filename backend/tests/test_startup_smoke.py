@@ -64,6 +64,75 @@ def test_main_import_initializes_mcp_only_when_enabled(
     assert hasattr(main_module, "mcp")
 
 
+def test_mcp_health_endpoint_reports_not_ready_when_setup_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SKIP_MCP_SETUP", "true")
+
+    import main as main_module
+
+    main_module = importlib.reload(main_module)
+
+    with TestClient(main_module.mcp_app) as client:
+        response = client.get(main_module.settings.MCP_HEALTH_PATH)
+
+    assert response.status_code == 503
+    payload = response.json()
+    assert payload["status"] == "degraded"
+    assert payload["service"] == "mcp"
+    assert payload["ready"] is False
+    assert payload["setup_enabled"] is False
+    assert payload["bind_host"] == "0.0.0.0"
+    assert payload["port"] == 8001
+    assert payload["endpoint"] == "http://localhost:8001/mcp"
+    assert payload["health_url"] == "http://localhost:8001/health"
+    assert payload["issues"] == ["MCP setup is disabled via SKIP_MCP_SETUP"]
+
+
+def test_mcp_health_endpoint_reports_ready_when_setup_is_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SKIP_MCP_SETUP", raising=False)
+
+    import main as main_module
+
+    main_module = importlib.reload(main_module)
+
+    with TestClient(main_module.mcp_app) as client:
+        response = client.get(main_module.settings.MCP_HEALTH_PATH)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["service"] == "mcp"
+    assert payload["ready"] is True
+    assert payload["setup_enabled"] is True
+    assert payload["bind_host"] == "0.0.0.0"
+    assert payload["port"] == 8001
+    assert payload["endpoint"] == "http://localhost:8001/mcp"
+    assert payload["health_url"] == "http://localhost:8001/health"
+    assert payload["issues"] == []
+
+
+def test_mcp_metrics_endpoint_exposes_canonical_mcp_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SKIP_MCP_SETUP", raising=False)
+
+    import main as main_module
+
+    main_module = importlib.reload(main_module)
+
+    with TestClient(main_module.mcp_app) as client:
+        response = client.get("/metrics")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain")
+    body = response.text
+    assert "sqlbot_openclaw_mcp_requests_total" in body
+    assert "sqlbot_openclaw_mcp_request_duration_seconds" in body
+
+
 def test_startup_lifespan_runs_expected_hooks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

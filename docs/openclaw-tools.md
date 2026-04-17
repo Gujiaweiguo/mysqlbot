@@ -13,6 +13,8 @@ The backend MCP server publishes the following FastAPI operations as discoverabl
 
 These operations are exposed through the existing `fastapi-mcp` setup in `backend/main.py` and delegate to the normalized OpenClaw adapter routes in `backend/apps/openclaw/router.py`.
 
+The canonical MCP discovery surface for OpenClaw channels is intentionally limited to these four `openclaw_*` operations. Legacy `/api/v1/mcp/*` routes remain repository-local compatibility paths and are not part of the MCP capability set that OpenClaw channels should discover on `http://localhost:8001/mcp`.
+
 ## Tool to route mapping
 
 | MCP operation | HTTP route | Purpose |
