@@ -182,7 +182,7 @@
 
 ## 4. Final verification wave
 
-- [ ] 4.1 F1 Plan Compliance Audit
+- [x] 4.1 F1 Plan Compliance Audit
   - **Task ID**: F1
   - **Depends On**: OCINT-008
   - **Risk Level**: High
@@ -191,7 +191,7 @@
   - **Rollback**:
     - Reopen implementation tasks for correction before approval.
 
-- [ ] 4.2 F2 Code Quality Review
+- [x] 4.2 F2 Code Quality Review
   - **Task ID**: F2
   - **Depends On**: OCINT-008
   - **Risk Level**: High
@@ -200,7 +200,7 @@
   - **Rollback**:
     - Reopen the affected implementation tasks and remediate blocking quality issues.
 
-- [ ] 4.3 F3 Real Manual QA
+- [x] 4.3 F3 Real Manual QA
   - **Task ID**: F3
   - **Depends On**: OCINT-008
   - **Risk Level**: High
@@ -209,7 +209,7 @@
   - **Rollback**:
     - Disable rollout and return to the last known safe pre-release state.
 
-- [ ] 4.4 F4 Scope Fidelity Check
+- [x] 4.4 F4 Scope Fidelity Check
   - **Task ID**: F4
   - **Depends On**: OCINT-008
   - **Risk Level**: High

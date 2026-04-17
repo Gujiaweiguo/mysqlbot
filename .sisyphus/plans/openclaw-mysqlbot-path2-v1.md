@@ -119,7 +119,7 @@ Wave 3: hardening and rollout
 > Implementation + Test = ONE task. Never separate.
 > EVERY task MUST have: Agent Profile + Parallelization + QA Scenarios.
 
-- [ ] 1. OCINT-001 — Lock OpenClaw-facing contract and transport
+- [x] 1. OCINT-001 — Lock OpenClaw-facing contract and transport
 
   **Risk Level**: High
   **What to do**: Decide and document the exact OpenClaw-facing integration contract. Confirm mysqlbot remains system-of-record for NL-query/analysis. Define whether OpenClaw talks to mysqlbot through existing MCP transport, a normalized MCP-compatible adapter, or a thin tool-facing HTTP facade backed by the same orchestration. v1 decision: keep MCP/tool semantics, but publish a normalized contract that OpenClaw can rely on without depending on mysqlbot frontend stream internals. Freeze endpoint names, request schema, response schema, error schema, transport mode, timeout policy, and versioning strategy.
@@ -173,7 +173,7 @@ Wave 3: hardening and rollout
   **Rollback**: Revert only the new OpenClaw-facing contract artifacts and route registrations introduced for v1; leave existing `/chat/*` and `/mcp/*` behaviors untouched.
   **Commit**: YES | Message: `feat(integration): define openclaw mysqlbot contract v1` | Files: `[backend/apps/**, docs/spec files if added]`
 
-- [ ] 2. OCINT-002 — Establish service auth and chat/session lifecycle
+- [x] 2. OCINT-002 — Establish service auth and chat/session lifecycle
 
   **Risk Level**: High
   **What to do**: Define and implement the service-to-service auth path OpenClaw will use. Preferred default: API key or service token path compatible with mysqlbot middleware/security model, not end-user credentials. Define how OpenClaw obtains or stores credentials, how mysqlbot maps them to workspace/user context, how chat IDs are created/reused, how session expiry is handled, and how orphaned chats are avoided. Decide whether each OpenClaw conversation maps to one mysqlbot chat or one mysqlbot record sequence.
@@ -227,7 +227,7 @@ Wave 3: hardening and rollout
   **Rollback**: Disable the new service credential path and fall back to no OpenClaw integration while preserving existing login/API key behavior for other callers.
   **Commit**: YES | Message: `feat(auth): add openclaw service auth and session policy` | Files: `[backend/apps/system/**, backend/apps/chat/**, backend/common/**]`
 
-- [ ] 3. OCINT-003 — Implement mysqlbot OpenClaw adapter endpoints
+- [x] 3. OCINT-003 — Implement mysqlbot OpenClaw adapter endpoints
 
   **Risk Level**: High
   **What to do**: Implement the mysqlbot-side adapter surface that OpenClaw calls. Reuse `question_answer_inner` / orchestration rather than duplicating NL-query logic. Provide explicit operations for the minimum viable capability set: create-or-bind session, ask natural-language question, request analysis on an existing record, and optionally list datasources if required by OpenClaw tool policy. Ensure route registration and middleware behavior are intentional.
@@ -281,7 +281,7 @@ Wave 3: hardening and rollout
   **Rollback**: Unregister only the new adapter routes/models and revert to the pre-existing mysqlbot API surface.
   **Commit**: YES | Message: `feat(mcp): add openclaw adapter endpoints` | Files: `[backend/apps/mcp/** or backend/apps/openclaw/**, backend/apps/api.py]`
 
-- [ ] 4. OCINT-004 — Normalize response, error, and timeout behavior
+- [x] 4. OCINT-004 — Normalize response, error, and timeout behavior
 
   **Risk Level**: Medium
   **What to do**: Wrap the adapter endpoints in a stable output contract. Normalize success payloads for question, analysis, and metadata calls. Normalize failure payloads for auth errors, validation errors, datasource errors, SQL execution errors, and LLM failures. Define timeout behavior and partial-result behavior. Keep the non-streaming contract as the mandatory v1 interface; document how streaming may be exposed later without breaking v1.
@@ -333,7 +333,7 @@ Wave 3: hardening and rollout
   **Rollback**: Revert adapter-specific response normalization and return the system to pre-adapter behavior while disabling the OpenClaw-facing endpoints.
   **Commit**: YES | Message: `feat(api): normalize openclaw adapter responses` | Files: `[backend/apps/mcp/** or backend/apps/openclaw/**, backend/common/**]`
 
-- [ ] 5. OCINT-005 — Implement OpenClaw tool registration and skill policy
+- [x] 5. OCINT-005 — Implement OpenClaw tool registration and skill policy
 
   **Risk Level**: Medium
   **What to do**: Implement the OpenClaw-side integration package. Register one or more tools that call the mysqlbot OpenClaw-facing contract. Add skill instructions that tell the OpenClaw agent when to invoke mysqlbot, required parameters to collect, when to prefer analysis over free-form reasoning, and when not to call mysqlbot. Keep skill logic thin and policy-oriented; all execution happens through the tool contract.
@@ -385,7 +385,7 @@ Wave 3: hardening and rollout
   **Rollback**: Disable or remove the new OpenClaw tool/skill package while leaving mysqlbot adapter endpoints dormant and undocumented to end users.
   **Commit**: YES | Message: `feat(openclaw): add mysqlbot tool and skill policy` | Files: `[OpenClaw integration files in target repo/workspace]`
 
-- [ ] 6. OCINT-006 — Add observability, concurrency, and timeout guardrails
+- [x] 6. OCINT-006 — Add observability, concurrency, and timeout guardrails
 
   **Risk Level**: Medium
   **What to do**: Add logs, metrics, and correlation IDs for OpenClaw-originated traffic. Ensure request tracing can connect OpenClaw invocation → mysqlbot adapter → chat/orchestration run → datasource/LLM outcome. Add reasonable timeout, retry, and concurrency guardrails so multiple OpenClaw calls do not degrade mysqlbot unpredictably. If feature flags or config switches are needed, add them here.
@@ -437,7 +437,7 @@ Wave 3: hardening and rollout
   **Rollback**: Turn off the OpenClaw feature flag and revert only the adapter-specific observability/guardrail configuration.
   **Commit**: YES | Message: `chore(integration): add openclaw observability guardrails` | Files: `[backend/main.py, backend/common/**, adapter config files]`
 
-- [ ] 7. OCINT-007 — Execute end-to-end integration and regression verification
+- [x] 7. OCINT-007 — Execute end-to-end integration and regression verification
 
   **Risk Level**: High
   **What to do**: Build automated integration coverage that validates the full path: auth → session bind/reuse → question → answer → analysis → failure handling. Add regression coverage to ensure existing mysqlbot web chat and legacy MCP surfaces still work. Capture evidence artifacts for both success and failure paths.
@@ -491,7 +491,7 @@ Wave 3: hardening and rollout
   **Rollback**: If verification uncovers instability, disable feature rollout and revert OCINT-003 through OCINT-006 in reverse dependency order.
   **Commit**: YES | Message: `test(integration): verify openclaw mysqlbot path2 e2e` | Files: `[backend/tests/**, frontend/e2e/**, OpenClaw integration tests]`
 
-- [ ] 8. OCINT-008 — Prepare rollout, release notes, and operational rollback package
+- [x] 8. OCINT-008 — Prepare rollout, release notes, and operational rollback package
 
   **Risk Level**: Medium
   **What to do**: Prepare the release package for Atlas/Hephaestus execution completion. Document enablement flags, deployment ordering, credential provisioning steps, smoke-test commands, rollback sequencing, and operator runbook notes. Ensure rollout can be staged and reversed without affecting existing mysqlbot consumers. This task closes the execution package and makes the change operable.
@@ -548,10 +548,10 @@ Wave 3: hardening and rollout
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 > **Never mark F1-F4 as checked before getting user's okay.** Rejection or user feedback -> fix -> re-run -> present again -> wait for okay.
-- [ ] F1. Plan Compliance Audit — oracle
-- [ ] F2. Code Quality Review — unspecified-high
-- [ ] F3. Real Manual QA — unspecified-high (+ playwright if UI)
-- [ ] F4. Scope Fidelity Check — deep
+- [x] F1. Plan Compliance Audit — oracle
+- [x] F2. Code Quality Review — unspecified-high
+- [x] F3. Real Manual QA — unspecified-high (+ playwright if UI)
+- [x] F4. Scope Fidelity Check — deep
 
 ## Commit Strategy
 - Commit per task group, not one monolithic commit.
