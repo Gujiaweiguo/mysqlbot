@@ -10,6 +10,7 @@ from apps.openclaw.contract import AUTH_HEADER, OpenClawSessionBindRequest
 from apps.openclaw.service import (
     OpenClawServiceError,
     authenticate_openclaw_service_token,
+    build_openclaw_external_session_key,
     bind_openclaw_session,
 )
 from apps.system.schemas.system_schema import UserInfoDTO
@@ -52,6 +53,21 @@ class _FakeSession:
         if obj_id is None:
             return None
         return self._storage.get((model, obj_id))
+
+    def find_chat_by_external_session_key(
+        self, *, user_id: int, workspace_id: int, external_session_key: str
+    ) -> Chat | None:
+        for (model, _obj_id), obj in self._storage.items():
+            if model is not Chat:
+                continue
+            chat = cast(Chat, obj)
+            if (
+                chat.create_by == user_id
+                and chat.oid == workspace_id
+                and chat.external_session_key == external_session_key
+            ):
+                return chat
+        return None
 
 
 def _build_user() -> UserInfoDTO:
@@ -247,6 +263,7 @@ def test_bind_openclaw_session_reuses_existing_chat() -> None:
         datasource=5,
         engine_type="",
         origin=1,
+        external_session_key=None,
         brief_generate=False,
         recommended_question_answer=None,
         recommended_question=None,
@@ -267,6 +284,43 @@ def test_bind_openclaw_session_reuses_existing_chat() -> None:
     assert binding.reused is True
     assert binding.chat_id == 11
     assert binding.workspace_id == 9
+    assert existing_chat.external_session_key == build_openclaw_external_session_key(
+        "conv-1"
+    )
+
+
+def test_bind_openclaw_session_reuses_chat_by_external_session_key() -> None:
+    session = _FakeSession()
+    user = _build_user()
+    existing_chat = Chat(
+        id=23,
+        oid=user.oid,
+        create_by=user.id,
+        brief="existing",
+        chat_type="chat",
+        datasource=12,
+        engine_type="",
+        origin=1,
+        external_session_key=build_openclaw_external_session_key("feishu:group-42"),
+        brief_generate=False,
+        recommended_question_answer=None,
+        recommended_question=None,
+        recommended_generate=False,
+    )
+    session.add(existing_chat)
+
+    binding = bind_openclaw_session(
+        cast(Session, cast(object, session)),
+        user,
+        OpenClawSessionBindRequest(
+            conversation_id="feishu:group-42",
+            datasource_id=12,
+        ),
+    )
+
+    assert binding.chat_id == 23
+    assert binding.reused is True
+    assert binding.datasource_id == 12
 
 
 def test_bind_openclaw_session_creates_new_chat_without_orphan_record() -> None:
@@ -285,6 +339,53 @@ def test_bind_openclaw_session_creates_new_chat_without_orphan_record() -> None:
     assert stored_chat is not None
     assert stored_chat.create_by == user.id
     assert stored_chat.oid == user.oid
+    assert stored_chat.external_session_key == build_openclaw_external_session_key(
+        "conv-new"
+    )
+
+
+def test_bind_openclaw_session_isolates_distinct_channel_conversations() -> None:
+    session = _FakeSession()
+    user = _build_user()
+
+    feishu_direct = bind_openclaw_session(
+        cast(Session, cast(object, session)),
+        user,
+        OpenClawSessionBindRequest(conversation_id="feishu:dm:user-7"),
+    )
+    feishu_group = bind_openclaw_session(
+        cast(Session, cast(object, session)),
+        user,
+        OpenClawSessionBindRequest(conversation_id="feishu:group:group-42"),
+    )
+    wechat_direct = bind_openclaw_session(
+        cast(Session, cast(object, session)),
+        user,
+        OpenClawSessionBindRequest(conversation_id="wechat:user:wx-9"),
+    )
+
+    assert feishu_direct.chat_id != feishu_group.chat_id
+    assert feishu_group.chat_id != wechat_direct.chat_id
+    assert feishu_direct.chat_id != wechat_direct.chat_id
+
+    stored_feishu_direct = cast(Chat | None, session.get(Chat, feishu_direct.chat_id))
+    stored_feishu_group = cast(Chat | None, session.get(Chat, feishu_group.chat_id))
+    stored_wechat_direct = cast(Chat | None, session.get(Chat, wechat_direct.chat_id))
+    assert stored_feishu_direct is not None
+    assert stored_feishu_group is not None
+    assert stored_wechat_direct is not None
+    assert (
+        stored_feishu_direct.external_session_key
+        == build_openclaw_external_session_key("feishu:dm:user-7")
+    )
+    assert (
+        stored_feishu_group.external_session_key
+        == build_openclaw_external_session_key("feishu:group:group-42")
+    )
+    assert (
+        stored_wechat_direct.external_session_key
+        == build_openclaw_external_session_key("wechat:user:wx-9")
+    )
 
 
 def test_bind_openclaw_session_rejects_foreign_chat_scope() -> None:
@@ -314,3 +415,68 @@ def test_bind_openclaw_session_rejects_foreign_chat_scope() -> None:
         )
 
     assert exc_info.value.error_code == "SESSION_INVALID"
+
+
+def test_bind_openclaw_session_rejects_non_openclaw_chat_origin() -> None:
+    session = _FakeSession()
+    user = _build_user()
+    web_chat = Chat(
+        id=30,
+        oid=user.oid,
+        create_by=user.id,
+        brief="web-chat",
+        chat_type="chat",
+        datasource=None,
+        engine_type="",
+        origin=0,
+        external_session_key=None,
+        brief_generate=False,
+        recommended_question_answer=None,
+        recommended_question=None,
+        recommended_generate=False,
+    )
+    session.add(web_chat)
+
+    with pytest.raises(OpenClawServiceError) as exc_info:
+        _ = bind_openclaw_session(
+            cast(Session, cast(object, session)),
+            user,
+            OpenClawSessionBindRequest(conversation_id="conv-web", chat_id=30),
+        )
+
+    assert exc_info.value.error_code == "SESSION_INVALID"
+    assert "not managed by the OpenClaw integration" in exc_info.value.message
+
+
+def test_bind_openclaw_session_rejects_external_session_scope_mismatch() -> None:
+    session = _FakeSession()
+    user = _build_user()
+    existing_chat = Chat(
+        id=31,
+        oid=user.oid,
+        create_by=user.id,
+        brief="group-chat",
+        chat_type="chat",
+        datasource=None,
+        engine_type="",
+        origin=1,
+        external_session_key=build_openclaw_external_session_key("feishu:group-a"),
+        brief_generate=False,
+        recommended_question_answer=None,
+        recommended_question=None,
+        recommended_generate=False,
+    )
+    session.add(existing_chat)
+
+    with pytest.raises(OpenClawServiceError) as exc_info:
+        _ = bind_openclaw_session(
+            cast(Session, cast(object, session)),
+            user,
+            OpenClawSessionBindRequest(
+                conversation_id="feishu:group-b",
+                chat_id=31,
+            ),
+        )
+
+    assert exc_info.value.error_code == "SESSION_INVALID"
+    assert "external session scope" in exc_info.value.message

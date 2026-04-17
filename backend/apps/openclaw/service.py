@@ -3,9 +3,10 @@ from typing import cast
 
 import jwt
 from fastapi.security.utils import get_authorization_scheme_param
+from sqlmodel import Session
 
-from apps.chat.crud.chat import create_chat, get_chat
-from apps.chat.models.chat_model import CreateChat
+from apps.chat.crud.chat import create_chat, get_chat, get_chat_by_external_session_key
+from apps.chat.models.chat_model import Chat, CreateChat
 from apps.openclaw.contract import (
     AUTH_HEADER,
     AUTH_SCHEME,
@@ -35,6 +36,36 @@ class OpenClawSessionBinding:
     user_id: int
     workspace_id: int
     datasource_id: int | None
+
+
+def build_openclaw_external_session_key(conversation_id: str) -> str:
+    return f"openclaw:{conversation_id.strip()}"
+
+
+def _lookup_chat_by_external_session_key(
+    session: SessionDep,
+    *,
+    user_id: int,
+    workspace_id: int,
+    external_session_key: str,
+) -> Chat | None:
+    custom_lookup = getattr(session, "find_chat_by_external_session_key", None)
+    if callable(custom_lookup):
+        return cast(
+            Chat | None,
+            custom_lookup(
+                user_id=user_id,
+                workspace_id=workspace_id,
+                external_session_key=external_session_key,
+            ),
+        )
+
+    return get_chat_by_external_session_key(
+        cast(Session, session),
+        user_id=user_id,
+        workspace_id=workspace_id,
+        external_session_key=external_session_key,
+    )
 
 
 def _normalize_api_key(
@@ -156,6 +187,10 @@ def bind_openclaw_session(
     current_user: UserInfoDTO,
     bind_request: OpenClawSessionBindRequest,
 ) -> OpenClawSessionBinding:
+    external_session_key = build_openclaw_external_session_key(
+        bind_request.conversation_id
+    )
+
     if bind_request.chat_id is not None:
         existing_chat = get_chat(session, bind_request.chat_id)
         if existing_chat is None:
@@ -171,6 +206,12 @@ def bind_openclaw_session(
             raise OpenClawServiceError(
                 error_code=OpenClawErrorCode.SESSION_INVALID,
                 message="Chat session does not belong to authenticated caller scope",
+                detail={"chat_id": bind_request.chat_id},
+            )
+        if existing_chat.origin != 1:
+            raise OpenClawServiceError(
+                error_code=OpenClawErrorCode.SESSION_INVALID,
+                message="Chat session is not managed by the OpenClaw integration",
                 detail={"chat_id": bind_request.chat_id},
             )
         if (
@@ -193,8 +234,61 @@ def bind_openclaw_session(
                 error_code=OpenClawErrorCode.SESSION_INVALID,
                 message="Chat session is missing an identifier",
             )
+        if (
+            existing_chat.external_session_key is not None
+            and existing_chat.external_session_key != external_session_key
+        ):
+            raise OpenClawServiceError(
+                error_code=OpenClawErrorCode.SESSION_INVALID,
+                message="Chat session does not belong to the requested external session scope",
+                detail={
+                    "chat_id": bind_request.chat_id,
+                    "requested_external_session_key": external_session_key,
+                    "existing_external_session_key": existing_chat.external_session_key,
+                },
+            )
+        if not existing_chat.external_session_key:
+            existing_chat.external_session_key = external_session_key
+            session.add(existing_chat)
+            session.flush()
+            session.commit()
         return OpenClawSessionBinding(
             chat_id=chat_id,
+            conversation_id=bind_request.conversation_id,
+            reused=True,
+            user_id=current_user.id,
+            workspace_id=current_user.oid,
+            datasource_id=existing_chat.datasource,
+        )
+
+    existing_chat = _lookup_chat_by_external_session_key(
+        session,
+        user_id=current_user.id,
+        workspace_id=current_user.oid,
+        external_session_key=external_session_key,
+    )
+    if existing_chat is not None:
+        if (
+            bind_request.datasource_id is not None
+            and existing_chat.datasource is not None
+            and bind_request.datasource_id != existing_chat.datasource
+        ):
+            raise OpenClawServiceError(
+                error_code=OpenClawErrorCode.SESSION_INVALID,
+                message="External session datasource does not match requested datasource",
+                detail={
+                    "external_session_key": external_session_key,
+                    "requested_datasource_id": bind_request.datasource_id,
+                    "existing_datasource_id": existing_chat.datasource,
+                },
+            )
+        if existing_chat.id is None:
+            raise OpenClawServiceError(
+                error_code=OpenClawErrorCode.SESSION_INVALID,
+                message="Resolved external session is missing an identifier",
+            )
+        return OpenClawSessionBinding(
+            chat_id=existing_chat.id,
             conversation_id=bind_request.conversation_id,
             reused=True,
             user_id=current_user.id,
@@ -209,6 +303,7 @@ def bind_openclaw_session(
             question=bind_request.conversation_id,
             datasource=bind_request.datasource_id,
             origin=1,
+            external_session_key=external_session_key,
         ),
         require_datasource=False,
     )
