@@ -16,9 +16,9 @@ services:
         condition: service_healthy
     ports:
       - 8000:8000
-      - 8001:8001
+      - ${SQLBOT_MCP_PORT:-8001}:8001
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:8000/health']
+      test: ['CMD-SHELL', 'curl -f http://localhost:8000/health && curl -f http://localhost:${MCP_PORT:-8001}/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -34,8 +34,11 @@ services:
       PROJECT_NAME: "mySQLBot"
       DEFAULT_PWD: ${SQLBOT_DEFAULT_PWD:-CHANGE_ME_ADMIN_PASSWORD}
       # MCP settings
-      SERVER_IMAGE_HOST: http://YOUR_SERVE_IP:MCP_PORT/images/
-      SKIP_MCP_SETUP: "true"
+      MCP_BIND_HOST: 0.0.0.0
+      MCP_PORT: ${SQLBOT_MCP_PORT:-8001}
+      MCP_PUBLIC_BASE_URL: ${SQLBOT_MCP_PUBLIC_BASE_URL:-http://localhost:8001}
+      SERVER_IMAGE_HOST: ${SQLBOT_MCP_PUBLIC_BASE_URL:-http://localhost:8001}/images/
+      SKIP_MCP_SETUP: "false"
       # Auth & Security
       SECRET_KEY: ${SQLBOT_SECRET_KEY:-CHANGE_ME_WITH_A_LONG_RANDOM_SECRET}
       # CORS settings

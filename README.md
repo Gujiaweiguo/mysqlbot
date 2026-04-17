@@ -31,6 +31,7 @@ mySQLBot 是一款基于大语言模型和 RAG 的智能问数系统，由 DataE
 ```bash
 make install
 make backend-dev
+make backend-mcp-dev
 make frontend-dev
 make lint
 make test
@@ -51,8 +52,10 @@ make test
 ```
 浏览器(:8000) → 后端(:8000，托管前端 dist + API) → postgresql 容器(:15432)
                                                    → redis 容器(:16379)
+OpenClaw MCP(:8001) → 宿主机本地独立 FastAPI MCP 服务
 
 前端构建监听(make frontend-dev) → frontend/dist
+MCP 开发服务(make backend-mcp-dev) → :8001
 可选内部 Vite(make frontend-vite-dev) → :5173
 ```
 
@@ -82,6 +85,9 @@ cp .env.example .env
 | `BASE_DIR` | `.` | 本地开发运行根目录 |
 | `UPLOAD_DIR` | `./data/sqlbot/dev/file` | 上传文件目录 |
 | `MCP_IMAGE_PATH` | `./data/sqlbot/dev/images` | 图片与嵌入资源目录 |
+| `MCP_BIND_HOST` | `0.0.0.0` | MCP 服务监听地址 |
+| `MCP_PORT` | `8001` | MCP 服务端口 |
+| `MCP_PUBLIC_BASE_URL` | `http://localhost:8001` | OpenClaw 应连接的 MCP 对外基地址 |
 | `EXCEL_PATH` | `./data/sqlbot/dev/excel` | Excel 导入导出目录 |
 | `SQLBOT_CACHE_TYPE` | `memory` | 缓存类型 |
 | `SQLBOT_CACHE_REDIS_URL` | `redis://localhost:16379/0` | Redis URL |
@@ -105,6 +111,9 @@ docker compose -f docker-compose.dev.yaml ps
 # 启动后端（默认 :8000）
 make backend-dev
 
+# 启动独立 MCP 服务（默认 :8001）
+make backend-mcp-dev
+
 # 启动前端构建监听（浏览器统一访问 :8000）
 make frontend-dev
 
@@ -113,6 +122,10 @@ make frontend-vite-dev
 ```
 
 开发环境访问入口：`http://localhost:8000/#/login`
+
+开发环境 MCP 入口：`http://localhost:8001/mcp`
+
+开发环境 MCP 健康检查：`http://localhost:8001/health`
 
 > 运维说明：后端首次启动后，如果 `admin` 账号仍然是历史种子密码，系统会自动将其同步为 `DEFAULT_PWD`；如果管理员已经手工修改过密码，则不会被覆盖。
 
@@ -232,7 +245,7 @@ bash uninstall.sh
 | 对比项 | 开发环境 | 生产环境 |
 |-------|---------|---------|
 | 前端 | 构建监听后由后端 `:8000` 对外提供，`make frontend-vite-dev` 可选内部调试 | 内嵌到 app 容器 |
-| 后端 | 本地 `uv run uvicorn` | 容器运行 |
+| 后端 | 本地 `uv run uvicorn`（`make backend-dev`）+ 独立 MCP 进程（`make backend-mcp-dev`） | 容器运行 |
 | 数据库 | 容器（端口 15432） | 容器（端口 5432） |
 | Redis | 容器（端口 16379） | 容器（端口 6379） |
 | 配置文件 | `.env` | `install.conf` → `/opt/sqlbot/.env` |

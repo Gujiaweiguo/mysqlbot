@@ -22,6 +22,7 @@ Canonical root-level entrypoints:
 - `make install`
 - `make setup-mallbi-demo`
 - `make backend-dev`
+- `make backend-mcp-dev`
 - `make frontend-dev`
 - `make lint`
 - `make test`
@@ -43,6 +44,7 @@ Notes:
 - Sync dependencies: `uv sync`
 - Sync CPU extra: `uv sync --extra cpu`
 - Dev server (reload): `uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload`
+- Dev MCP server (reload): `uv run uvicorn main:mcp_app --host ${MCP_BIND_HOST:-0.0.0.0} --port ${MCP_PORT:-8001} --reload`
 - Lint/typecheck script: `bash scripts/lint.sh`
 - Format script: `bash scripts/format.sh`
 - Run all tests: `uv run pytest`
@@ -51,6 +53,7 @@ Notes:
 Notes:
 - `scripts/lint.sh` currently runs against changed files by default, or `apps common main.py` when `LINT_SCOPE=full`.
 - `scripts/format.sh` currently runs: `ruff check apps scripts common --fix`, then `ruff format apps scripts common`.
+- MCP-first OpenClaw work should treat `http://localhost:8001/mcp` as the canonical local endpoint and `http://localhost:8001/health` as the dedicated MCP readiness signal.
 
 ### 3.3 Migrations (`/opt/code/mysqlbot/backend`)
 - Apply migrations: `alembic upgrade head`
@@ -64,6 +67,7 @@ Notes:
 - Bootstrap env: `cp .env.example .env`
 - Demo BI setup: `make setup-mallbi-demo` (pass extra CLI flags via `SETUP_MALLBI_DEMO_ARGS='...'`)
 - App health: `http://localhost:8000/health`
+- MCP health: `http://localhost:8001/health`
 
 ## 4) Single-Test Commands (Priority)
 Backend has `pytest` configured with tests in `backend/tests/`. Use these patterns:

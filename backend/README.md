@@ -7,6 +7,7 @@ Canonical root-level equivalents:
 ```bash
 make install
 make backend-dev
+make backend-mcp-dev
 make lint
 make test
 ```
@@ -27,6 +28,16 @@ uv sync --extra cpu
 ```bash
 uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+### Run Development MCP Server
+```bash
+uv run uvicorn main:mcp_app --host ${MCP_BIND_HOST:-0.0.0.0} --port ${MCP_PORT:-8001} --reload
+```
+
+Canonical MCP URLs:
+
+- Endpoint: `http://localhost:8001/mcp`
+- Health: `http://localhost:8001/health`
 
 ### Linting
 ```bash
