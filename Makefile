@@ -15,6 +15,9 @@ setup-gs-scrm-demo:
 backend-dev:
 	cd backend && uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
+backend-mcp-dev:
+	cd backend && uv run uvicorn main:mcp_app --host $${MCP_BIND_HOST:-0.0.0.0} --port $${MCP_PORT:-8001} --reload
+
 frontend-dev:
 	cd frontend && npm run dev
 
