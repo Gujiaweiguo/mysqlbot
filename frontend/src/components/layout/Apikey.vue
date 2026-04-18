@@ -14,6 +14,20 @@ import { formatTimestamp } from '@/utils/date'
 import { useClipboard } from '@vueuse/core'
 import EmptyBackground from '@/views/dashboard/common/EmptyBackground.vue'
 import { request } from '@/utils/request'
+import { buildOpenClawAuthHeaderValue, generateOpenClawToken } from '@/utils/openclawToken'
+
+interface ApiKeyRow {
+  id: number
+  access_key: string
+  secret_key: string
+  status: boolean
+  create_time: number
+  showPwd?: boolean
+  openclawToken?: string
+  showOpenclawToken?: boolean
+}
+
+type CopyVariant = 'raw' | 'header'
 
 const { t } = useI18n()
 
@@ -24,7 +38,7 @@ const triggerLimit = computed(() => {
   return limitValid.value && state.tableData.length >= limitCount.value
 })
 const state = reactive({
-  tableData: [] as any,
+  tableData: [] as ApiKeyRow[],
 })
 
 const handleAdd = () => {
@@ -36,6 +50,17 @@ const handleAdd = () => {
   })
 }
 const pwd = ref('**********')
+const tokenMask = ref('••••••••••••••••••••••••')
+
+const hydrateRow = (row: ApiKeyRow): ApiKeyRow => {
+  return {
+    ...row,
+    showPwd: false,
+    openclawToken: '',
+    showOpenclawToken: false,
+  }
+}
+
 const toApiDoc = () => {
   console.log('Add API Key')
   const url = '/docs'
@@ -53,7 +78,7 @@ const statusHandler = (row: any) => {
 }
 const { copy } = useClipboard({ legacy: true })
 
-const copyCode = (row: any, key: any = 'secret_key') => {
+const copyCode = (row: ApiKeyRow, key: 'access_key' | 'secret_key' = 'secret_key') => {
   copy(row[key])
     .then(function () {
       ElMessage.success(t('embedded.copy_successful'))
@@ -62,7 +87,44 @@ const copyCode = (row: any, key: any = 'secret_key') => {
       ElMessage.error(t('embedded.copy_failed'))
     })
 }
-const deleteHandler = (row: any) => {
+const buildTokenValue = (row: ApiKeyRow) => {
+  row.openclawToken = generateOpenClawToken({
+    accessKey: row.access_key,
+    secretKey: row.secret_key,
+  })
+  row.showOpenclawToken = false
+}
+
+const ensureTokenValue = (row: ApiKeyRow): string => {
+  if (!row.openclawToken) {
+    buildTokenValue(row)
+  }
+
+  return row.openclawToken || ''
+}
+
+const getTokenPreview = (row: ApiKeyRow): string => {
+  if (!row.openclawToken) {
+    return t('api_key.token_not_generated')
+  }
+
+  return row.showOpenclawToken ? row.openclawToken : tokenMask.value
+}
+
+const copyGeneratedToken = (row: ApiKeyRow, variant: CopyVariant) => {
+  const token = ensureTokenValue(row)
+  const value = variant === 'raw' ? token : buildOpenClawAuthHeaderValue(token)
+
+  copy(value)
+    .then(function () {
+      ElMessage.success(t('embedded.copy_successful'))
+    })
+    .catch(function () {
+      ElMessage.error(t('embedded.copy_failed'))
+    })
+}
+
+const deleteHandler = (row: ApiKeyRow) => {
   ElMessageBox.confirm(t('user.del_key', { msg: row.access_key }), {
     confirmButtonType: 'danger',
     confirmButtonText: t('dashboard.delete'),
@@ -84,14 +146,14 @@ const deleteHandler = (row: any) => {
 }
 const sortChange = (param: any) => {
   if (param?.order === 'ascending') {
-    state.tableData.sort((a: any, b: any) => a.create_time - b.create_time)
+    state.tableData.sort((a, b) => a.create_time - b.create_time)
   } else {
-    state.tableData.sort((a: any, b: any) => b.create_time - a.create_time)
+    state.tableData.sort((a, b) => b.create_time - a.create_time)
   }
 }
 const loadGridData = () => {
-  request.get('/system/apikey').then((res: any) => {
-    state.tableData = res || []
+  request.get('/system/apikey').then((res: ApiKeyRow[]) => {
+    state.tableData = (res || []).map(hydrateRow)
   })
 }
 onMounted(() => {
@@ -110,6 +172,16 @@ onMounted(() => {
       <div class="warn-template-content">
         <span>{{ t('api_key.info_tips') }}</span>
       </div>
+    </div>
+
+    <div class="token-guide">
+      <p class="token-guide__title">{{ t('api_key.openclaw_guide_title') }}</p>
+      <p class="token-guide__text">{{ t('api_key.orchestrator_agent_hint') }}</p>
+      <p class="token-guide__text">{{ t('api_key.header_token_hint') }}</p>
+      <p class="token-guide__text token-guide__text--warning">
+        {{ t('api_key.generated_token_warning') }}
+      </p>
+      <p class="token-guide__caption">{{ t('api_key.ephemeral_token_hint') }}</p>
     </div>
 
     <div class="api-key-btn">
@@ -219,6 +291,72 @@ onMounted(() => {
           </template>
         </el-table-column>
 
+        <el-table-column prop="openclaw_token" :label="t('api_key.openclaw_token')" min-width="320">
+          <template #default="scope">
+            <div class="token-cell">
+              <div class="token-cell__value">
+                <div :title="getTokenPreview(scope.row)" class="ellipsis token-cell__value-text">
+                  {{ getTokenPreview(scope.row) }}
+                </div>
+
+                <el-tooltip
+                  v-if="scope.row.openclawToken && scope.row.showOpenclawToken"
+                  :offset="12"
+                  effect="dark"
+                  :content="t('embedded.click_to_hide')"
+                  placement="top"
+                >
+                  <el-icon
+                    class="hover-icon_with_bg"
+                    size="16"
+                    @click="scope.row.showOpenclawToken = false"
+                  >
+                    <icon_visible_outlined></icon_visible_outlined>
+                  </el-icon>
+                </el-tooltip>
+
+                <el-tooltip
+                  v-else-if="scope.row.openclawToken"
+                  :offset="12"
+                  effect="dark"
+                  :content="t('embedded.click_to_show')"
+                  placement="top"
+                >
+                  <el-icon
+                    class="hover-icon_with_bg"
+                    size="16"
+                    @click="scope.row.showOpenclawToken = true"
+                  >
+                    <icon_invisible_outlined></icon_invisible_outlined>
+                  </el-icon>
+                </el-tooltip>
+              </div>
+
+              <div class="token-cell__actions">
+                <el-button text type="primary" @click="buildTokenValue(scope.row)">
+                  {{
+                    t(`api_key.${scope.row.openclawToken ? 'regenerate_token' : 'generate_token'}`)
+                  }}
+                </el-button>
+                <el-button
+                  text
+                  :disabled="!scope.row.openclawToken"
+                  @click="copyGeneratedToken(scope.row, 'raw')"
+                >
+                  {{ t('api_key.copy_jwt') }}
+                </el-button>
+                <el-button
+                  text
+                  :disabled="!scope.row.openclawToken"
+                  @click="copyGeneratedToken(scope.row, 'header')"
+                >
+                  {{ t('api_key.copy_sk_token') }}
+                </el-button>
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+
         <el-table-column prop="status" width="100" :label="t('datasource.enabled_status')">
           <template #default="scope">
             <div class="api-status-container" :class="[scope.row.status ? 'active' : 'disabled']">
@@ -320,6 +458,39 @@ onMounted(() => {
     }
   }
 
+  .token-guide {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+    border: 1px solid #dee0e3;
+    border-radius: 8px;
+    background: #fafbfc;
+
+    .token-guide__title {
+      color: #1f2329;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 22px;
+    }
+
+    .token-guide__text {
+      color: #1f2329;
+      font-size: 14px;
+      line-height: 22px;
+    }
+
+    .token-guide__text--warning {
+      color: #b54708;
+    }
+
+    .token-guide__caption {
+      color: #646a73;
+      font-size: 12px;
+      line-height: 20px;
+    }
+  }
+
   .api-key-grid {
     width: 100%;
     .el-table {
@@ -374,6 +545,37 @@ onMounted(() => {
 
       .ed-icon + .ed-icon {
         margin-left: 12px;
+      }
+    }
+
+    .token-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 6px 0;
+    }
+
+    .token-cell__value {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .token-cell__value-text {
+      color: #1f2329;
+      max-width: 100%;
+    }
+
+    .token-cell__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+
+      .el-button {
+        margin-left: 0;
+        padding: 0;
+        height: 22px;
       }
     }
   }

@@ -209,7 +209,7 @@ const logout = async () => {
       </div>
     </template>
   </el-dialog>
-  <el-dialog v-model="apikeyDialogVisible" title="API Key" width="840">
+  <el-dialog v-model="apikeyDialogVisible" title="API Key" width="1080">
     <apikey v-if="apikeyDialogVisible" ref="apikeyRef" />
   </el-dialog>
   <AboutDialog ref="aboutRef" />
