@@ -1093,6 +1093,17 @@
     "info_tips": "API Key 是您访问 mySQLBot API 的密钥，具有账户的完全权限，请您务必妥善保管！不要以任何方式公开 API Key 到外部渠道，避免被他人利用造成安全威胁。",
     "create": "创建",
     "to_doc": "查看 API",
-    "trigger_limit": "最多支持创建 {0} 个 API Key"
+    "trigger_limit": "最多支持创建 {0} 个 API Key",
+    "openclaw_guide_title": "OpenClaw 令牌使用说明",
+    "orchestrator_agent_hint": "OrchestratorAgent 配置：将原始 JWT 粘贴到 mysqlbot_openclaw.auth_token。",
+    "header_token_hint": "直接请求头：将 sk <jwt> 作为 X-SQLBOT-ASK-TOKEN 的值使用。",
+    "generated_token_warning": "生成的 JWT 和 sk <jwt> 同样属于敏感 bearer 凭证，请勿粘贴到公开渠道或日志中。",
+    "ephemeral_token_hint": "仅在当前对话框中按需生成，mysqlbot 不会存储这个派生令牌。",
+    "openclaw_token": "OpenClaw 令牌",
+    "generate_token": "生成令牌",
+    "regenerate_token": "重新生成",
+    "token_not_generated": "按需生成",
+    "copy_jwt": "复制 JWT",
+    "copy_sk_token": "复制 sk <jwt>"
   }
 }

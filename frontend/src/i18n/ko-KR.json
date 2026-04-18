@@ -1050,6 +1050,17 @@
     "info_tips": "API 키는 mySQLBot API에 액세스하는 비밀키로 계정의 모든 권한을 갖고 있습니다. 꼭 안전하게 보관하세요! 외부 채널에 어떠한 방식으로도 API 키를 공개하지 마시고, 타인이 악용하여 보안 위협이 발생하는 것을 방지하세요.",
     "create": "생성",
     "to_doc": "API 보기",
-    "trigger_limit": "최대 {0}개의 API 키 생성 지원"
+    "trigger_limit": "최대 {0}개의 API 키 생성 지원",
+    "openclaw_guide_title": "OpenClaw 토큰 사용 안내",
+    "orchestrator_agent_hint": "OrchestratorAgent 설정: 원본 JWT를 mysqlbot_openclaw.auth_token에 붙여 넣으세요.",
+    "header_token_hint": "직접 요청 헤더: sk <jwt> 값을 X-SQLBOT-ASK-TOKEN 헤더 값으로 사용하세요.",
+    "generated_token_warning": "생성된 JWT와 sk <jwt> 값도 민감한 bearer 자격 증명이므로 공개 채널이나 로그에 붙여 넣지 마세요.",
+    "ephemeral_token_hint": "이 대화상자에서만 필요 시 생성되며, mysqlbot은 파생 토큰을 저장하지 않습니다.",
+    "openclaw_token": "OpenClaw 토큰",
+    "generate_token": "토큰 생성",
+    "regenerate_token": "다시 생성",
+    "token_not_generated": "필요할 때 생성",
+    "copy_jwt": "JWT 복사",
+    "copy_sk_token": "sk <jwt> 복사"
   }
 }

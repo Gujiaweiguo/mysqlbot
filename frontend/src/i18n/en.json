@@ -1091,6 +1091,17 @@
     "info_tips": "The API Key is your credential for accessing the mySQLBot API, with full permissions for your account. Please keep it secure! Do not disclose the API Key in any public channels to avoid security risks from unauthorized use.",
     "create": "Create",
     "to_doc": "View API",
-    "trigger_limit": "Supports up to {0} API Keys"
+    "trigger_limit": "Supports up to {0} API Keys",
+    "openclaw_guide_title": "OpenClaw token usage",
+    "orchestrator_agent_hint": "OrchestratorAgent config: paste the raw JWT into mysqlbot_openclaw.auth_token.",
+    "header_token_hint": "Direct request header: use sk <jwt> as the X-SQLBOT-ASK-TOKEN value.",
+    "generated_token_warning": "Treat the generated JWT and sk <jwt> value like a sensitive bearer credential. Do not paste them into public channels or logs.",
+    "ephemeral_token_hint": "Generated on demand in this dialog only. mysqlbot does not store the derived token.",
+    "openclaw_token": "OpenClaw Token",
+    "generate_token": "Generate token",
+    "regenerate_token": "Regenerate",
+    "token_not_generated": "Generate on demand",
+    "copy_jwt": "Copy JWT",
+    "copy_sk_token": "Copy sk <jwt>"
   }
 }
