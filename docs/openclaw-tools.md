@@ -36,6 +36,12 @@ Common rules:
 - stable success envelope: `{ version, status, operation, data }`
 - stable error envelope: `{ version, status, operation, error_code, message, detail? }`
 
+Credential note:
+
+- API Key management in mysqlbot can generate the raw JWT token derived from an `access_key` + `secret_key` pair for OpenClaw-compatible callers.
+- OrchestratorAgent stores that raw JWT as `mysqlbot_openclaw.auth_token` and prepends `sk ` itself when sending requests.
+- Direct HTTP callers may instead copy or construct the header-style value `sk <jwt>` and send it as the `X-SQLBOT-ASK-TOKEN` header value.
+
 ## Agent-facing output mapping
 
 ### `openclaw_session_bind`
