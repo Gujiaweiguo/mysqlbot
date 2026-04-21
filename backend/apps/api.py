@@ -8,6 +8,7 @@ from apps.datasource.api import (
     datasource,
     permission,
     recommended_problem,
+    sync_job,
     table_relation,
 )
 from apps.mcp import mcp
@@ -53,6 +54,7 @@ api_router.include_router(openclaw_admin_router)
 api_router.include_router(terminology.router)
 api_router.include_router(data_training.router)
 api_router.include_router(datasource.router)
+api_router.include_router(sync_job.router)
 api_router.include_router(permission.router)
 api_router.include_router(custom_prompt.router)
 api_router.include_router(chat.router)
