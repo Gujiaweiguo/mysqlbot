@@ -201,3 +201,10 @@ data/
 *-diagnosis.png
 
 !/.venv/
+
+# Agent orchestration working files
+.sisyphus/
+.playwright-mcp/
+
+# Frontend build temp
+frontend/.sisyphus-tmp/
