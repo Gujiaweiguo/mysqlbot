@@ -1,12 +1,9 @@
 <script lang="ts" setup>
+import axios from 'axios'
 import { ref, reactive, onMounted, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
-import {
-  datasourceApi,
-  type DatasourceChooseTablesResult,
-  type DatasourceSelectedTable,
-  type DatasourceSyncJob,
-} from '@/api/datasource'
+import { datasourceApi, type DatasourceSelectedTable } from '@/api/datasource'
+import { datasourceSyncJobApi } from '@/api/datasourceSyncJob'
 import icon_upload_outlined from '@/assets/svg/icon_upload_outlined.svg'
 import icon_searchOutline_outlined from '@/assets/svg/icon_search-outline_outlined.svg'
 import { encrypted, decrypted } from './js/aes'
@@ -23,6 +20,8 @@ import icon_fileExcel_colorful from '@/assets/datasource/icon_excel.png'
 import IconOpeDelete from '@/assets/svg/icon_delete.svg'
 import { useCache } from '@/utils/useCache'
 import icon_warning_filled from '@/assets/svg/icon_warning_filled.svg'
+import { request } from '@/utils/request'
+import { useDatasourceSyncJob } from '@/views/ds/composables/useDatasourceSyncJob'
 
 const props = withDefaults(
   defineProps<{
@@ -50,7 +49,6 @@ const tableListLoading = ref(false)
 const tableListLoadingV1 = ref(false)
 const checkLoading = ref(false)
 const schemaLoading = ref(false)
-const dialogTitle = ref('')
 const getUploadURL = import.meta.env.VITE_API_BASE_URL + '/datasource/uploadExcel'
 const saveLoading = ref<boolean>(false)
 const uploadLoading = ref(false)
@@ -58,17 +56,25 @@ const { t, te } = useI18n()
 const schemaList = ref<any>([])
 const schemaSelectRef = ref<any>()
 
-type DatasourceSyncJobView = DatasourceSyncJob & {
-  restored?: boolean
-}
-
-const SYNC_JOB_POLL_INTERVAL = 2500
-const syncJob = ref<DatasourceSyncJobView | null>(null)
-const syncJobPolling = ref(false)
-const syncJobRestoring = ref(false)
-const syncJobTimer = ref<number | null>(null)
-const syncJobActionLoading = ref(false)
-const mutedTerminalToastJobId = ref<number | null>(null)
+const {
+  job: syncJob,
+  dialogVisible: syncJobDialogVisible,
+  isRestoring: syncJobRestoring,
+  isCancelling: syncJobActionLoading,
+  requestError: syncJobRequestError,
+  isActive: syncJobRunning,
+  isSucceeded: syncJobSucceeded,
+  isFailed: syncJobFailed,
+  isCancelled: syncJobCancelled,
+  isPartial: syncJobPartial,
+  progressPercent: syncJobPercent,
+  failureDetails: syncJobFailureDetails,
+  startTracking: startSyncJobTracking,
+  restoreLatestJob: restoreSyncJobState,
+  cancelJob: executeCancelSyncJob,
+  closeDialog: closeSyncJobDialog,
+  reset: resetSyncJobState,
+} = useDatasourceSyncJob()
 
 const getSyncJobNumber = (value?: number | null) =>
   typeof value === 'number' && Number.isFinite(value) ? value : 0
@@ -86,48 +92,11 @@ const isTerminalSyncJobStatus = (status?: string | null) => {
     !!token &&
     [
       'succeeded',
-      'success',
-      'completed',
-      'finished',
-      'done',
       'failed',
-      'error',
-      'cancel',
-      'cancelled',
-      'conflict',
       'partial',
-    ].some((item) => token.includes(item))
+      'cancelled',
+    ].includes(token)
   )
-}
-
-const isConflictSyncJobStatus = (status?: string | null) =>
-  normalizeSyncToken(status).includes('conflict')
-
-const isCancelledSyncJobStatus = (status?: string | null) =>
-  normalizeSyncToken(status).includes('cancel')
-
-const isFailedSyncJobStatus = (status?: string | null) => {
-  const token = normalizeSyncToken(status)
-  return ['failed', 'error', 'cancel', 'timeout', 'abort'].some((item) => token.includes(item))
-}
-
-const isRunningSyncJobStatus = (status?: string | null) =>
-  !!status && !isTerminalSyncJobStatus(status)
-
-const stopSyncJobPolling = () => {
-  if (syncJobTimer.value !== null) {
-    window.clearTimeout(syncJobTimer.value)
-    syncJobTimer.value = null
-  }
-  syncJobPolling.value = false
-}
-
-const resetSyncJobState = () => {
-  stopSyncJobPolling()
-  syncJobActionLoading.value = false
-  mutedTerminalToastJobId.value = null
-  syncJobRestoring.value = false
-  syncJob.value = null
 }
 
 const translateSyncJobToken = (type: 'status' | 'phase', value?: string | null) => {
@@ -153,66 +122,34 @@ const syncJobSkippedTables = computed(() => getSyncJobNumber(syncJob.value?.skip
 const syncJobTotalFields = computed(() => getSyncJobNumber(syncJob.value?.total_fields))
 const syncJobCompletedFields = computed(() => getSyncJobNumber(syncJob.value?.completed_fields))
 
-const syncJobProcessedTables = computed(
-  () => syncJobCompletedTables.value + syncJobFailedTables.value + syncJobSkippedTables.value
-)
-
-const syncJobRunning = computed(() => isRunningSyncJobStatus(syncJob.value?.status))
-const syncJobConflict = computed(() => isConflictSyncJobStatus(syncJob.value?.status))
-const syncJobFailed = computed(() => isFailedSyncJobStatus(syncJob.value?.status))
-const syncJobCancelled = computed(() => isCancelledSyncJobStatus(syncJob.value?.status))
-const syncJobTerminal = computed(() => isTerminalSyncJobStatus(syncJob.value?.status))
-const syncJobPartial = computed(
-  () =>
-    syncJobTerminal.value &&
-    !syncJobFailed.value &&
-    !syncJobConflict.value &&
-    syncJobFailedTables.value > 0
-)
-const syncJobSucceeded = computed(
-  () =>
-    syncJobTerminal.value && !syncJobFailed.value && !syncJobConflict.value && !syncJobPartial.value
-)
-
-const syncJobPercent = computed(() => {
-  if (!syncJob.value) return 0
-  if (syncJobSucceeded.value || syncJobPartial.value) return 100
-  if (syncJobTableTotal.value > 0) {
-    return Math.min(100, Math.round((syncJobProcessedTables.value / syncJobTableTotal.value) * 100))
-  }
-  if (syncJobTotalFields.value > 0) {
-    return Math.min(
-      100,
-      Math.round((syncJobCompletedFields.value / syncJobTotalFields.value) * 100)
-    )
-  }
-  return syncJobRunning.value ? 5 : 0
-})
-
 const syncJobProgressStatus = computed(() => {
   if (!syncJob.value || syncJobRunning.value) return undefined
-  if (syncJobFailed.value || syncJobConflict.value || syncJobPartial.value) return 'exception'
+  if (syncJobFailed.value || syncJobCancelled.value || syncJobPartial.value) return 'exception'
   return 'success'
 })
 
 const syncJobTone = computed(() => {
   if (syncJobSucceeded.value) return 'success'
   if (syncJobFailed.value) return 'danger'
-  if (syncJobConflict.value || syncJobPartial.value) return 'warning'
+  if (syncJobCancelled.value || syncJobPartial.value) return 'warning'
   return 'primary'
 })
 
 const syncJobTagType = computed(() => {
   if (syncJobSucceeded.value) return 'success'
   if (syncJobFailed.value) return 'danger'
-  if (syncJobConflict.value || syncJobPartial.value) return 'warning'
+  if (syncJobCancelled.value || syncJobPartial.value) return 'warning'
   return 'info'
 })
 
 const syncJobTitle = computed(() => {
   if (syncJobSucceeded.value) return t('ds.form.sync_job.title.success')
   if (syncJobFailed.value) return t('ds.form.sync_job.title.failed')
-  if (syncJobConflict.value) return t('ds.form.sync_job.title.conflict')
+  if (syncJobCancelled.value) {
+    return te('ds.form.sync_job.title.cancelled')
+      ? t('ds.form.sync_job.title.cancelled')
+      : translateSyncJobToken('status', syncJob.value?.status)
+  }
   if (syncJobPartial.value) return t('ds.form.sync_job.title.partial')
   return t('ds.form.sync_job.title.running')
 })
@@ -235,8 +172,8 @@ const syncJobSummary = computed(() => {
     }
     return t('ds.form.sync_job.summary.pending')
   }
-  if (syncJobConflict.value) {
-    return t('ds.form.sync_job.summary.conflict')
+  if (syncJobCancelled.value) {
+    return t('ds.form.sync_job.message.cancelled')
   }
   if (syncJobFailed.value) {
     return syncJob.value.error_summary || t('ds.form.sync_job.summary.failed')
@@ -279,12 +216,7 @@ const syncJobPrimaryButtonText = computed(() =>
 
 const canSaveTableSelection = computed(() => !syncJobRunning.value && !syncJobRestoring.value)
 const canCancelSyncJob = computed(() => !!syncJob.value?.job_id && syncJobRunning.value)
-const canRetrySyncJob = computed(
-  () =>
-    !!syncJob.value?.job_id &&
-    syncJobTerminal.value &&
-    (syncJobFailed.value || syncJobPartial.value)
-)
+const canCloseSyncJobDialog = computed(() => !syncJobRunning.value || !!syncJobRequestError.value)
 
 const notifySyncJobTerminalState = (previousStatus?: string | null) => {
   if (
@@ -292,20 +224,6 @@ const notifySyncJobTerminalState = (previousStatus?: string | null) => {
     !isTerminalSyncJobStatus(syncJob.value.status) ||
     isTerminalSyncJobStatus(previousStatus)
   ) {
-    return
-  }
-
-  if (mutedTerminalToastJobId.value === syncJob.value.job_id) {
-    mutedTerminalToastJobId.value = null
-    return
-  }
-
-  if (syncJobConflict.value) {
-    ElMessage({
-      message: t('ds.form.sync_job.message.conflict'),
-      type: 'warning',
-      showClose: true,
-    })
     return
   }
 
@@ -337,6 +255,17 @@ const notifySyncJobTerminalState = (previousStatus?: string | null) => {
   emit('refresh')
 }
 
+watch(
+  () => syncJob.value?.status,
+  (status, previousStatus) => {
+    if (!status || status === previousStatus) {
+      return
+    }
+
+    notifySyncJobTerminalState(previousStatus)
+  }
+)
+
 const confirmSyncJobAction = async (messageKey: string) => {
   try {
     const result = await ElMessageBox.confirm(t(messageKey), {
@@ -359,116 +288,16 @@ const cancelSyncJob = async () => {
   const confirmed = await confirmSyncJobAction('ds.form.sync_job.message.cancel_confirm')
   if (!confirmed) return
 
-  syncJobActionLoading.value = true
-  const currentJobId = syncJob.value.job_id
-  try {
-    const detail = await datasourceApi.cancelSyncJob(currentJobId)
-    mutedTerminalToastJobId.value = currentJobId
-    stopSyncJobPolling()
-    syncJob.value = {
-      ...(syncJob.value || {}),
-      ...detail,
-    }
-    ElMessage({
-      message: t('ds.form.sync_job.message.cancelled'),
-      type: 'warning',
-      showClose: true,
-    })
-  } finally {
-    syncJobActionLoading.value = false
-  }
+  await executeCancelSyncJob()
 }
 
-const retrySyncJob = async () => {
-  if (!syncJob.value?.job_id || syncJobActionLoading.value) return
-
-  const confirmed = await confirmSyncJobAction('ds.form.sync_job.message.retry_confirm')
-  if (!confirmed) return
-
-  syncJobActionLoading.value = true
-  try {
-    const job = await datasourceApi.retrySyncJob(syncJob.value.job_id)
-
-    if (job.reused_active_job) {
-      ElMessage({
-        message: t('ds.form.sync_job.message.reused'),
-        type: 'warning',
-        showClose: true,
-      })
-    } else {
-      ElMessage({
-        message: t('ds.form.sync_job.message.started'),
-        type: 'success',
-        showClose: true,
-      })
-    }
-
-    startSyncJobTracking(job)
-  } finally {
-    syncJobActionLoading.value = false
+const handleSyncJobDialogBeforeClose = (done: () => void) => {
+  if (!canCloseSyncJobDialog.value) {
+    return
   }
-}
 
-const pollSyncJob = async (jobId: number) => {
-  syncJobPolling.value = true
-  try {
-    const previousStatus = syncJob.value?.status
-    const detail = await datasourceApi.getSyncJob(jobId)
-    if (typeof syncJob.value?.job_id === 'number' && syncJob.value.job_id !== jobId) {
-      return
-    }
-    syncJob.value = {
-      ...(syncJob.value || {}),
-      ...detail,
-    }
-    notifySyncJobTerminalState(previousStatus)
-
-    if (isRunningSyncJobStatus(syncJob.value.status)) {
-      syncJobTimer.value = window.setTimeout(() => {
-        void pollSyncJob(jobId)
-      }, SYNC_JOB_POLL_INTERVAL)
-    } else {
-      stopSyncJobPolling()
-    }
-  } catch {
-    stopSyncJobPolling()
-  } finally {
-    syncJobPolling.value = false
-  }
-}
-
-const startSyncJobTracking = (
-  job: DatasourceChooseTablesResult | DatasourceSyncJobView,
-  options: { restored?: boolean } = {}
-) => {
-  if (!job?.job_id) return
-
-  mutedTerminalToastJobId.value = null
-  stopSyncJobPolling()
-  syncJob.value = {
-    ...(syncJob.value || {}),
-    ...job,
-    restored: options.restored ?? false,
-  }
-  void pollSyncJob(job.job_id)
-}
-
-const restoreSyncJobState = async (datasourceId: number) => {
-  syncJobRestoring.value = true
-  try {
-    const jobs = await datasourceApi.listSyncJobs(datasourceId)
-    if (form.value.id !== datasourceId || !isEditTable.value) {
-      return
-    }
-    const recoveredJob = jobs.find((item) => isRunningSyncJobStatus(item.status)) || jobs[0]
-    if (!recoveredJob?.job_id) {
-      syncJob.value = null
-      return
-    }
-    startSyncJobTracking({ ...recoveredJob, datasource_id: datasourceId }, { restored: true })
-  } finally {
-    syncJobRestoring.value = false
-  }
+  closeSyncJobDialog()
+  done()
 }
 
 const rules = reactive<FormRules>({
@@ -519,7 +348,6 @@ const rules = reactive<FormRules>({
   ],
 })
 
-const dialogVisible = ref<boolean>(false)
 const form = ref<any>({
   name: '',
   description: '',
@@ -542,7 +370,6 @@ const form = ref<any>({
 
 const close = () => {
   resetSyncJobState()
-  dialogVisible.value = false
   isCreate.value = true
   emit('changeActiveStep', 0)
   emit('close')
@@ -563,7 +390,6 @@ const initForm = (item: any, editTable: boolean = false) => {
   keywords.value = ''
   dsFormRef.value!.clearValidate()
   if (item) {
-    dialogTitle.value = editTable ? t('ds.form.title.choose_tables') : t('ds.form.title.edit')
     isCreate.value = false
     form.value.id = item.id
     form.value.name = item.name
@@ -590,7 +416,6 @@ const initForm = (item: any, editTable: boolean = false) => {
     }
 
     if (editTable) {
-      dialogTitle.value = t('ds.form.choose_tables')
       emit('changeActiveStep', 2)
       isEditTable.value = true
       isCreate.value = false
@@ -637,7 +462,6 @@ const initForm = (item: any, editTable: boolean = false) => {
         })
     }
   } else {
-    dialogTitle.value = t('ds.form.title.add')
     isCreate.value = true
     isEditTable.value = false
     checkList.value = []
@@ -662,94 +486,112 @@ const initForm = (item: any, editTable: boolean = false) => {
       lowVersion: false,
     }
   }
-  dialogVisible.value = true
+}
+
+const isAsyncSyncUnavailableError = (error: unknown) =>
+  axios.isAxiosError(error) && error.response?.status === 422
+
+const isAsyncSyncJobResponse = (value: unknown): value is { job_id: number; reused_active_job?: boolean } =>
+  !!value && typeof value === 'object' && 'job_id' in value
+
+const announceAsyncSyncJob = (reusedActiveJob?: boolean) => {
+  ElMessage({
+    message: t(
+      reusedActiveJob ? 'ds.form.sync_job.message.reused' : 'ds.form.sync_job.message.started'
+    ),
+    type: reusedActiveJob ? 'warning' : 'success',
+    showClose: true,
+  })
+}
+
+const saveTableSelection = async (list: DatasourceSelectedTable[]) => {
+  const datasourceId = form.value.id
+  const tableNames = list.map((item) => item.table_name)
+
+  try {
+    const job = await datasourceSyncJobApi.submitJob({
+      datasource_id: datasourceId,
+      tables: tableNames,
+    })
+
+    announceAsyncSyncJob(job.reused_active_job)
+    await startSyncJobTracking(job, { showError: true })
+    return
+  } catch (error) {
+    if (!isAsyncSyncUnavailableError(error)) {
+      await request.showError(error)
+      return
+    }
+  }
+
+  const response = await datasourceApi.chooseTables(datasourceId, list)
+
+  if (response === null) {
+    close()
+    emit('refresh')
+    return
+  }
+
+  if (isAsyncSyncJobResponse(response)) {
+    announceAsyncSyncJob(response.reused_active_job)
+    await startSyncJobTracking(response, { showError: true })
+    return
+  }
+
+  close()
+  emit('refresh')
 }
 
 const save = async (formEl: FormInstance | undefined) => {
   if (!formEl) return
-  await formEl.validate(async (valid) => {
-    if (valid) {
-      const list: DatasourceSelectedTable[] = tableList.value
-        .filter((ele: any) => {
-          return checkTableList.value.includes(ele.tableName)
-        })
-        .map((ele: any) => {
-          return { table_name: ele.tableName, table_comment: ele.tableComment }
-        })
+  const valid = await formEl.validate().catch(() => false)
+  if (!valid) return
 
-      if (checkTableList.value.length > 30) {
-        const excessive = await ElMessageBox.confirm(t('common.excessive_tables_selected'), {
-          tip: t('common.to_continue_saving', { msg: checkTableList.value.length }),
-          confirmButtonText: t('common.save'),
-          cancelButtonText: t('common.cancel'),
-          confirmButtonType: 'primary',
-          type: 'warning',
-          customClass: 'confirm-with_icon',
-          autofocus: false,
-        })
+  const list: DatasourceSelectedTable[] = tableList.value
+    .filter((ele: any) => {
+      return checkTableList.value.includes(ele.tableName)
+    })
+    .map((ele: any) => {
+      return { table_name: ele.tableName, table_comment: ele.tableComment }
+    })
 
-        if (excessive !== 'confirm') return
+  if (checkTableList.value.length > 30) {
+    const excessive = await ElMessageBox.confirm(t('common.excessive_tables_selected'), {
+      tip: t('common.to_continue_saving', { msg: checkTableList.value.length }),
+      confirmButtonText: t('common.save'),
+      cancelButtonText: t('common.cancel'),
+      confirmButtonType: 'primary',
+      type: 'warning',
+      customClass: 'confirm-with_icon',
+      autofocus: false,
+    })
+
+    if (excessive !== 'confirm') return
+  }
+
+  saveLoading.value = true
+  try {
+    const requestObj = buildConf()
+
+    if (form.value.id) {
+      if (!isEditTable.value) {
+        await datasourceApi.update(requestObj)
+        close()
+        emit('refresh')
+        return
       }
-      saveLoading.value = true
 
-      const requestObj = buildConf()
-      if (form.value.id) {
-        if (!isEditTable.value) {
-          // only update datasource config info
-          datasourceApi
-            .update(requestObj)
-            .then(() => {
-              close()
-              emit('refresh')
-            })
-            .finally(() => {
-              saveLoading.value = false
-            })
-        } else {
-          // save table and field
-          datasourceApi
-            .chooseTables(form.value.id, list)
-            .then((res) => {
-              if (res === null) {
-                close()
-                emit('refresh')
-                return
-              }
-
-              if (res.reused_active_job) {
-                ElMessage({
-                  message: t('ds.form.sync_job.message.reused'),
-                  type: 'warning',
-                  showClose: true,
-                })
-              } else {
-                ElMessage({
-                  message: t('ds.form.sync_job.message.started'),
-                  type: 'success',
-                  showClose: true,
-                })
-              }
-
-              startSyncJobTracking(res)
-            })
-            .finally(() => {
-              saveLoading.value = false
-            })
-        }
-      } else {
-        requestObj.tables = list
-        datasourceApi
-          .add(requestObj)
-          .then(() => {
-            close()
-            emit('refresh')
-          })
-          .finally(() => {
-            saveLoading.value = false
-          })
-      }
+      await saveTableSelection(list)
+      return
     }
-  })
+
+    requestObj.tables = list
+    await datasourceApi.add(requestObj)
+    close()
+    emit('refresh')
+  } finally {
+    saveLoading.value = false
+  }
 }
 
 const buildConf = () => {
@@ -832,7 +674,6 @@ const getSchema = debounce(async () => {
 
 onBeforeUnmount(() => {
   saveLoading.value = false
-  stopSyncJobPolling()
 })
 
 const next = debounce(async (formEl: FormInstance | undefined) => {
@@ -1204,122 +1045,6 @@ defineExpose({
         <div class="title">
           {{ $t('ds.form.choose_tables') }} ({{ checkTableList.length }}/ {{ tableList.length }})
         </div>
-        <div v-if="syncJobRestoring || syncJob" class="sync-job-panel" :class="`is-${syncJobTone}`">
-          <div class="sync-job-panel__header">
-            <div class="sync-job-panel__headline">
-              <span class="sync-job-panel__dot" />
-              <div>
-                <div class="sync-job-panel__title">{{ syncJobTitle }}</div>
-                <div class="sync-job-panel__summary">
-                  {{
-                    syncJobRestoring && !syncJob
-                      ? t('ds.form.sync_job.message.restoring')
-                      : syncJobSummary
-                  }}
-                </div>
-              </div>
-            </div>
-            <div v-if="syncJob" class="sync-job-panel__actions">
-              <el-button
-                v-if="canCancelSyncJob"
-                secondary
-                size="small"
-                :loading="syncJobActionLoading"
-                :disabled="syncJobActionLoading"
-                @click="cancelSyncJob"
-              >
-                {{ t('common.cancel') }}
-              </el-button>
-              <el-button
-                v-else-if="canRetrySyncJob"
-                secondary
-                size="small"
-                :loading="syncJobActionLoading"
-                :disabled="syncJobActionLoading"
-                @click="retrySyncJob"
-              >
-                {{ t('common.retry') }}
-              </el-button>
-              <el-tag size="small" effect="plain" :type="syncJobTagType">
-                {{ translateSyncJobToken('status', syncJob.status) }}
-              </el-tag>
-            </div>
-          </div>
-
-          <template v-if="syncJob">
-            <el-progress
-              :percentage="syncJobPercent"
-              :stroke-width="8"
-              :status="syncJobProgressStatus"
-            />
-
-            <div v-if="syncJobHint" class="sync-job-panel__hint">
-              <el-icon>
-                <Icon name="icon_warning_filled"><icon_warning_filled class="svg-icon" /></Icon>
-              </el-icon>
-              <span>{{ syncJobHint }}</span>
-            </div>
-
-            <div class="sync-job-panel__meta">
-              <div class="sync-job-panel__meta-item">
-                <span class="label">{{ t('ds.form.sync_job.phase_label') }}</span>
-                <span>{{ translateSyncJobToken('phase', syncJob.phase) }}</span>
-              </div>
-              <div class="sync-job-panel__meta-item">
-                <span class="label">{{ t('common.start_time') }}</span>
-                <span>{{ formatSyncJobTime(syncJob.start_time || syncJob.create_time) }}</span>
-              </div>
-              <div class="sync-job-panel__meta-item">
-                <span class="label">{{ t('common.end_time') }}</span>
-                <span>{{ formatSyncJobTime(syncJob.finish_time) }}</span>
-              </div>
-              <div class="sync-job-panel__meta-item">
-                <span class="label">{{ t('ds.form.sync_job.last_updated') }}</span>
-                <span>{{ formatSyncJobTime(syncJob.update_time) }}</span>
-              </div>
-            </div>
-
-            <div class="sync-job-panel__stats">
-              <div class="sync-job-panel__stat">
-                <span class="label">{{ t('ds.form.sync_job.total_tables') }}</span>
-                <span class="value">{{ syncJobTableTotal || checkTableList.length }}</span>
-              </div>
-              <div class="sync-job-panel__stat">
-                <span class="label">{{ t('ds.form.sync_job.completed_tables') }}</span>
-                <span class="value">{{ syncJobCompletedTables }}</span>
-              </div>
-              <div class="sync-job-panel__stat">
-                <span class="label">{{ t('ds.form.sync_job.failed_tables') }}</span>
-                <span class="value">{{ syncJobFailedTables }}</span>
-              </div>
-              <div class="sync-job-panel__stat">
-                <span class="label">{{ t('ds.form.sync_job.skipped_tables') }}</span>
-                <span class="value">{{ syncJobSkippedTables }}</span>
-              </div>
-              <div class="sync-job-panel__stat">
-                <span class="label">{{ t('ds.form.sync_job.field_progress') }}</span>
-                <span class="value">{{ syncJobFieldsText }}</span>
-              </div>
-            </div>
-
-            <div v-if="syncJob.current_table_name" class="sync-job-panel__meta-item current-table">
-              <span class="label">{{ t('ds.form.sync_job.current_table_label') }}</span>
-              <span>{{ syncJob.current_table_name }}</span>
-            </div>
-
-            <div
-              v-if="syncJob.embedding_followup_status"
-              class="sync-job-panel__meta-item sync-job-panel__meta-item--full"
-            >
-              <span class="label">{{ t('ds.form.sync_job.embedding_followup_status') }}</span>
-              <span>{{ translateSyncJobToken('status', syncJob.embedding_followup_status) }}</span>
-            </div>
-
-            <div v-if="syncJob.error_summary" class="sync-job-panel__error">
-              {{ syncJob.error_summary }}
-            </div>
-          </template>
-        </div>
         <el-input
           v-model="keywords"
           clearable
@@ -1404,6 +1129,133 @@ defineExpose({
         {{ syncJobPrimaryButtonText }}
       </el-button>
     </div>
+
+    <el-dialog
+      v-if="syncJob"
+      v-model="syncJobDialogVisible"
+      width="720px"
+      destroy-on-close
+      :close-on-click-modal="false"
+      :close-on-press-escape="canCloseSyncJobDialog"
+      :show-close="canCloseSyncJobDialog"
+      modal-class="datasource-sync-job_dialog"
+      @closed="closeSyncJobDialog"
+      :before-close="handleSyncJobDialogBeforeClose"
+    >
+      <template #header>
+        <div class="sync-job-dialog__header">
+          <div>
+            <div class="sync-job-dialog__title">{{ syncJobTitle }}</div>
+            <div class="sync-job-dialog__subtitle">{{ syncJobSummary }}</div>
+          </div>
+          <el-tag size="small" effect="plain" :type="syncJobTagType">
+            {{ translateSyncJobToken('status', syncJob.status) }}
+          </el-tag>
+        </div>
+      </template>
+
+      <div class="sync-job-panel" :class="`is-${syncJobTone}`">
+        <el-progress
+          :percentage="syncJobPercent"
+          :stroke-width="8"
+          :status="syncJobProgressStatus"
+        />
+
+        <div v-if="syncJobHint" class="sync-job-panel__hint">
+          <el-icon>
+            <Icon name="icon_warning_filled"><icon_warning_filled class="svg-icon" /></Icon>
+          </el-icon>
+          <span>{{ syncJobHint }}</span>
+        </div>
+
+        <div class="sync-job-panel__meta">
+          <div class="sync-job-panel__meta-item">
+            <span class="label">{{ t('ds.form.sync_job.phase_label') }}</span>
+            <span>{{ translateSyncJobToken('phase', syncJob.phase) }}</span>
+          </div>
+          <div class="sync-job-panel__meta-item">
+            <span class="label">{{ t('common.start_time') }}</span>
+            <span>{{ formatSyncJobTime(syncJob.start_time || syncJob.create_time) }}</span>
+          </div>
+          <div class="sync-job-panel__meta-item">
+            <span class="label">{{ t('common.end_time') }}</span>
+            <span>{{ formatSyncJobTime(syncJob.finish_time) }}</span>
+          </div>
+          <div class="sync-job-panel__meta-item">
+            <span class="label">{{ t('ds.form.sync_job.last_updated') }}</span>
+            <span>{{ formatSyncJobTime(syncJob.update_time) }}</span>
+          </div>
+        </div>
+
+        <div class="sync-job-panel__stats">
+          <div class="sync-job-panel__stat">
+            <span class="label">{{ t('ds.form.sync_job.total_tables') }}</span>
+            <span class="value">{{ syncJobTableTotal || checkTableList.length }}</span>
+          </div>
+          <div class="sync-job-panel__stat">
+            <span class="label">{{ t('ds.form.sync_job.completed_tables') }}</span>
+            <span class="value">{{ syncJobCompletedTables }}</span>
+          </div>
+          <div class="sync-job-panel__stat">
+            <span class="label">{{ t('ds.form.sync_job.failed_tables') }}</span>
+            <span class="value">{{ syncJobFailedTables }}</span>
+          </div>
+          <div class="sync-job-panel__stat">
+            <span class="label">{{ t('ds.form.sync_job.skipped_tables') }}</span>
+            <span class="value">{{ syncJobSkippedTables }}</span>
+          </div>
+          <div class="sync-job-panel__stat">
+            <span class="label">{{ t('ds.form.sync_job.field_progress') }}</span>
+            <span class="value">{{ syncJobFieldsText }}</span>
+          </div>
+        </div>
+
+        <div v-if="syncJob.current_table_name" class="sync-job-panel__meta-item current-table">
+          <span class="label">{{ t('ds.form.sync_job.current_table_label') }}</span>
+          <span>{{ syncJob.current_table_name }}</span>
+        </div>
+
+        <div
+          v-if="syncJob.embedding_followup_status"
+          class="sync-job-panel__meta-item sync-job-panel__meta-item--full"
+        >
+          <span class="label">{{ t('ds.form.sync_job.embedding_followup_status') }}</span>
+          <span>{{ translateSyncJobToken('status', syncJob.embedding_followup_status) }}</span>
+        </div>
+
+        <div v-if="syncJobRequestError" class="sync-job-panel__error">
+          {{ syncJobRequestError }}
+        </div>
+        <div
+          v-else-if="syncJob.error_summary && syncJobFailureDetails.length <= 1"
+          class="sync-job-panel__error"
+        >
+          {{ syncJob.error_summary }}
+        </div>
+        <ul v-else-if="syncJobFailureDetails.length > 1" class="sync-job-panel__detail-list">
+          <li v-for="detail in syncJobFailureDetails" :key="detail">
+            {{ detail }}
+          </li>
+        </ul>
+      </div>
+
+      <template #footer>
+        <div class="sync-job-dialog__footer">
+          <el-button v-if="canCloseSyncJobDialog" secondary @click="closeSyncJobDialog">
+            {{ t('common.close') }}
+          </el-button>
+          <el-button
+            v-if="canCancelSyncJob"
+            type="primary"
+            :loading="syncJobActionLoading"
+            :disabled="syncJobActionLoading"
+            @click="cancelSyncJob"
+          >
+            {{ t('common.cancel') }}
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -1544,172 +1396,6 @@ defineExpose({
       margin: 0 0 16px 0;
     }
 
-    .sync-job-panel {
-      border: 1px solid var(--ed-border-color-light, #dee0e3);
-      border-radius: 6px;
-      background: var(--ed-fill-color-light, #f5f6f7);
-      padding: 16px;
-      margin-bottom: 16px;
-
-      &.is-primary {
-        border-color: var(--ed-color-primary-33, #1cba9033);
-        background: var(--ed-color-primary-5, #f4fbf8);
-      }
-
-      &.is-success {
-        border-color: var(--ed-color-success-light-5, #b7ebd9);
-        background: var(--ed-color-success-light-9, #f0f9f6);
-      }
-
-      &.is-warning {
-        border-color: var(--ed-color-warning-light-5, #f8d7a4);
-        background: var(--ed-color-warning-light-9, #fff8eb);
-      }
-
-      &.is-danger {
-        border-color: var(--ed-color-danger-light-5, #f4b8b6);
-        background: var(--ed-color-danger-light-9, #fff4f4);
-      }
-
-      &__header {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 12px;
-      }
-
-      &__headline {
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
-      }
-
-      &__actions {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      &__dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        margin-top: 7px;
-        flex-shrink: 0;
-        background: var(--ed-color-primary);
-      }
-
-      &__title {
-        font-weight: 500;
-        font-size: 14px;
-        line-height: 22px;
-        color: var(--ed-text-color-primary, #1f2329);
-      }
-
-      &__summary {
-        margin-top: 2px;
-        font-size: 13px;
-        line-height: 20px;
-        color: var(--ed-text-color-secondary, #646a73);
-      }
-
-      &__hint {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-top: 12px;
-        padding: 8px 10px;
-        border-radius: 4px;
-        background: var(--ed-color-warning-light-9, #fff8eb);
-        color: var(--ed-text-color-regular, #1f2329);
-        font-size: 13px;
-        line-height: 20px;
-
-        .ed-icon {
-          color: var(--ed-color-warning, #e69800);
-        }
-      }
-
-      &__meta {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 8px 16px;
-        margin-top: 12px;
-      }
-
-      &__meta-item {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        font-size: 13px;
-        line-height: 20px;
-        color: var(--ed-text-color-primary, #1f2329);
-
-        &.current-table,
-        &--full {
-          margin-top: 12px;
-        }
-
-        .label {
-          color: var(--ed-text-color-secondary, #646a73);
-          flex-shrink: 0;
-        }
-      }
-
-      &__stats {
-        display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-        gap: 8px;
-        margin-top: 12px;
-      }
-
-      &__stat {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        padding: 10px 12px;
-        border-radius: 4px;
-        background: var(--ed-bg-color, #fff);
-
-        .label {
-          font-size: 12px;
-          line-height: 18px;
-          color: var(--ed-text-color-secondary, #646a73);
-        }
-
-        .value {
-          font-weight: 500;
-          font-size: 14px;
-          line-height: 22px;
-          color: var(--ed-text-color-primary, #1f2329);
-        }
-      }
-
-      &__error {
-        margin-top: 12px;
-        padding: 10px 12px;
-        border-radius: 4px;
-        background: var(--ed-bg-color, #fff);
-        color: var(--ed-color-danger, #f54a45);
-        font-size: 13px;
-        line-height: 20px;
-        white-space: pre-wrap;
-      }
-    }
-
-    .sync-job-panel.is-success .sync-job-panel__dot {
-      background: var(--ed-color-success, #00b42a);
-    }
-
-    .sync-job-panel.is-warning .sync-job-panel__dot {
-      background: var(--ed-color-warning, #e69800);
-    }
-
-    .sync-job-panel.is-danger .sync-job-panel__dot {
-      background: var(--ed-color-danger, #f54a45);
-    }
-
     .container {
       border: 1px solid #dee0e3;
       border-radius: 4px;
@@ -1732,6 +1418,149 @@ defineExpose({
       :deep(.ed-vl__window) {
         scrollbar-width: none;
       }
+    }
+  }
+
+  .sync-job-dialog__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .sync-job-dialog__title {
+    font-weight: 500;
+    font-size: 16px;
+    line-height: 24px;
+    color: var(--ed-text-color-primary, #1f2329);
+  }
+
+  .sync-job-dialog__subtitle {
+    margin-top: 4px;
+    font-size: 13px;
+    line-height: 20px;
+    color: var(--ed-text-color-secondary, #646a73);
+  }
+
+  .sync-job-dialog__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+  }
+
+  .sync-job-panel {
+    border: 1px solid var(--ed-border-color-light, #dee0e3);
+    border-radius: var(--ed-border-radius-base, 6px);
+    background: var(--ed-fill-color-light, #f5f6f7);
+    padding: 16px;
+
+    &.is-primary {
+      border-color: var(--ed-color-primary-33, #1cba9033);
+      background: var(--ed-color-primary-5, #f4fbf8);
+    }
+
+    &.is-success {
+      border-color: var(--ed-color-success-light-5, #b7ebd9);
+      background: var(--ed-color-success-light-9, #f0f9f6);
+    }
+
+    &.is-warning {
+      border-color: var(--ed-color-warning-light-5, #f8d7a4);
+      background: var(--ed-color-warning-light-9, #fff8eb);
+    }
+
+    &.is-danger {
+      border-color: var(--ed-color-danger-light-5, #f4b8b6);
+      background: var(--ed-color-danger-light-9, #fff4f4);
+    }
+
+    &__hint {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      padding: 8px 10px;
+      border-radius: 4px;
+      background: var(--ed-color-warning-light-9, #fff8eb);
+      color: var(--ed-text-color-regular, #1f2329);
+      font-size: 13px;
+      line-height: 20px;
+
+      .ed-icon {
+        color: var(--ed-color-warning, #e69800);
+      }
+    }
+
+    &__meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 16px;
+      margin-top: 12px;
+    }
+
+    &__meta-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+      line-height: 20px;
+      color: var(--ed-text-color-primary, #1f2329);
+
+      &.current-table,
+      &--full {
+        margin-top: 12px;
+      }
+
+      .label {
+        color: var(--ed-text-color-secondary, #646a73);
+        flex-shrink: 0;
+      }
+    }
+
+    &__stats {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    &__stat {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 10px 12px;
+      border-radius: 4px;
+      background: var(--ed-bg-color, #fff);
+
+      .label {
+        font-size: 12px;
+        line-height: 18px;
+        color: var(--ed-text-color-secondary, #646a73);
+      }
+
+      .value {
+        font-weight: 500;
+        font-size: 14px;
+        line-height: 22px;
+        color: var(--ed-text-color-primary, #1f2329);
+      }
+    }
+
+    &__error,
+    &__detail-list {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 4px;
+      background: var(--ed-bg-color, #fff);
+      color: var(--ed-color-danger, #f54a45);
+      font-size: 13px;
+      line-height: 20px;
+      white-space: pre-wrap;
+    }
+
+    &__detail-list {
+      padding-left: 28px;
+      margin-bottom: 0;
     }
   }
 }
