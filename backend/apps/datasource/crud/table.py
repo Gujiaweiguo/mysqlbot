@@ -15,6 +15,24 @@ from common.utils.utils import SQLBotLogUtil
 from ..models.datasource import CoreDatasource, CoreField, CoreTable
 
 
+MAX_EMBEDDING_INPUT_CHARS = 2000
+
+
+def _truncate_embedding_input(text: str) -> str:
+    if len(text) <= MAX_EMBEDDING_INPUT_CHARS:
+        return text
+
+    SQLBotLogUtil.warning(
+        f"Embedding input exceeded safe limit ({len(text)} chars), "
+        f"truncating to {MAX_EMBEDDING_INPUT_CHARS} chars"
+    )
+    truncated = text[:MAX_EMBEDDING_INPUT_CHARS]
+    last_paren = truncated.rfind(")")
+    if last_paren > 0:
+        return truncated[: last_paren + 1] + "\n]\n"
+    return truncated + "\n]\n"
+
+
 def delete_table_by_ds_id(session: SessionDep, id: int) -> None:
     session.query(CoreTable).filter(col(CoreTable.ds_id) == id).delete(
         synchronize_session=False
@@ -124,6 +142,7 @@ def save_table_embedding(session_maker: Any, ids: list[int]) -> None:
                             )
                     schema_table += ",\n".join(field_list)
                 schema_table += "\n]\n"
+                schema_table = _truncate_embedding_input(schema_table)
 
                 emb = json.dumps(model.embed_query(schema_table))
                 stmt = (
@@ -210,6 +229,8 @@ def save_ds_embedding(session_maker: Any, ids: list[int]) -> None:
                                 )
                         schema_table += ",\n".join(field_list)
                     schema_table += "\n]\n"
+
+                schema_table = _truncate_embedding_input(schema_table)
 
                 emb = json.dumps(model.embed_query(schema_table))
                 stmt = (

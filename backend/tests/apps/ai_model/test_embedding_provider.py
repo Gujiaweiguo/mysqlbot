@@ -239,3 +239,33 @@ def test_tencent_provider_raises_after_retry_exhaustion(
     with pytest.raises(_TencentEmbeddingError):
         provider.embed_query("hello")
     assert fake_client.calls == 3
+
+
+def test_tencent_provider_does_not_retry_long_internal_error(
+    monkeypatch: pytest.MonkeyPatch, embedding_module: ModuleType
+) -> None:
+    fake_client = _FakeTencentClient(
+        [_TencentEmbeddingError("InternalError", "internal error")]
+    )
+    sleep_calls: list[int] = []
+    monkeypatch.setattr(
+        embedding_module.time, "sleep", lambda seconds: sleep_calls.append(seconds)
+    )
+    fake_tencent_module = ModuleType("tencentcloud.lkeap.v20240522")
+    setattr(
+        fake_tencent_module,
+        "models",
+        SimpleNamespace(GetEmbeddingRequest=_FakeGetEmbeddingRequest),
+    )
+    sys.modules["tencentcloud.lkeap.v20240522"] = fake_tencent_module
+    provider = embedding_module.TencentCloudEmbeddingProvider.__new__(
+        embedding_module.TencentCloudEmbeddingProvider
+    )
+    provider._client = fake_client
+    provider._model = "demo-model"
+
+    with pytest.raises(ValueError, match="Input likely exceeds API limit"):
+        provider.embed_query("x" * 3001)
+
+    assert fake_client.calls == 1
+    assert sleep_calls == []

@@ -246,3 +246,58 @@ def test_save_table_embedding_continues_after_single_failure(
         "# Table: members, members table\n[\n(nickname:varchar, nickname)\n]\n",
     ]
     assert fake_session_maker.removed is True
+
+
+def test_truncate_embedding_input_keeps_short_text() -> None:
+    text = "# Table: orders\n[\n(order_amount:numeric, amount)\n]\n"
+
+    assert table_crud._truncate_embedding_input(text) == text
+
+
+def test_truncate_embedding_input_closes_structure() -> None:
+    long_field = "x" * 250
+    schema_table = "# Table: orders, orders table\n[\n" + ",\n".join(
+        f"(field_{index}:varchar, {long_field})" for index in range(20)
+    )
+    schema_table += "\n]\n"
+
+    truncated = table_crud._truncate_embedding_input(schema_table)
+
+    assert len(truncated) <= table_crud.MAX_EMBEDDING_INPUT_CHARS + 3
+    assert truncated.endswith("\n]\n")
+    assert truncated != schema_table
+
+
+def test_save_table_embedding_truncates_long_schema_before_embedding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = _FakeEmbeddingProvider()
+    fake_session = _FakeSession()
+    fake_session.fields = [
+        CoreField(
+            id=index,
+            ds_id=1,
+            table_id=1,
+            checked=True,
+            field_name=f"field_{index}",
+            field_type="varchar",
+            field_comment="",
+            custom_comment="x" * 250,
+            field_index=index,
+        )
+        for index in range(20)
+    ]
+    fake_session_maker = _FakeSessionMaker(fake_session)
+    monkeypatch.setattr(table_crud.settings, "TABLE_EMBEDDING_ENABLED", True)
+    monkeypatch.setattr(table_crud, "embedding_runtime_enabled", lambda: True)
+    monkeypatch.setattr(
+        table_crud.EmbeddingModelCache,
+        "get_model",
+        staticmethod(lambda: provider),
+    )
+
+    table_crud.save_table_embedding(fake_session_maker, [1])
+
+    assert len(provider.query_calls) == 1
+    assert len(provider.query_calls[0]) <= table_crud.MAX_EMBEDDING_INPUT_CHARS + 3
+    assert provider.query_calls[0].endswith("\n]\n")

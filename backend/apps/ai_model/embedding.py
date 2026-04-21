@@ -272,7 +272,8 @@ class RemoteEmbeddingProvider:
 
 
 class TencentCloudEmbeddingProvider:
-    _TRANSIENT_ERROR_CODES = {
+    _LONG_INPUT_INTERNAL_ERROR_CHARS: int = 3000
+    _TRANSIENT_ERROR_CODES: set[str] = {
         "InternalError",
         "ServerNetworkError",
         "ClientNetworkError",
@@ -322,6 +323,15 @@ class TencentCloudEmbeddingProvider:
                 resp = self._client.GetEmbedding(req)
                 break
             except Exception as exc:
+                if (
+                    self._get_error_code(exc) == "InternalError"
+                    and len(text) > self._LONG_INPUT_INTERNAL_ERROR_CHARS
+                ):
+                    raise ValueError(
+                        f"Tencent Cloud embedding InternalError with long input "
+                        f"({len(text)} chars). Input likely exceeds API limit. "
+                        "Truncate input before calling."
+                    ) from exc
                 if not self._is_retryable_error(exc) or attempt == max_attempts:
                     raise
                 sleep_seconds = attempt
