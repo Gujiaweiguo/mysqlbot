@@ -80,7 +80,7 @@ path = settings.EXCEL_PATH
 
 def _should_use_async_sync(tables: list[SelectedTablePayload]) -> bool:
     return settings.DATASOURCE_ASYNC_SYNC_ENABLED and (
-        len(tables) > settings.DATASOURCE_ASYNC_SYNC_TABLE_THRESHOLD
+        len(tables) >= settings.DATASOURCE_ASYNC_SYNC_TABLE_THRESHOLD
     )
 
 
