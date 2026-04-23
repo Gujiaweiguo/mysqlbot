@@ -69,11 +69,11 @@ Key development settings:
 **2. Start infrastructure (postgresql + redis)**
 
 ```bash
-# Start postgresql + redis
-docker compose -f docker-compose.dev.yaml -f docker-compose.dev.redis.yaml up -d
-
 # Start postgresql only (no redis)
 docker compose -f docker-compose.dev.yaml up -d
+
+# Start postgresql + redis
+docker compose -f docker-compose.dev.yaml -f docker-compose.dev.redis.yaml up -d
 ```
 
 **3. Start frontend and backend**
@@ -85,6 +85,12 @@ bash dev-start.sh
 ```
 
 This helper starts PostgreSQL, the main backend on `:8000`, the MCP development service on `:8001`, and the frontend build watcher together. If you prefer to launch components manually, use the commands below.
+
+Redis is **not** started by default. If you need it locally, run:
+
+```bash
+WITH_REDIS=1 bash dev-start.sh
+```
 
 ```bash
 # Start backend (default :8000)

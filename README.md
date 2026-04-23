@@ -97,11 +97,11 @@ cp .env.example .env
 **2. 启动基础设施（postgresql + redis）**
 
 ```bash
-# 启动 postgresql + redis
-docker compose -f docker-compose.dev.yaml -f docker-compose.dev.redis.yaml up -d
-
 # 仅启动 postgresql（不用 redis）
 docker compose -f docker-compose.dev.yaml up -d
+
+# 启动 postgresql + redis
+docker compose -f docker-compose.dev.yaml -f docker-compose.dev.redis.yaml up -d
 
 # 查看状态
 docker compose -f docker-compose.dev.yaml ps
@@ -120,6 +120,12 @@ bash dev-start.sh
 - 主后端服务（`make backend-dev`，`:8000`）
 - MCP 开发服务（`make backend-mcp-dev`，`:8001`）
 - 前端构建监听（`make frontend-dev`）
+
+默认**不会**启动 Redis。如果本地开发需要 Redis，请使用：
+
+```bash
+WITH_REDIS=1 bash dev-start.sh
+```
 
 如果你需要逐个组件手动启动，也可以使用下面的命令：
 
