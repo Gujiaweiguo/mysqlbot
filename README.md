@@ -39,6 +39,8 @@ make test
 
 其中 `Makefile` 负责把命令分发到 `backend/` 和 `frontend/` 内部的实际脚本；如果你需要看底层命令，再进入对应子目录即可。
 
+如果你希望一条命令启动本地开发环境，推荐直接使用 `bash dev-start.sh`。该脚本会默认拉起 postgresql、主后端、MCP 开发服务和前端构建监听；对应的停止脚本是 `bash dev-stop.sh`。
+
 ### 部署模式
 
 项目支持两套部署模式：**开发环境** 和 **生产环境**。
@@ -107,6 +109,20 @@ docker compose -f docker-compose.dev.yaml ps
 
 **3. 启动前后端**
 
+推荐的一键方式：
+
+```bash
+bash dev-start.sh
+```
+
+该脚本默认会同时启动：
+
+- 主后端服务（`make backend-dev`，`:8000`）
+- MCP 开发服务（`make backend-mcp-dev`，`:8001`）
+- 前端构建监听（`make frontend-dev`）
+
+如果你需要逐个组件手动启动，也可以使用下面的命令：
+
 ```bash
 # 启动后端（默认 :8000）
 make backend-dev
@@ -134,10 +150,13 @@ make frontend-vite-dev
 **4. 停止开发环境**
 
 ```bash
+# 停止一键启动的本地开发环境（会同时停止 backend / MCP / frontend 和基础设施）
+bash dev-stop.sh
+
 # 停止基础设施
 docker compose -f docker-compose.dev.yaml down
 
-# 停止前后端：在对应终端 Ctrl+C
+# 手动启动各组件时：在对应终端 Ctrl+C
 ```
 
 **5. 开发环境数据目录**
@@ -183,6 +202,8 @@ bash install.sh
 > 运维说明：安装后的启动过程中，如果 `sys_assistant` 中还不存在默认 embedded assistant（`type=4, oid=1`），系统会自动创建一条默认记录；其 `domain` 默认使用 `FRONTEND_HOST`，并且后续启动不会重复创建。
 
 **2. 运行管理（通过 sctl）**
+
+生产环境不需要单独再起一份 MCP 服务。`sctl start` 拉起 `mysqlbot-app` 容器后，容器入口脚本 `start.sh` 会在主 FastAPI 启动前自动启动 `main:mcp_app`，默认监听 `:8001`。
 
 | 命令 | 说明 |
 |------|------|

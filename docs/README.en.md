@@ -59,6 +59,9 @@ Key development settings:
 | `BASE_DIR` | `.` | Local runtime root |
 | `UPLOAD_DIR` | `./data/sqlbot/dev/file` | Uploaded file directory |
 | `MCP_IMAGE_PATH` | `./data/sqlbot/dev/images` | Image and embedding asset directory |
+| `MCP_BIND_HOST` | `0.0.0.0` | MCP service bind address |
+| `MCP_PORT` | `8001` | MCP service port |
+| `MCP_PUBLIC_BASE_URL` | `http://localhost:8001` | Public MCP base URL for OpenClaw |
 | `EXCEL_PATH` | `./data/sqlbot/dev/excel` | Excel import/export directory |
 | `SQLBOT_CACHE_TYPE` | `memory` | Cache type |
 | `SQLBOT_CACHE_REDIS_URL` | `redis://localhost:16379/0` | Redis URL |
@@ -75,9 +78,20 @@ docker compose -f docker-compose.dev.yaml up -d
 
 **3. Start frontend and backend**
 
+Recommended one-command local startup:
+
+```bash
+bash dev-start.sh
+```
+
+This helper starts PostgreSQL, the main backend on `:8000`, the MCP development service on `:8001`, and the frontend build watcher together. If you prefer to launch components manually, use the commands below.
+
 ```bash
 # Start backend (default :8000)
 make backend-dev
+
+# Start MCP development service (default :8001)
+make backend-mcp-dev
 
 # Start frontend build watch (browser entry stays on :8000)
 make frontend-dev
@@ -88,6 +102,10 @@ make frontend-vite-dev
 
 Development access URL: `http://localhost:8000/#/login`
 
+Development MCP endpoint: `http://localhost:8001/mcp`
+
+Development MCP health check: `http://localhost:8001/health`
+
 > Operational note: on the first backend startup, if the `admin` account still has the legacy seeded password, the system automatically syncs it to `DEFAULT_PWD`. If an administrator has already changed the password, the existing password is preserved.
 
 > Operational note: on backend startup, if `sys_assistant` does not yet contain the default embedded assistant (`type=4, oid=1`), the system automatically creates one. Its default `domain` comes from `FRONTEND_HOST`, and later startups do not create duplicates.
@@ -95,6 +113,9 @@ Development access URL: `http://localhost:8000/#/login`
 **4. Stop development environment**
 
 ```bash
+bash dev-stop.sh
+
+# Or stop infrastructure only
 docker compose -f docker-compose.dev.yaml down
 ```
 
@@ -126,6 +147,8 @@ bash install.sh
 > Operational note: during startup, if `sys_assistant` does not yet contain the default embedded assistant (`type=4, oid=1`), the system automatically creates one. Its default `domain` comes from `FRONTEND_HOST`, and later startups do not create duplicates.
 
 **2. Management (via sctl)**
+
+Production MCP startup is included in the normal container boot flow. After `sctl start` launches `mysqlbot-app`, the container entrypoint `start.sh` starts `main:mcp_app` on `:8001` before the main FastAPI app on `:8000`.
 
 | Command | Description |
 |---------|-------------|
@@ -160,7 +183,7 @@ bash install.sh
 | Aspect | Development | Production |
 |--------|-------------|------------|
 | Frontend | `make frontend-dev` writes `frontend/dist`, optionally `make frontend-vite-dev` for internal Vite debugging | Embedded in `mysqlbot-app` |
-| Backend | Local `uv run uvicorn` | Container |
+| Backend | Local `uv run uvicorn` (`make backend-dev`) + standalone MCP dev process (`make backend-mcp-dev`) | Container `start.sh` starts both main FastAPI and MCP |
 | Database | Container (port 15432) | Container (port 5432) |
 | Redis | Container (port 16379) | Container (port 6379) |
 | Config | `.env` | `install.conf` → `/opt/sqlbot/.env` |

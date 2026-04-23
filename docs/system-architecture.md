@@ -81,17 +81,16 @@ flowchart LR
 
 ### 3.2 开发环境启动
 
-1. 通过 `docker-compose.dev.yaml` 启动 postgresql 和 redis 容器。
-2. 通过 `make backend-dev` 启动后端，对外统一暴露 `:8000`。
-3. 通过 `make frontend-dev` 启动前端构建监听，持续更新 `frontend/dist`。
-4. 如需内部 HMR 调试，可额外执行 `make frontend-vite-dev`。
-5. 后端启动期间会自动补齐默认 embedded assistant（`type=4, oid=1`），其 `domain` 默认使用 `FRONTEND_HOST`。
+1. 推荐通过 `bash dev-start.sh` 一键启动本地开发环境；该脚本会启动 postgresql、主后端（`:8000`）、MCP 开发服务（`:8001`）和前端构建监听。
+2. 如果按组件手动启动，则先通过 `docker-compose.dev.yaml` 启动 postgresql / redis 容器，再分别执行 `make backend-dev`、`make backend-mcp-dev` 和 `make frontend-dev`。
+3. 如需内部 HMR 调试，可额外执行 `make frontend-vite-dev`。
+4. 后端启动期间会自动补齐默认 embedded assistant（`type=4, oid=1`），其 `domain` 默认使用 `FRONTEND_HOST`。
 
 ### 3.3 管理命令
 
 | 环境 | 安装 | 启动 | 停止 | 重启 | 状态 |
 |------|------|------|------|------|------|
-| 开发 | `cp .env.example .env` | `make backend-dev` / `make frontend-dev` | `Ctrl+C` | — | — |
+| 开发 | `cp .env.example .env` | `bash dev-start.sh`（或手动执行 `make backend-dev` / `make backend-mcp-dev` / `make frontend-dev`） | `bash dev-stop.sh`（或逐个 `Ctrl+C`） | — | — |
 | 生产 | `bash install.sh` | `sctl start` | `sctl stop` | `sctl restart` | `sctl status` |
 
 ## 4. 前端架构
