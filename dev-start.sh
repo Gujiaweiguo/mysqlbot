@@ -12,6 +12,7 @@ fi
 
 BASE_DIR="${BASE_DIR:-$REPO_ROOT/data/sqlbot/dev/app}"
 BACKEND_LOG="${BACKEND_LOG:-/tmp/mysqlbot-backend-dev.log}"
+MCP_LOG="${MCP_LOG:-/tmp/mysqlbot-mcp-dev.log}"
 FRONTEND_LOG="${FRONTEND_LOG:-/tmp/mysqlbot-frontend-dev.log}"
 
 mkdir -p \
@@ -27,19 +28,24 @@ mkdir -p \
 ln -sfn "$REPO_ROOT/frontend/dist" "$BASE_DIR/frontend/dist"
 
 pkill -f 'uvicorn main:app --host 0.0.0.0 --port 8000 --reload' || true
+pkill -f 'uvicorn main:mcp_app --host 0.0.0.0 --port 8001 --reload' || true
 pkill -f 'vite build --watch' || true
 pkill -f 'vite preview --host 127.0.0.1 --port 4173' || true
 
 docker compose -f "$REPO_ROOT/docker-compose.dev.yaml" up -d postgresql
 
 nohup make -C "$REPO_ROOT" backend-dev > "$BACKEND_LOG" 2>&1 &
+nohup make -C "$REPO_ROOT" backend-mcp-dev > "$MCP_LOG" 2>&1 &
 nohup make -C "$REPO_ROOT" frontend-dev > "$FRONTEND_LOG" 2>&1 &
 
 for _ in $(seq 1 60); do
-  if curl -sf 'http://127.0.0.1:8000/health' >/dev/null 2>&1; then
+  if curl -sf 'http://127.0.0.1:8000/health' >/dev/null 2>&1 \
+    && curl -sf 'http://127.0.0.1:8001/health' >/dev/null 2>&1; then
     printf 'mySQLBot local dev is ready at http://127.0.0.1:8000/#/login\n'
     printf 'Backend log: %s\n' "$BACKEND_LOG"
+    printf 'MCP log: %s\n' "$MCP_LOG"
     printf 'Frontend log: %s\n' "$FRONTEND_LOG"
+    printf 'MCP endpoint: http://127.0.0.1:8001/mcp\n'
     exit 0
   fi
   sleep 1
@@ -47,5 +53,6 @@ done
 
 printf 'Backend did not become ready in time. Check logs:\n' >&2
 printf '  %s\n' "$BACKEND_LOG" >&2
+printf '  %s\n' "$MCP_LOG" >&2
 printf '  %s\n' "$FRONTEND_LOG" >&2
 exit 1

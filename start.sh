@@ -5,6 +5,8 @@ DB_HOST=${POSTGRES_SERVER:-postgresql}
 DB_PORT=${POSTGRES_PORT:-5432}
 MCP_BIND_HOST=${MCP_BIND_HOST:-0.0.0.0}
 MCP_PORT=${MCP_PORT:-8001}
+APP_LOG_DIR=${APP_LOG_DIR:-$APP_PATH/logs}
+MCP_LOG=${MCP_LOG:-$APP_LOG_DIR/mcp.log}
 
 python - <<'PY'
 import os
@@ -30,7 +32,9 @@ PY
 nohup $PM2_CMD_PATH start $SSR_PATH/app.js &
 #nohup node $SSR_PATH/app.js &
 
-nohup uvicorn main:mcp_app --host "$MCP_BIND_HOST" --port "$MCP_PORT" &
+mkdir -p "$APP_LOG_DIR"
+nohup uvicorn main:mcp_app --host "$MCP_BIND_HOST" --port "$MCP_PORT" > "$MCP_LOG" 2>&1 &
+printf 'MCP service starting on %s:%s (log: %s)\n' "$MCP_BIND_HOST" "$MCP_PORT" "$MCP_LOG"
 
 cd $APP_PATH
 uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1 --proxy-headers
