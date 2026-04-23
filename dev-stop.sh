@@ -9,6 +9,6 @@ pkill -f 'uvicorn main:mcp_app --host 0.0.0.0 --port 8001 --reload' || true
 pkill -f 'vite build --watch' || true
 pkill -f 'vite preview --host 127.0.0.1 --port 4173' || true
 
-docker compose -f "$REPO_ROOT/docker-compose.dev.yaml" down
+docker compose -f "$REPO_ROOT/docker-compose.dev.yaml" -f "$REPO_ROOT/docker-compose.dev.redis.yaml" down
 
 printf 'mySQLBot local dev services stopped.\n'

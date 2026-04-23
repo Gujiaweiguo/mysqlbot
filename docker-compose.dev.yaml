@@ -1,12 +1,13 @@
-# 开发环境基础设施 Compose
+# 开发环境基础设施 Compose（默认仅 PostgreSQL）
 # 用法：
-#   默认启动 postgresql + redis：
-#     docker compose -f docker-compose.dev.yaml -f docker-compose.dev.redis.yaml up -d
-#   仅启动 postgresql（不用 redis）：
+#   默认启动 postgresql（不用 redis）：
 #     docker compose -f docker-compose.dev.yaml up -d
+#   显式启用 redis：
+#     docker compose -f docker-compose.dev.yaml -f docker-compose.dev.redis.yaml up -d
 #
 # 说明：
-#   - 本文件只起 postgresql 和 redis 容器
+#   - 本文件默认只起 postgresql 容器
+#   - redis 通过 docker-compose.dev.redis.yaml 叠加启用
 #   - 前端、后端在宿主机本地运行（make frontend-dev / make backend-dev）
 #   - 端口映射到宿主机非默认端口，避免与本地已有服务冲突
 
@@ -32,24 +33,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
-
-  redis:
-    image: redis:7.4-alpine
-    container_name: sqlbot-redis-dev
-    restart: unless-stopped
-    networks:
-      - sqlbot-dev-network
-    ports:
-      - "${SQLBOT_DEV_REDIS_PORT:-16379}:6379"
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - ${SQLBOT_DEV_REDIS_DATA_DIR:-./data/sqlbot/dev/redis}:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 5s
 
 networks:
   sqlbot-dev-network:
