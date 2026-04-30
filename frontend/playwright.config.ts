@@ -24,7 +24,7 @@ export default defineConfig({
   webServer: {
     command: process.env.CI
       ? `npm run build && npm run preview -- --host 127.0.0.1 --port ${devServerPort}`
-      : `npm run dev -- --host 127.0.0.1 --port ${devServerPort}`,
+      : `npm run build && npx vite preview --host 127.0.0.1 --port ${devServerPort}`,
     url: `http://127.0.0.1:${devServerPort}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
