@@ -196,6 +196,59 @@ bash install.sh
 | Start | `make` + `docker compose` | `install.sh` + `sctl` |
 | Data dir | `./data/sqlbot/dev/` | `./data/sqlbot/prod/` |
 
+## Advanced Assistant Configuration Notes
+
+For advanced assistants (advanced applications), the "Configure Interface" step includes the interface URL, timeout, interface credentials, and the workspace/datasource scope. The two fields that usually need extra explanation are `AES Key` / `AES IV` and interface credentials.
+
+### 1. Where `AES Key` / `AES IV` come from
+
+- mySQLBot does **not** auto-generate `AES Key` or `AES IV`.
+- They are a **shared secret agreed between mySQLBot and the third-party interface**.
+- Enable AES only when the third-party interface returns datasource fields in encrypted form.
+
+The current implementation uses:
+
+- **AES-256-CBC**
+- **PKCS7 / PKCS5Padding**
+- `AES Key`: first **32** characters are used (shorter values are padded)
+- `AES IV`: first **16** characters are used (shorter values are padded)
+
+Recommended practice:
+
+- `AES Key`: a 32-character random string
+- `AES IV`: a 16-character random string
+
+### 2. How to fill interface credentials, and whether they are required
+
+- Interface credentials are **required** for advanced assistants today.
+- You must add at least **one credential row** before the advanced assistant can be saved.
+
+Each credential row contains these fields:
+
+| Field | Meaning | Common example |
+|-------|---------|----------------|
+| Credential Name | A label for operators | `qa-token` |
+| Source Credential Type | Where the credential notionally comes from | usually `custom` |
+| Target Credential Name | The field name sent to the third-party API | `Authorization`, `X-API-Key`, `access_token` |
+| Target Credential Location | Where the credential is attached | `header`, `cookie`, `param` |
+| Target Credential | The actual credential value | `Bearer your-token` |
+
+If the third-party API uses header-based bearer authentication, use:
+
+- Credential Name: `api-token`
+- Source Credential Type: `custom`
+- Target Credential Name: `Authorization`
+- Target Credential Location: `header`
+- Target Credential: `Bearer your-token`
+
+This is equivalent to sending:
+
+```http
+Authorization: Bearer your-token
+```
+
+If the third-party API expects the token in the query string or cookie, keep the same value but change `Target Credential Location` to `param` or `cookie`, and set `Target Credential Name` to the exact field name required by that API.
+
 ---
 
 ### Quality gates
