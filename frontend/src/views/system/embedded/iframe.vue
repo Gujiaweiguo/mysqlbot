@@ -97,6 +97,19 @@ const defaultUrlForm = {
 }
 const urlForm = reactive(cloneDeep(defaultUrlForm))
 
+const RANDOM_STRING_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+
+const generateRandomString = (length: number): string => {
+  return Array.from(
+    { length },
+    () => RANDOM_STRING_CHARS[Math.floor(Math.random() * RANDOM_STRING_CHARS.length)]
+  ).join('')
+}
+
+const generateAesValue = (field: 'aes_key' | 'aes_iv') => {
+  urlForm[field] = generateRandomString(field === 'aes_key' ? 32 : 16)
+}
+
 const basicDsListOptions = ref<any[]>([])
 const advancedDsListOptions = ref<any[]>([])
 const workspaces = ref<any[]>([])
@@ -977,7 +990,32 @@ const saveHandler = () => {
                     ' AES Key'
                   "
                   autocomplete="off"
-                />
+                >
+                  <template #append>
+                    <el-button @click="generateAesValue('aes_key')">Generate</el-button>
+                  </template>
+                </el-input>
+              </el-form-item>
+
+              <el-form-item v-if="urlForm.encrypt" prop="aes_iv" label="AES IV">
+                <el-input
+                  v-model="urlForm.aes_iv"
+                  clearable
+                  type="password"
+                  show-password
+                  :placeholder="
+                    $t('datasource.please_enter') +
+                    $t('common.empty') +
+                    ' 16 ' +
+                    $t('embedded.bit') +
+                    ' AES IV'
+                  "
+                  autocomplete="off"
+                >
+                  <template #append>
+                    <el-button @click="generateAesValue('aes_iv')">Generate</el-button>
+                  </template>
+                </el-input>
               </el-form-item>
 
               <el-form-item class="certificate-table_form" prop="certificate">
