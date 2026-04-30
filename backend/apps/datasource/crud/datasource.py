@@ -220,6 +220,25 @@ def get_datasource_list(
     )
 
 
+def get_datasource_list_by_oids(
+    session: SessionDep, user: CurrentUser, oids: list[int]
+) -> list[CoreDatasource]:
+    unique_oids = sorted({oid for oid in oids if oid > 0})
+    if not unique_oids:
+        return []
+    if not user.isAdmin:
+        if any(oid != user.oid for oid in unique_oids):
+            raise HTTPException(status_code=403, detail="No permission for the workspace")
+        unique_oids = [user.oid]
+    return list(
+        session.exec(
+            select(CoreDatasource)
+            .where(col(CoreDatasource.oid).in_(unique_oids))
+            .order_by(col(CoreDatasource.oid), col(CoreDatasource.name))
+        ).all()
+    )
+
+
 def get_ds(session: SessionDep, id: int) -> CoreDatasource | None:
     statement = select(CoreDatasource).where(col(CoreDatasource.id) == id)
     return session.exec(statement).first()

@@ -78,7 +78,57 @@ def _get_int_list(mapping: dict[str, object], key: str) -> list[int]:
     if not isinstance(value, list):
         return []
     value_list = cast(list[object], value)
-    return [item for item in value_list if isinstance(item, int)]
+    result: list[int] = []
+    for item in value_list:
+        if isinstance(item, int):
+            result.append(item)
+        elif isinstance(item, str) and item.isdigit():
+            result.append(int(item))
+    return result
+
+
+def _dedupe_positive_ints(values: list[int]) -> list[int]:
+    result: list[int] = []
+    seen: set[int] = set()
+    for value in values:
+        if value <= 0 or value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
+
+
+def get_assistant_config(configuration: str | None) -> dict[str, object]:
+    if not configuration:
+        return {}
+    return _parse_json_object(configuration)
+
+
+def get_assistant_workspace_ids(
+    config: dict[str, object], fallback_oid: int | None = None
+) -> list[int]:
+    workspace_ids = _dedupe_positive_ints(_get_int_list(config, "workspace_ids"))
+    if workspace_ids:
+        return workspace_ids
+    legacy_oid = _get_int_value(config, "oid", fallback_oid or 0)
+    return [legacy_oid] if legacy_oid > 0 else []
+
+
+def get_assistant_datasource_ids(config: dict[str, object]) -> list[int]:
+    datasource_ids = _dedupe_positive_ints(_get_int_list(config, "datasource_ids"))
+    if datasource_ids:
+        return datasource_ids
+    return _dedupe_positive_ints(_get_int_list(config, "public_list"))
+
+
+def get_assistant_primary_workspace_id(
+    configuration: str | None, fallback_oid: int | None = None
+) -> int:
+    config = get_assistant_config(configuration)
+    workspace_ids = get_assistant_workspace_ids(config, fallback_oid)
+    if workspace_ids:
+        return workspace_ids[0]
+    return fallback_oid or 1
 
 
 requests_get = cast(RequestsGetProtocol, _requests_module.get)
@@ -115,24 +165,26 @@ def get_assistant_ds(
     assistant: AssistantHeader = current_assistant
     assistant_type = assistant.type
     if assistant_type == 0 or assistant_type == 2:
-        configuration = assistant.configuration
+        config = get_assistant_config(assistant.configuration)
+        workspace_ids = get_assistant_workspace_ids(config, assistant.oid)
+        datasource_ids = _dedupe_positive_ints(_get_int_list(config, "datasource_ids"))
+        legacy_public_list = _dedupe_positive_ints(_get_int_list(config, "public_list"))
         stmt = select(CoreDatasource).where(col(CoreDatasource.id) == -1)
-        if configuration:
-            config = _parse_json_object(configuration)
-            oid = _get_int_value(config, "oid", 0)
-            stmt = select(CoreDatasource).where(col(CoreDatasource.oid) == oid)
-            if not assistant.online:
-                public_list = _get_int_list(config, "public_list")
-                if public_list:
-                    stmt = stmt.where(col(CoreDatasource.id).in_(public_list))
+        if workspace_ids:
+            stmt = select(CoreDatasource).where(col(CoreDatasource.oid).in_(workspace_ids))
+            if datasource_ids:
+                stmt = stmt.where(col(CoreDatasource.id).in_(datasource_ids))
+            elif not assistant.online:
+                if legacy_public_list:
+                    stmt = stmt.where(col(CoreDatasource.id).in_(legacy_public_list))
                 else:
                     return []
-                """ private_list: list[int] = config.get('private_list') or None
-                if private_list:
-                    stmt = stmt.where(~CoreDatasource.id.in_(private_list)) """
+            """ private_list: list[int] = config.get('private_list') or None
+            if private_list:
+                stmt = stmt.where(~CoreDatasource.id.in_(private_list)) """
         db_ds_list = session.exec(stmt).all()
 
-        result_list = [
+        result_list: list[dict[str, object]] = [
             {"id": ds.id, "name": ds.name, "description": ds.description}
             for ds in db_ds_list
         ]
@@ -320,7 +372,7 @@ class AssistantOutDs:
                     field_list.append(f"({field.name}:{field.type}, {field_comment})")
             schema_table += ",\n".join(field_list)
             schema_table += "\n]\n"
-            t_obj = {"id": i, "schema_table": schema_table}
+            t_obj: dict[str, object] = {"id": i, "schema_table": schema_table}
             tables.append(t_obj)
 
         # do table embedding
