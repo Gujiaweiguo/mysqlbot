@@ -75,6 +75,7 @@ from apps.system.crud.assistant import (
     AssistantOutDs,
     AssistantOutDsFactory,
     get_assistant_ds,
+    get_assistant_primary_workspace_id,
 )
 from apps.system.crud.parameter_manage import get_groups
 from apps.system.schemas.system_schema import AssistantOutDsSchema
@@ -731,6 +732,18 @@ class LLMService:
     def set_articles_number(self, articles_number: int | None) -> None:
         self.articles_number = articles_number if articles_number is not None else 4
 
+    def _get_assistant_scope_oid(self, fallback_oid: int | None = None) -> int | None:
+        if not self.current_assistant:
+            return fallback_oid
+        if self.current_assistant.type == 4:
+            return self.current_user.oid
+        if isinstance(self.ds, CoreDatasource) and self.ds.oid is not None:
+            return self.ds.oid
+        return get_assistant_primary_workspace_id(
+            self.current_assistant.configuration,
+            self.current_assistant.oid if self.current_assistant.oid is not None else fallback_oid,
+        )
+
     def get_fields_from_chart(self, _session: Session) -> list[str]:
         if self.record.id is None:
             return []
@@ -743,11 +756,7 @@ class LLMService:
         calculate_oid = oid
         calculate_ds_id = ds_id
         if self.current_assistant:
-            calculate_oid = (
-                self.current_assistant.oid
-                if self.current_assistant.type != 4
-                else self.current_user.oid
-            )
+            calculate_oid = self._get_assistant_scope_oid(oid)
             if self.current_assistant.type == 1:
                 calculate_ds_id = None
         self.current_logs[OperationEnum.FILTER_TERMS] = start_log(
@@ -778,11 +787,7 @@ class LLMService:
             calculate_oid = oid
             calculate_ds_id = ds_id
             if self.current_assistant:
-                calculate_oid = (
-                    self.current_assistant.oid
-                    if self.current_assistant.type != 4
-                    else self.current_user.oid
-                )
+                calculate_oid = self._get_assistant_scope_oid(oid)
                 if self.current_assistant.type == 1:
                     calculate_ds_id = None
             self.current_logs[OperationEnum.FILTER_CUSTOM_PROMPT] = start_log(
@@ -812,11 +817,7 @@ class LLMService:
         calculate_oid = oid
         calculate_ds_id = ds_id
         if self.current_assistant:
-            calculate_oid = (
-                self.current_assistant.oid
-                if self.current_assistant.type != 4
-                else self.current_user.oid
-            )
+            calculate_oid = self._get_assistant_scope_oid(oid)
             if self.current_assistant.type == 1:
                 calculate_ds_id = None
         question_text = self.chat_question.question or ""
@@ -1179,6 +1180,11 @@ class LLMService:
                     data_id = None
 
             if data_id and data_id != 0:
+                match_ds = any(item.get("id") == data_id for item in _ds_list)
+                if not match_ds:
+                    raise SingleMessageError(
+                        f"Datasource configuration with id {data_id} is outside the assistant scope"
+                    )
                 _datasource = data_id
                 _chat = _session.get(Chat, self.record.chat_id)
                 if _chat is None:
