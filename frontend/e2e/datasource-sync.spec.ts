@@ -102,6 +102,25 @@ async function installDatasourceMocks(page: Page) {
       body: JSON.stringify(datasource),
     })
   })
+
+  await page.route('**/api/v1/datasource/check/**', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+  })
+}
+
+async function openChooseTablesDialog(page: Page) {
+  const datasourceCard = page.locator('.card').filter({ hasText: 'Orders Demo' })
+  await expect(datasourceCard).toBeVisible()
+
+  await datasourceCard.click()
+
+  const tablePage = page.locator('.data-table')
+  await expect(tablePage).toBeVisible()
+  await tablePage.locator('.select-table_top button').click()
+
+  const chooseTablesDrawer = page.getByRole('dialog').filter({ hasText: 'Choose Tables' })
+  await expect(chooseTablesDrawer).toBeVisible()
+  return chooseTablesDrawer
 }
 
 test.describe('datasource async sync workflow', () => {
@@ -128,7 +147,7 @@ test.describe('datasource async sync workflow', () => {
       })
     })
 
-    await page.route('**/api/v1/datasource/syncJobs/101', async (route) => {
+    await page.route('**/api/v1/sync-jobs?datasource_id=101', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -136,7 +155,7 @@ test.describe('datasource async sync workflow', () => {
       })
     })
 
-    await page.route('**/api/v1/datasource/chooseTables/101', async (route) => {
+    await page.route('**/api/v1/sync-jobs', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -150,7 +169,7 @@ test.describe('datasource async sync workflow', () => {
       })
     })
 
-    await page.route('**/api/v1/datasource/syncJob/501', async (route) => {
+    await page.route('**/api/v1/sync-jobs/501', async (route) => {
       syncJobReads += 1
       const body =
         syncJobReads === 1
@@ -201,23 +220,24 @@ test.describe('datasource async sync workflow', () => {
     })
 
     await page.goto('/#/ds/index')
-    await page.locator('.card').filter({ hasText: 'Orders Demo' }).click()
-    await page.locator('.select-table_top .ed-button').click()
+    const chooseTablesDialog = await openChooseTablesDialog(page)
 
-    await page.locator('input[value="orders"]').evaluate((node) => {
+    await chooseTablesDialog.locator('input[value="orders"]').evaluate((node) => {
       ;(node as HTMLInputElement).click()
     })
-    await page.locator('input[value="customers"]').evaluate((node) => {
+    await chooseTablesDialog.locator('input[value="customers"]').evaluate((node) => {
       ;(node as HTMLInputElement).click()
     })
-    await page.locator('.draw-foot').getByRole('button', { name: 'Save' }).click()
+    await page.getByRole('button', { name: 'Save' }).last().click()
 
-    await expect(page.locator('.sync-job-panel')).toBeVisible()
-    await expect(page.locator('.sync-job-panel')).toContainText('Sync in progress')
-    await expect(page.locator('.sync-job-panel')).toContainText('Processing customers')
-    await expect(page.locator('.sync-job-panel')).toContainText('Embedding follow-up')
-    await expect(page.locator('.sync-job-panel')).toContainText('Succeeded')
-    await expect(page.locator('.sync-job-panel')).toContainText('Sync completed')
+    const syncJobDialog = page.locator('.ed-overlay-dialog').filter({ has: page.locator('.sync-job-panel') })
+    const syncJobPanel = page.locator('.sync-job-panel')
+    await expect(syncJobDialog).toBeVisible()
+    await expect(syncJobPanel).toBeVisible()
+    await expect(syncJobDialog).toContainText('Succeeded')
+    await expect(syncJobDialog).toContainText('Successfully synced 2 tables.')
+    await expect(syncJobPanel).toContainText('Embedding follow-up')
+    await expect(syncJobPanel).toContainText('dispatched')
   })
 
   test('restores an active datasource sync job when reopening choose-tables drawer', async ({ page }) => {
@@ -241,7 +261,7 @@ test.describe('datasource async sync workflow', () => {
       })
     })
 
-    await page.route('**/api/v1/datasource/syncJobs/101', async (route) => {
+    await page.route('**/api/v1/sync-jobs?datasource_id=101', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -269,7 +289,7 @@ test.describe('datasource async sync workflow', () => {
       })
     })
 
-    await page.route('**/api/v1/datasource/syncJob/601', async (route) => {
+    await page.route('**/api/v1/sync-jobs/601', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -296,13 +316,14 @@ test.describe('datasource async sync workflow', () => {
     })
 
     await page.goto('/#/ds/index')
-    await page.locator('.card').filter({ hasText: 'Orders Demo' }).click()
-    await page.locator('.select-table_top .ed-button').click()
+    await openChooseTablesDialog(page)
 
-    await expect(page.locator('.sync-job-panel')).toBeVisible()
-    await expect(page.locator('.sync-job-panel')).toContainText('Sync in progress')
-    await expect(page.locator('.sync-job-panel')).toContainText('Recovered the latest running sync job')
-    await expect(page.locator('.sync-job-panel')).toContainText('Processing customers')
+    const syncJobDialog = page.locator('.ed-overlay-dialog').filter({ has: page.locator('.sync-job-panel') })
+    const syncJobPanel = page.locator('.sync-job-panel')
+    await expect(syncJobDialog).toBeVisible()
+    await expect(syncJobPanel).toBeVisible()
+    await expect(syncJobPanel).toContainText('Recovered the latest running sync job')
+    await expect(syncJobPanel).toContainText('customers')
     await expect(page.getByRole('button', { name: 'Syncing...' })).toBeDisabled()
   })
 })

@@ -84,6 +84,7 @@ test.describe('login wait feedback', () => {
     const platformStatusGate = createDeferred()
 
     await seedLoginLanguage(page)
+    await installBaseAppMocks(page)
     await installLicenseGeneratorMock(page, {
       scriptBody: `var LicenseGenerator = {
         init: async function () { return true },
@@ -94,7 +95,6 @@ test.describe('login wait feedback', () => {
       window.LicenseGenerator = LicenseGenerator;
       globalThis.LicenseGenerator = LicenseGenerator;`,
     })
-    await installBaseAppMocks(page)
     await mockDefaultLoginBootstrap(page, { platformStatusGate })
 
     await page.goto('/#/login')
