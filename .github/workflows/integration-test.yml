@@ -43,7 +43,7 @@ jobs:
           echo "Waiting for services to be healthy..."
           for i in {1..60}; do
             POSTGRES_STATUS=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' postgresql 2>/dev/null || true)
-            APP_STATUS=$(docker inspect -f '{{.State.Status}}' gosqlbot-app 2>/dev/null || true)
+            APP_STATUS=$(docker inspect -f '{{.State.Status}}' mysqlbot-app 2>/dev/null || true)
             if [ "$POSTGRES_STATUS" = "healthy" ] && [ "$APP_STATUS" = "running" ]; then
               echo "Services are healthy"
               break
@@ -102,7 +102,7 @@ jobs:
         if: failure()
         run: |
           mkdir -p artifacts/runtime-health
-          docker compose logs --no-color gosqlbot-app > artifacts/runtime-health/gosqlbot-app.log || true
+          docker compose logs --no-color mysqlbot-app > artifacts/runtime-health/mysqlbot-app.log || true
           docker compose logs --no-color postgresql > artifacts/runtime-health/postgresql.log || true
 
       - name: Upload runtime diagnostics
@@ -134,7 +134,7 @@ jobs:
           docker compose up -d
           for i in {1..60}; do
             POSTGRES_STATUS=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' postgresql 2>/dev/null || true)
-            APP_STATUS=$(docker inspect -f '{{.State.Status}}' gosqlbot-app 2>/dev/null || true)
+            APP_STATUS=$(docker inspect -f '{{.State.Status}}' mysqlbot-app 2>/dev/null || true)
             if [ "$POSTGRES_STATUS" = "healthy" ] && [ "$APP_STATUS" = "running" ]; then
               break
             fi
@@ -183,7 +183,7 @@ jobs:
             (4, 3, 'cancelled', 12.50);
           SQL
 
-          docker exec -i gosqlbot-app python - <<'PY'
+          docker exec -i mysqlbot-app python - <<'PY'
           import json
           from sqlalchemy import delete
           from sqlmodel import Session, select
@@ -238,7 +238,7 @@ jobs:
 
       - name: Seed deterministic G4 model configuration
         run: |
-          docker exec -i gosqlbot-app python - <<'PY'
+          docker exec -i mysqlbot-app python - <<'PY'
           from sqlalchemy import update
           from sqlmodel import Session, select
 
@@ -340,7 +340,7 @@ jobs:
           docker compose up -d
           for i in {1..60}; do
             POSTGRES_STATUS=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' postgresql 2>/dev/null || true)
-            APP_STATUS=$(docker inspect -f '{{.State.Status}}' gosqlbot-app 2>/dev/null || true)
+            APP_STATUS=$(docker inspect -f '{{.State.Status}}' mysqlbot-app 2>/dev/null || true)
             if [ "$POSTGRES_STATUS" = "healthy" ] && [ "$APP_STATUS" = "running" ]; then
               break
             fi
@@ -389,7 +389,7 @@ jobs:
             (4, 3, 'cancelled', 12.50);
           SQL
 
-          docker exec -i gosqlbot-app python - <<'PY'
+          docker exec -i mysqlbot-app python - <<'PY'
           import json
           from sqlalchemy import delete
           from sqlmodel import Session, select
@@ -442,7 +442,7 @@ jobs:
 
       - name: Seed deterministic G4 model configuration
         run: |
-          docker exec -i gosqlbot-app python - <<'PY'
+          docker exec -i mysqlbot-app python - <<'PY'
           from sqlalchemy import update
           from sqlmodel import Session, select
 
@@ -539,7 +539,7 @@ jobs:
           docker compose up -d
           for i in {1..60}; do
             POSTGRES_STATUS=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' postgresql 2>/dev/null || true)
-            APP_STATUS=$(docker inspect -f '{{.State.Status}}' gosqlbot-app 2>/dev/null || true)
+            APP_STATUS=$(docker inspect -f '{{.State.Status}}' mysqlbot-app 2>/dev/null || true)
             if [ "$POSTGRES_STATUS" = "healthy" ] && [ "$APP_STATUS" = "running" ]; then
               break
             fi
@@ -588,7 +588,7 @@ jobs:
             (4, 3, 'cancelled', 12.50);
           SQL
 
-          docker exec -i gosqlbot-app python - <<'PY'
+          docker exec -i mysqlbot-app python - <<'PY'
           import json
           from sqlalchemy import delete
           from sqlmodel import Session, select
@@ -641,7 +641,7 @@ jobs:
 
       - name: Seed deterministic G5 model configuration
         run: |
-          docker exec -i gosqlbot-app python - <<'PY'
+          docker exec -i mysqlbot-app python - <<'PY'
           from sqlalchemy import update
           from sqlmodel import Session, select
 
