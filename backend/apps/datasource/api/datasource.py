@@ -9,7 +9,7 @@ from io import StringIO
 from typing import Any, cast
 
 import pandas as pd
-from fastapi import APIRouter, File, HTTPException, Path, UploadFile
+from fastapi import APIRouter, File, HTTPException, Path, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import and_
@@ -35,6 +35,7 @@ from ..crud.datasource import (
     delete_ds,
     fieldEnum,
     get_datasource_list,
+    get_datasource_list_by_oids,
     get_ds,
     getFields,
     getTables,
@@ -116,6 +117,16 @@ async def query_by_oid(
     session: SessionDep, user: CurrentUser, oid: int
 ) -> list[CoreDatasource]:
     return get_datasource_list(session=session, user=user, oid=oid)
+
+
+@router.get("/ws", include_in_schema=False)
+@require_permissions(permission=SqlbotPermission(role=["ws_admin"]))
+async def query_by_oids(
+    session: SessionDep,
+    user: CurrentUser,
+    oids: list[int] = Query(description='workspace ids'),
+) -> list[CoreDatasource]:
+    return get_datasource_list_by_oids(session=session, user=user, oids=oids)
 
 
 @router.get(

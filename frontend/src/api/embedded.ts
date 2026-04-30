@@ -8,6 +8,11 @@ export const saveAssistant = (data: any) => request.post('/system/assistant', da
 export const getOne = (id: any) => request.get(`/system/assistant/${id}`)
 export const delOne = (id: any) => request.delete(`/system/assistant/${id}`)
 export const dsApi = (id: any) => request.get(`/datasource/ws/${id}`)
+export const dsApiMulti = (oids: Array<string | number>) => {
+  const params = new URLSearchParams()
+  oids.forEach((oid) => params.append('oids', String(oid)))
+  return request.get(`/datasource/ws?${params.toString()}`)
+}
 
 export const embeddedApi = {
   getList: (pageNum: any, pageSize: any, params: any) =>

@@ -14,9 +14,9 @@ import icon_copy_outlined from '@/assets/embedded/icon_copy_outlined.svg'
 import { useClipboard } from '@vueuse/core'
 import SetUi from './SetUi.vue'
 import Card from './Card.vue'
-// import { workspaceList } from '@/api/workspace'
+import { workspaceList } from '@/api/workspace'
 import DsCard from './DsCard.vue'
-import { getList, updateAssistant, saveAssistant, delOne, dsApi } from '@/api/embedded'
+import { getList, updateAssistant, saveAssistant, delOne, dsApiMulti } from '@/api/embedded'
 import { useI18n } from 'vue-i18n'
 import { cloneDeep } from 'lodash-es'
 import { useUserStore } from '@/stores/user.ts'
@@ -65,6 +65,8 @@ const currentEmbedded = reactive<any>(cloneDeep(defaultEmbedded))
 const isCreate = ref(false)
 const defaultForm = {
   oid: 1,
+  workspace_ids: [] as string[],
+  datasource_ids: [] as string[],
   public_list: [],
   private_list: [],
   auto_ds: false,
@@ -89,11 +91,107 @@ const defaultUrlForm = {
   aes_key: '',
   aes_iv: '',
   certificate: [] as any,
+  workspace_ids: [] as string[],
+  datasource_ids: [] as string[],
   auto_ds: false,
 }
 const urlForm = reactive(cloneDeep(defaultUrlForm))
 
-const dsListOptions = ref<any[]>([])
+const basicDsListOptions = ref<any[]>([])
+const advancedDsListOptions = ref<any[]>([])
+const workspaces = ref<any[]>([])
+
+const normalizeOptionId = (item: any) => ({
+  ...item,
+  id: String(item.id),
+})
+
+const uniqIdArray = (values: any[] = []) => {
+  return [...new Set(values.map((item) => String(item)).filter((item) => /^\d+$/.test(item)))]
+}
+
+const normalizeBaseConfig = (config: any = {}) => {
+  const workspaceIds = uniqIdArray(
+    config.workspace_ids?.length ? config.workspace_ids : [config.oid]
+  )
+  const datasourceIds = uniqIdArray(
+    config.datasource_ids?.length ? config.datasource_ids : config.public_list
+  )
+  return {
+    ...cloneDeep(defaultForm),
+    ...config,
+    oid: workspaceIds[0] || userStore.getOid || '1',
+    workspace_ids: workspaceIds,
+    datasource_ids: datasourceIds,
+    public_list: [...datasourceIds],
+  }
+}
+
+const normalizeAdvancedConfig = (config: any = {}) => {
+  return {
+    ...cloneDeep(defaultUrlForm),
+    ...config,
+    workspace_ids: uniqIdArray(config.workspace_ids),
+    datasource_ids: uniqIdArray(config.datasource_ids),
+    certificate: Array.isArray(config.certificate) ? config.certificate : [],
+  }
+}
+
+const syncSelectedDatasourceIds = (target: 'basic' | 'advanced', options: any[]) => {
+  const availableIds = new Set(options.map((item: any) => String(item.id)))
+  if (target === 'basic') {
+    dsForm.datasource_ids = dsForm.datasource_ids.filter((id: string) => availableIds.has(id))
+    dsForm.public_list = [...dsForm.datasource_ids]
+    return
+  }
+  urlForm.datasource_ids = urlForm.datasource_ids.filter((id: string) => availableIds.has(id))
+}
+
+const loadWorkspaces = async () => {
+  if (workspaces.value.length) return
+  try {
+    workspaces.value = ((await workspaceList()) || []).map(normalizeOptionId)
+  } catch {
+    const currentOid = userStore.getOid || '1'
+    workspaces.value = [{ id: currentOid, name: `${t('user.workspace')} ${currentOid}` }]
+  }
+}
+
+const getDsList = async (workspaceIds: string[], target: 'basic' | 'advanced') => {
+  const normalizedWorkspaceIds = uniqIdArray(workspaceIds)
+  if (!normalizedWorkspaceIds.length) {
+    if (target === 'basic') {
+      basicDsListOptions.value = []
+      syncSelectedDatasourceIds(target, [])
+    } else {
+      advancedDsListOptions.value = []
+      syncSelectedDatasourceIds(target, [])
+    }
+    return
+  }
+  const res = await dsApiMulti(normalizedWorkspaceIds)
+  const list = ((res || []).map(normalizeOptionId) as any[]).filter(
+    (item: any, index: number, arr: any[]) =>
+      arr.findIndex((current) => current.id === item.id) === index
+  )
+  if (target === 'basic') {
+    basicDsListOptions.value = list
+  } else {
+    advancedDsListOptions.value = list
+  }
+  syncSelectedDatasourceIds(target, list)
+}
+
+const handleWorkspaceChange = async (target: 'basic' | 'advanced') => {
+  if (target === 'basic') {
+    dsForm.workspace_ids = uniqIdArray(dsForm.workspace_ids)
+    dsForm.oid = dsForm.workspace_ids[0] || userStore.getOid || '1'
+    await getDsList(dsForm.workspace_ids, 'basic')
+    return
+  }
+  urlForm.workspace_ids = uniqIdArray(urlForm.workspace_ids)
+  await getDsList(urlForm.workspace_ids, 'advanced')
+}
 
 const embeddedListWithSearch = computed(() => {
   if (!keywords.value) return embeddedList.value
@@ -119,11 +217,7 @@ const userTypeList = [
 
 const handleAddEmbedded = (val: any) => {
   Object.assign(currentEmbedded, cloneDeep(defaultEmbedded))
-  Object.keys(dsForm).forEach((ele) => {
-    if (!['oid', 'public_list', 'private_list'].includes(ele)) {
-      delete dsForm[ele]
-    }
-  })
+  Object.assign(dsForm, cloneDeep(defaultForm))
   Object.assign(urlForm, cloneDeep(defaultUrlForm))
   currentEmbedded.type = val
   if (val === 0) {
@@ -133,28 +227,25 @@ const handleAddEmbedded = (val: any) => {
   }
 }
 
-const getDsList = () => {
-  dsApi(dsForm.oid).then((res: any) => {
-    dsListOptions.value = res || []
-  })
-}
-const handleBaseEmbedded = (row: any) => {
+const handleBaseEmbedded = async (row: any) => {
   advancedApplication.value = false
+  await loadWorkspaces()
   if (row) {
-    Object.assign(dsForm, JSON.parse(row.configuration))
+    Object.assign(dsForm, normalizeBaseConfig(JSON.parse(row.configuration)))
   } else {
-    Object.assign(dsForm, { oid: userStore.getOid })
+    Object.assign(dsForm, normalizeBaseConfig({ oid: userStore.getOid || '1' }))
   }
-  getDsList()
+  await getDsList(dsForm.workspace_ids, 'basic')
   ruleConfigvVisible.value = true
   dialogTitle.value = row?.id
     ? t('embedded.edit_basic_applications')
     : t('embedded.create_basic_application')
 }
-const handleAdvancedEmbedded = (row: any) => {
+const handleAdvancedEmbedded = async (row: any) => {
   advancedApplication.value = true
+  await loadWorkspaces()
   if (row) {
-    const tempData = cloneDeep(JSON.parse(row.configuration))
+    const tempData = normalizeAdvancedConfig(cloneDeep(JSON.parse(row.configuration)))
     if (tempData?.endpoint.startsWith('http')) {
       row.domain
         .trim()
@@ -164,7 +255,10 @@ const handleAdvancedEmbedded = (row: any) => {
         })
     }
     Object.assign(urlForm, tempData)
+  } else {
+    Object.assign(urlForm, normalizeAdvancedConfig())
   }
+  await getDsList(urlForm.workspace_ids, 'advanced')
   ruleConfigvVisible.value = true
   dialogTitle.value = row?.id
     ? t('embedded.edit_advanced_applications')
@@ -197,11 +291,21 @@ const handleActive = (row: any) => {
 }
 
 const handlePrivate = (row: any) => {
-  dsForm.public_list = dsForm.public_list.filter((ele: any) => ele !== row.id)
+  const targetForm = advancedApplication.value ? urlForm : dsForm
+  targetForm.datasource_ids = targetForm.datasource_ids.filter(
+    (ele: string) => ele !== String(row.id)
+  )
+  if (!advancedApplication.value) {
+    dsForm.public_list = [...dsForm.datasource_ids]
+  }
 }
 
 const handlePublic = (row: any) => {
-  dsForm.public_list.push(row.id)
+  const targetForm = advancedApplication.value ? urlForm : dsForm
+  targetForm.datasource_ids = uniqIdArray([...(targetForm.datasource_ids || []), row.id])
+  if (!advancedApplication.value) {
+    dsForm.public_list = [...dsForm.datasource_ids]
+  }
 }
 
 const searchLoading = ref(false)
@@ -309,10 +413,17 @@ const rules = {
 }
 
 const dsRules = {
-  oid: [
+  workspace_ids: [
     {
       required: true,
       message: t('datasource.please_enter') + t('common.empty') + t('user.workspace'),
+      trigger: 'change',
+    },
+  ],
+  datasource_ids: [
+    {
+      required: true,
+      message: t('datasource.Please_select') + t('common.empty') + t('ds.title'),
       trigger: 'change',
     },
   ],
@@ -373,6 +484,20 @@ const urlRules = {
       trigger: 'change',
     },
   ],
+  workspace_ids: [
+    {
+      required: true,
+      message: t('datasource.please_enter') + t('common.empty') + t('user.workspace'),
+      trigger: 'change',
+    },
+  ],
+  datasource_ids: [
+    {
+      required: true,
+      message: t('datasource.Please_select') + t('common.empty') + t('ds.title'),
+      trigger: 'change',
+    },
+  ],
 }
 
 const certificateRules = {
@@ -429,8 +554,14 @@ const saveEmbedded = () => {
     if (res) {
       const obj = { ...currentEmbedded }
       if (currentEmbedded.type === 0) {
+        dsForm.workspace_ids = uniqIdArray(dsForm.workspace_ids)
+        dsForm.datasource_ids = uniqIdArray(dsForm.datasource_ids)
+        dsForm.oid = dsForm.workspace_ids[0] || userStore.getOid || '1'
+        dsForm.public_list = [...dsForm.datasource_ids]
         obj.configuration = JSON.stringify(dsForm)
       } else {
+        urlForm.workspace_ids = uniqIdArray(urlForm.workspace_ids)
+        urlForm.datasource_ids = uniqIdArray(urlForm.datasource_ids)
         obj.configuration = JSON.stringify(urlForm)
       }
 
@@ -912,6 +1043,51 @@ const saveHandler = () => {
                 </div>
               </el-form-item>
 
+              <el-form-item prop="workspace_ids" :label="t('user.workspace')">
+                <el-select
+                  v-model="urlForm.workspace_ids"
+                  multiple
+                  filterable
+                  clearable
+                  :placeholder="
+                    $t('datasource.please_enter') + $t('common.empty') + $t('user.workspace')
+                  "
+                  @change="handleWorkspaceChange('advanced')"
+                >
+                  <el-option
+                    v-for="item in workspaces"
+                    :key="item.id"
+                    :label="item.name"
+                    :value="item.id"
+                  />
+                </el-select>
+              </el-form-item>
+
+              <el-form-item prop="datasource_ids" class="private-list_form">
+                <template #label>
+                  <div class="private-list">
+                    {{ t('embedded.set_data_source') }}
+                  </div>
+                </template>
+                <div class="card-ds_content">
+                  <DsCard
+                    v-for="(ele, index) in advancedDsListOptions"
+                    :id="ele.id"
+                    :key="ele.id"
+                    :class="[0, 1].includes(index) && 'no-margin_top'"
+                    :name="ele.name"
+                    :type="ele.type"
+                    :type-name="ele.type_name"
+                    :description="ele.description"
+                    :is-private="!urlForm.datasource_ids.includes(ele.id)"
+                    :num="ele.num"
+                    @active="handleActive(ele)"
+                    @private="handlePrivate(ele)"
+                    @public="handlePublic(ele)"
+                  ></DsCard>
+                </div>
+              </el-form-item>
+
               <!-- <el-form-item prop="auto_ds" :label="t('embedded.auto_select_ds')">
                 <el-switch v-model="urlForm.auto_ds" />
               </el-form-item> -->
@@ -935,14 +1111,16 @@ const saveHandler = () => {
               class="form-content_error"
               @submit.prevent
             >
-              <!-- <el-form-item prop="oid" :label="t('user.workspace')">
+              <el-form-item prop="workspace_ids" :label="t('user.workspace')">
                 <el-select
-                  v-model="dsForm.oid"
+                  v-model="dsForm.workspace_ids"
+                  multiple
                   filterable
+                  clearable
                   :placeholder="
                     $t('datasource.please_enter') + $t('common.empty') + $t('user.workspace')
                   "
-                  @change="wsChanged"
+                  @change="handleWorkspaceChange('basic')"
                 >
                   <el-option
                     v-for="item in workspaces"
@@ -951,9 +1129,9 @@ const saveHandler = () => {
                     :value="item.id"
                   />
                 </el-select>
-              </el-form-item> -->
+              </el-form-item>
 
-              <el-form-item class="private-list_form">
+              <el-form-item prop="datasource_ids" class="private-list_form">
                 <template #label>
                   <div class="private-list">
                     {{ t('embedded.set_data_source') }}
@@ -964,7 +1142,7 @@ const saveHandler = () => {
                 </template>
                 <div class="card-ds_content">
                   <DsCard
-                    v-for="(ele, index) in dsListOptions"
+                    v-for="(ele, index) in basicDsListOptions"
                     :id="ele.id"
                     :key="ele.id"
                     :class="[0, 1].includes(index) && 'no-margin_top'"
@@ -972,7 +1150,7 @@ const saveHandler = () => {
                     :type="ele.type"
                     :type-name="ele.type_name"
                     :description="ele.description"
-                    :is-private="!dsForm.public_list.includes(ele.id)"
+                    :is-private="!dsForm.datasource_ids.includes(ele.id)"
                     :num="ele.num"
                     @active="handleActive(ele)"
                     @private="handlePrivate(ele)"

@@ -24,9 +24,11 @@ from apps.system.crud.assistant import (
     AssistantOutDs,
     AssistantOutDsFactory,
     get_assistant_info,
+    get_assistant_primary_workspace_id,
+    get_assistant_workspace_ids,
 )
 from apps.system.crud.assistant_manage import dynamic_upgrade_cors, save
-from apps.system.models.system_model import AssistantModel
+from apps.system.models.system_model import AssistantModel, WorkspaceModel
 from apps.system.schemas.auth import CacheName, CacheNamespace
 from apps.system.schemas.permission import SqlbotPermission, require_permissions
 from apps.system.schemas.system_schema import (
@@ -68,7 +70,93 @@ def _get_int_list(mapping: dict[str, object], key: str) -> list[int]:
     if not isinstance(value, list):
         return []
     value_list = cast(list[object], value)
-    return [item for item in value_list if isinstance(item, int)]
+    result: list[int] = []
+    for item in value_list:
+        if isinstance(item, int):
+            result.append(item)
+        elif isinstance(item, str) and item.isdigit():
+            result.append(int(item))
+    return result
+
+
+def _dedupe_positive_ints(values: list[int]) -> list[int]:
+    result: list[int] = []
+    seen: set[int] = set()
+    for value in values:
+        if value <= 0 or value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
+
+
+def _normalize_and_validate_configuration(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    assistant_type: int,
+    configuration: str | None,
+) -> str | None:
+    if not configuration or assistant_type == 4:
+        return configuration
+
+    config_obj = _parse_json_object(configuration)
+    workspace_ids = get_assistant_workspace_ids(config_obj)
+    datasource_ids = _dedupe_positive_ints(_get_int_list(config_obj, "datasource_ids"))
+
+    if datasource_ids and not workspace_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="Datasource selection requires at least one workspace",
+        )
+
+    for workspace_id in workspace_ids:
+        workspace = session.get(WorkspaceModel, workspace_id)
+        if workspace is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Workspace {workspace_id} not found",
+            )
+        if not current_user.isAdmin and workspace_id != current_user.oid:
+            raise HTTPException(
+                status_code=403,
+                detail=f"No permission for workspace {workspace_id}",
+            )
+
+    if datasource_ids:
+        datasource_rows = list(
+            session.exec(
+                select(CoreDatasource).where(col(CoreDatasource.id).in_(datasource_ids))
+            ).all()
+        )
+        datasource_map = {row.id: row for row in datasource_rows}
+        missing_ids = [ds_id for ds_id in datasource_ids if ds_id not in datasource_map]
+        if missing_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Datasource not found: {missing_ids[0]}",
+            )
+        invalid_scope_ds = [
+            ds_id
+            for ds_id in datasource_ids
+            if datasource_map[ds_id].oid not in workspace_ids
+        ]
+        if invalid_scope_ds:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Datasource {invalid_scope_ds[0]} is outside the selected workspace scope"
+                ),
+            )
+
+    config_obj["workspace_ids"] = workspace_ids
+    config_obj["datasource_ids"] = datasource_ids
+    if workspace_ids:
+        config_obj["oid"] = workspace_ids[0]
+    if assistant_type == 0:
+        config_obj["public_list"] = datasource_ids
+
+    return json.dumps(config_obj, ensure_ascii=False)
 
 
 @router.get("/info/{id}", include_in_schema=False)
@@ -133,11 +221,10 @@ async def validator(
     if not db_model_raw:
         return AssistantValidator()
     db_model = AssistantModel.model_validate(db_model_raw)
-    assistant_oid = 1
-    if db_model.type == 0:
-        configuration = db_model.configuration
-        config_obj = _parse_json_object(configuration) if configuration else {}
-        assistant_oid = _get_int_value(config_obj, "oid", 1)
+    assistant_oid = get_assistant_primary_workspace_id(
+        db_model.configuration,
+        db_model.oid,
+    )
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     assistant_dict = {
@@ -268,10 +355,15 @@ async def ds(
         configuration = current_assistant.configuration
         assert configuration is not None
         config = _parse_json_object(configuration)
-        oid = _get_int_value(config, "oid", 0)
-        stmt = select(CoreDatasource).where(col(CoreDatasource.oid) == oid)
-        if not online:
-            public_list = _get_int_list(config, "public_list")
+        workspace_ids = get_assistant_workspace_ids(config, current_assistant.oid)
+        datasource_ids = _dedupe_positive_ints(_get_int_list(config, "datasource_ids"))
+        public_list = _dedupe_positive_ints(_get_int_list(config, "public_list"))
+        if not workspace_ids:
+            return []
+        stmt = select(CoreDatasource).where(col(CoreDatasource.oid).in_(workspace_ids))
+        if datasource_ids:
+            stmt = stmt.where(col(CoreDatasource.id).in_(datasource_ids))
+        elif not online:
             if public_list:
                 stmt = stmt.where(col(CoreDatasource.id).in_(public_list))
             else:
@@ -381,6 +473,12 @@ async def add(
     current_user: CurrentUser,
     creator: AssistantBase,
 ) -> AssistantModel:
+    creator.configuration = _normalize_and_validate_configuration(
+        session=session,
+        current_user=current_user,
+        assistant_type=creator.type,
+        configuration=creator.configuration,
+    )
     oid = current_user.oid if creator.type != 4 else 1
     return await save(request, session, creator, oid)
 
@@ -403,11 +501,22 @@ async def add(
         resource_id_expr="editor.id",
     )
 )
-async def update(request: Request, session: SessionDep, editor: AssistantDTO) -> None:
+async def update(
+    request: Request,
+    session: SessionDep,
+    current_user: CurrentUser,
+    editor: AssistantDTO,
+) -> None:
     id = editor.id
     db_model = session.get(AssistantModel, id)
     if not db_model:
         raise ValueError(f"AssistantModel with id {id} not found")
+    editor.configuration = _normalize_and_validate_configuration(
+        session=session,
+        current_user=current_user,
+        assistant_type=editor.type,
+        configuration=editor.configuration,
+    )
     update_data = AssistantModel.model_validate(editor)
     _ = db_model.sqlmodel_update(update_data)
     session.add(db_model)
