@@ -51,6 +51,12 @@ const selectAssistantDs = computed(() => {
   return assistantStore.getAssistant && !assistantStore.getAutoDs
 })
 
+const defaultAssistantDatasourceId = computed(() => assistantStore.getDefaultDatasourceId)
+
+const canAutoStartAssistantChat = computed(() => {
+  return assistantStore.getAssistant && assistantStore.getAutoDs && !!defaultAssistantDatasourceId.value
+})
+
 const search = ref<string>()
 
 const _currentChatId = computed({
@@ -112,6 +118,7 @@ function onChatCreated(chat: ChatInfo) {
 }
 
 const chatCreatorRef = ref()
+const hiddenChatCreatorRef = ref()
 
 function goEmpty(func?: (...p: any[]) => void, ...params: any[]) {
   _currentChat.value = new ChatInfo()
@@ -151,6 +158,20 @@ const createNewChat = async () => {
 }
 
 async function doCreateNewChat() {
+  if (canAutoStartAssistantChat.value) {
+    try {
+      const chat = await assistantStore.setChat(defaultAssistantDatasourceId.value)
+      if (chat) {
+        onChatCreated(chat)
+      }
+      return
+    } catch (error) {
+      console.error(error)
+      ElMessage.warning(t('embedded.default_datasource_unavailable'))
+      hiddenChatCreatorRef.value?.showAssistantDs()
+    }
+  }
+
   if (!isCompletePage.value && !selectAssistantDs.value) {
     return
   }
@@ -265,6 +286,7 @@ function onChatRenamed(chat: Chat) {
       ref="chatCreatorRef"
       @on-chat-created="onChatCreated"
     />
+    <ChatCreator ref="hiddenChatCreatorRef" hidden @on-chat-created="onChatCreated" />
   </el-container>
 </template>
 

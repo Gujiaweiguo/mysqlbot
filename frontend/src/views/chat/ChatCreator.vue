@@ -30,6 +30,7 @@ const props = withDefaults(
 const addDrawerRef = ref()
 const searchLoading = ref(false)
 const datasourceConfigVisible = ref(false)
+const forceAssistantDatasourceScope = ref(false)
 const keywords = ref('')
 const datasourceList = shallowRef([] as any[])
 const datasourceListWithSearch = computed(() => {
@@ -40,6 +41,7 @@ const datasourceListWithSearch = computed(() => {
 })
 const beforeClose = () => {
   datasourceConfigVisible.value = false
+  forceAssistantDatasourceScope.value = false
   keywords.value = ''
 }
 
@@ -47,7 +49,11 @@ const emits = defineEmits(['onChatCreated'])
 
 function listDs() {
   searchLoading.value = true
-  ;(selectAssistantDs.value ? request.get('/system/assistant/ds') : datasourceApi.list())
+  ;(
+    selectAssistantDs.value || forceAssistantDatasourceScope.value
+      ? request.get('/system/assistant/ds')
+      : datasourceApi.list()
+  )
     .then((res) => {
       datasourceList.value = res
     })
@@ -62,6 +68,13 @@ const loading = ref(false)
 const statusLoading = ref(false)
 
 function showDs() {
+  forceAssistantDatasourceScope.value = false
+  listDs()
+  datasourceConfigVisible.value = true
+}
+
+function showAssistantDs() {
+  forceAssistantDatasourceScope.value = true
   listDs()
   datasourceConfigVisible.value = true
 }
@@ -149,6 +162,7 @@ const handleAddDatasource = () => {
 
 defineExpose({
   showDs,
+  showAssistantDs,
   hideDs,
   createChat,
 })

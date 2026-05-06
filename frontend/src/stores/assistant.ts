@@ -24,6 +24,7 @@ interface AssistantState {
   history: boolean
   hostOrigin: string
   autoDs?: boolean
+  defaultDatasourceId?: number
   requestPromiseMap: Map<string, PendingRequest[]>
   peddingStatus: number //0: ready,1: pedding,2:finish
   certificateTime: number
@@ -43,6 +44,7 @@ export const AssistantStore = defineStore('assistant', {
       history: true,
       hostOrigin: '',
       autoDs: false,
+      defaultDatasourceId: undefined,
       requestPromiseMap: new Map<string, PendingRequest[]>(),
       peddingStatus: 0,
       certificateTime: 0,
@@ -84,6 +86,9 @@ export const AssistantStore = defineStore('assistant', {
     },
     getAutoDs(): boolean {
       return !!this.autoDs
+    },
+    getDefaultDatasourceId(): number | undefined {
+      return this.defaultDatasourceId
     },
   },
   actions: {
@@ -199,11 +204,15 @@ export const AssistantStore = defineStore('assistant', {
     setAutoDs(autoDs?: boolean) {
       this.autoDs = !!autoDs
     },
-    async setChat() {
+    setDefaultDatasourceId(datasourceId?: number) {
+      this.defaultDatasourceId = datasourceId
+    },
+    async setChat(datasource?: number) {
       if (!this.assistant) {
         return null
       }
-      const res = await chatApi.startAssistantChat()
+      const payload = datasource ? { datasource } : undefined
+      const res = await chatApi.startAssistantChat(payload)
       const chat: ChatInfo | undefined = chatApi.toChatInfo(res)
       return chat
     },

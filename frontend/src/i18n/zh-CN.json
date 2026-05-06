@@ -831,7 +831,10 @@
     "window_entrance_icon": "浮窗入口图标",
     "preview_error": "当前页面禁止使用 Iframe 嵌入！",
     "assistant_app": "小助手应用",
-    "auto_select_ds": "自动选择数据源"
+    "auto_select_ds": "自动选择数据源",
+    "default_datasource": "默认数据源",
+    "switch_datasource": "切换数据源",
+    "default_datasource_unavailable": "默认数据源不可用，请重新选择数据源"
   },
   "chat": {
     "type": "图表类型",

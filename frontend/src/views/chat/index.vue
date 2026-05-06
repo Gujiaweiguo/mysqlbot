@@ -385,7 +385,7 @@
         class="chat-footer"
       >
         <div class="input-wrapper" @click="clickInput">
-          <div v-if="isCompletePage || selectAssistantDs" class="datasource">
+          <div v-if="showDatasourceBanner" class="datasource">
             <template v-if="currentChat.datasource && currentChat.datasource_name">
               {{ t('qa.selected_datasource') }}:
               <img
@@ -399,6 +399,16 @@
               <span class="name">
                 {{ currentChat.datasource_name }}
               </span>
+              <el-button
+                v-if="allowDatasourceSwitch"
+                text
+                class="switch-btn"
+                data-testid="switch-datasource-button"
+                :disabled="isTyping"
+                @click.stop="switchDatasource"
+              >
+                {{ t('embedded.switch_datasource') }}
+              </el-button>
             </template>
           </div>
           <div v-if="computedMessages.length > 0 && currentChat.datasource" class="quick_question">
@@ -421,7 +431,10 @@
             :disabled="isTyping"
             clearable
             class="input-area"
-            :class="!isCompletePage && !selectAssistantDs && 'is-assistant'"
+            :class="{
+              'is-assistant': !isCompletePage && !selectAssistantDs,
+              'has-datasource': showDatasourceBanner,
+            }"
             type="textarea"
             :autosize="{ minRows: 1, maxRows: 8.583 }"
             :placeholder="t('qa.question_placeholder')"
@@ -517,6 +530,10 @@ const embeddedHistoryHidden = computed(
 // const autoDs = computed(() => assistantStore.getAssistant && assistantStore.getAutoDs)
 const selectAssistantDs = computed(() => {
   return assistantStore.getAssistant && !assistantStore.getAutoDs
+})
+const defaultAssistantDatasourceId = computed(() => assistantStore.getDefaultDatasourceId)
+const canAutoStartAssistantChat = computed(() => {
+  return assistantStore.getAssistant && assistantStore.getAutoDs && !!defaultAssistantDatasourceId.value
 })
 const customName = computed(() => {
   if (!isCompletePage.value && props.pageEmbedded) return props.appName
@@ -683,6 +700,20 @@ const createNewChat = async () => {
     return
   }
   goEmpty()
+  if (canAutoStartAssistantChat.value) {
+    try {
+      const assistantChat = await assistantStore.setChat(defaultAssistantDatasourceId.value)
+      if (assistantChat) {
+        onChatCreatedQuick(assistantChat as any)
+      }
+      return
+    } catch (error) {
+      console.error(error)
+      ElMessage.warning(t('embedded.default_datasource_unavailable'))
+      hiddenChatCreatorRef.value?.showAssistantDs()
+      return
+    }
+  }
   if (!isCompletePage.value && !selectAssistantDs.value) {
     currentChat.value = new ChatInfo()
     currentChatId.value = undefined
@@ -718,6 +749,12 @@ function onClickHistory(chat: ChatInfo) {
 
 const currentChatEngineType = computed(() => {
   return (dsTypeWithImg.find((ele) => currentChat.value.ds_type === ele.type) || {}).img
+})
+const showDatasourceBanner = computed(() => {
+  return !!currentChat.value.datasource && !!currentChat.value.datasource_name
+})
+const allowDatasourceSwitch = computed(() => {
+  return assistantStore.getAssistant && assistantStore.getAutoDs && showDatasourceBanner.value
 })
 
 function onChatDeleted(id: number) {
@@ -816,15 +853,25 @@ function onChatStop() {
 }
 const assistantPrepareSend = async () => {
   if (
-    !isCompletePage.value &&
+    assistantStore.getAssistant &&
     !selectAssistantDs.value &&
     (currentChatId.value == null || typeof currentChatId.value == 'undefined')
   ) {
-    const assistantChat = await assistantStore.setChat()
-    if (assistantChat) {
-      onChatCreatedQuick(assistantChat as any)
+    try {
+      const assistantChat = await assistantStore.setChat(defaultAssistantDatasourceId.value)
+      if (assistantChat) {
+        onChatCreatedQuick(assistantChat as any)
+      }
+    } catch (error) {
+      console.error(error)
+      ElMessage.warning(t('embedded.default_datasource_unavailable'))
+      hiddenChatCreatorRef.value?.showAssistantDs()
     }
   }
+}
+
+function switchDatasource() {
+  hiddenChatCreatorRef.value?.showAssistantDs()
 }
 const { sendMessage, askAgain, clickAnalysis, clickPredict } = useChatMessageActions({
   inputMessage,
@@ -1078,7 +1125,7 @@ onMounted(() => {
       position: relative;
       max-width: 800px;
 
-      .datasource {
+        .datasource {
         width: calc(100% - 2px);
         position: absolute;
         margin-left: 1px;
@@ -1098,10 +1145,16 @@ onMounted(() => {
         display: flex;
         align-items: center;
 
-        .name {
-          color: rgba(31, 35, 41, 1);
+          .name {
+            color: rgba(31, 35, 41, 1);
+          }
+
+          .switch-btn {
+            margin-left: 8px;
+            min-width: unset;
+            --ed-button-text-color: var(--ed-color-primary);
+          }
         }
-      }
 
       .quick_question {
         min-width: 100px;
@@ -1149,6 +1202,12 @@ onMounted(() => {
             &::placeholder {
               color: #8f959e;
             }
+          }
+        }
+
+        &.has-datasource {
+          :deep(.ed-textarea__inner) {
+            padding-top: 42px;
           }
         }
       }

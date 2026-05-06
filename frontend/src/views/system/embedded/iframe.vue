@@ -67,6 +67,7 @@ const defaultForm = {
   oid: 1,
   workspace_ids: [] as string[],
   datasource_ids: [] as string[],
+  default_datasource_id: '',
   public_list: [],
   private_list: [],
   auto_ds: false,
@@ -93,6 +94,7 @@ const defaultUrlForm = {
   certificate: [] as any,
   workspace_ids: [] as string[],
   datasource_ids: [] as string[],
+  default_datasource_id: '',
   auto_ds: false,
 }
 const urlForm = reactive(cloneDeep(defaultUrlForm))
@@ -136,6 +138,7 @@ const normalizeBaseConfig = (config: any = {}) => {
     oid: workspaceIds[0] || userStore.getOid || '1',
     workspace_ids: workspaceIds,
     datasource_ids: datasourceIds,
+    default_datasource_id: config.default_datasource_id ? String(config.default_datasource_id) : '',
     public_list: [...datasourceIds],
   }
 }
@@ -146,6 +149,7 @@ const normalizeAdvancedConfig = (config: any = {}) => {
     ...config,
     workspace_ids: uniqIdArray(config.workspace_ids),
     datasource_ids: uniqIdArray(config.datasource_ids),
+    default_datasource_id: config.default_datasource_id ? String(config.default_datasource_id) : '',
     certificate: Array.isArray(config.certificate) ? config.certificate : [],
   }
 }
@@ -155,9 +159,15 @@ const syncSelectedDatasourceIds = (target: 'basic' | 'advanced', options: any[])
   if (target === 'basic') {
     dsForm.datasource_ids = dsForm.datasource_ids.filter((id: string) => availableIds.has(id))
     dsForm.public_list = [...dsForm.datasource_ids]
+    if (!availableIds.has(dsForm.default_datasource_id)) {
+      dsForm.default_datasource_id = ''
+    }
     return
   }
   urlForm.datasource_ids = urlForm.datasource_ids.filter((id: string) => availableIds.has(id))
+  if (!availableIds.has(urlForm.default_datasource_id)) {
+    urlForm.default_datasource_id = ''
+  }
 }
 
 const loadWorkspaces = async () => {
@@ -308,6 +318,9 @@ const handlePrivate = (row: any) => {
   targetForm.datasource_ids = targetForm.datasource_ids.filter(
     (ele: string) => ele !== String(row.id)
   )
+  if (targetForm.default_datasource_id === String(row.id)) {
+    targetForm.default_datasource_id = ''
+  }
   if (!advancedApplication.value) {
     dsForm.public_list = [...dsForm.datasource_ids]
   }
@@ -440,6 +453,20 @@ const dsRules = {
       trigger: 'change',
     },
   ],
+  default_datasource_id: [
+    {
+      validator: (_: any, value: any, callback: any) => {
+        if (!dsForm.auto_ds || value) {
+          callback()
+          return
+        }
+        callback(
+          new Error(t('datasource.Please_select') + t('common.empty') + t('embedded.default_datasource'))
+        )
+      },
+      trigger: 'change',
+    },
+  ],
 }
 const validatePass = (_: any, value: any, callback: any) => {
   if (value === '') {
@@ -511,6 +538,20 @@ const urlRules = {
       trigger: 'change',
     },
   ],
+  default_datasource_id: [
+    {
+      validator: (_: any, value: any, callback: any) => {
+        if (!urlForm.auto_ds || value) {
+          callback()
+          return
+        }
+        callback(
+          new Error(t('datasource.Please_select') + t('common.empty') + t('embedded.default_datasource'))
+        )
+      },
+      trigger: 'change',
+    },
+  ],
 }
 
 const certificateRules = {
@@ -571,10 +612,14 @@ const saveEmbedded = () => {
         dsForm.datasource_ids = uniqIdArray(dsForm.datasource_ids)
         dsForm.oid = dsForm.workspace_ids[0] || userStore.getOid || '1'
         dsForm.public_list = [...dsForm.datasource_ids]
+        dsForm.default_datasource_id = dsForm.auto_ds ? String(dsForm.default_datasource_id || '') : ''
         obj.configuration = JSON.stringify(dsForm)
       } else {
         urlForm.workspace_ids = uniqIdArray(urlForm.workspace_ids)
         urlForm.datasource_ids = uniqIdArray(urlForm.datasource_ids)
+        urlForm.default_datasource_id = urlForm.auto_ds
+          ? String(urlForm.default_datasource_id || '')
+          : ''
         obj.configuration = JSON.stringify(urlForm)
       }
 
@@ -1126,9 +1171,34 @@ const saveHandler = () => {
                 </div>
               </el-form-item>
 
-              <!-- <el-form-item prop="auto_ds" :label="t('embedded.auto_select_ds')">
+              <el-form-item prop="auto_ds" :label="t('embedded.auto_select_ds')">
                 <el-switch v-model="urlForm.auto_ds" />
-              </el-form-item> -->
+              </el-form-item>
+
+              <el-form-item
+                v-if="urlForm.auto_ds"
+                prop="default_datasource_id"
+                :label="t('embedded.default_datasource')"
+              >
+                <el-select
+                  v-model="urlForm.default_datasource_id"
+                  clearable
+                  :placeholder="
+                    $t('datasource.Please_select') +
+                    $t('common.empty') +
+                    $t('embedded.default_datasource')
+                  "
+                >
+                  <el-option
+                    v-for="item in advancedDsListOptions.filter((option) =>
+                      urlForm.datasource_ids.includes(String(option.id))
+                    )"
+                    :key="item.id"
+                    :label="item.name"
+                    :value="String(item.id)"
+                  />
+                </el-select>
+              </el-form-item>
             </el-form>
           </div>
         </el-scrollbar>
@@ -1197,9 +1267,34 @@ const saveHandler = () => {
                 </div>
               </el-form-item>
 
-              <!-- <el-form-item prop="auto_ds" :label="t('embedded.auto_select_ds')">
+              <el-form-item prop="auto_ds" :label="t('embedded.auto_select_ds')">
                 <el-switch v-model="dsForm.auto_ds" />
-              </el-form-item> -->
+              </el-form-item>
+
+              <el-form-item
+                v-if="dsForm.auto_ds"
+                prop="default_datasource_id"
+                :label="t('embedded.default_datasource')"
+              >
+                <el-select
+                  v-model="dsForm.default_datasource_id"
+                  clearable
+                  :placeholder="
+                    $t('datasource.Please_select') +
+                    $t('common.empty') +
+                    $t('embedded.default_datasource')
+                  "
+                >
+                  <el-option
+                    v-for="item in basicDsListOptions.filter((option) =>
+                      dsForm.datasource_ids.includes(String(option.id))
+                    )"
+                    :key="item.id"
+                    :label="item.name"
+                    :value="String(item.id)"
+                  />
+                </el-select>
+              </el-form-item>
             </el-form>
           </div>
         </el-scrollbar>

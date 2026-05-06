@@ -187,6 +187,9 @@ onBeforeMount(async () => {
     if (res?.configuration) {
       const rawData = JSON.parse(res?.configuration)
       assistantStore.setAutoDs(rawData?.auto_ds)
+      assistantStore.setDefaultDatasourceId(
+        rawData?.default_datasource_id ? Number(rawData.default_datasource_id) : undefined
+      )
       if (rawData.logo) {
         logo.value = baseUrl + rawData.logo
       }

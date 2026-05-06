@@ -829,7 +829,10 @@
     "window_entrance_icon": "Floating window entrance icon",
     "preview_error": "The current page prohibits embedding using Iframe!",
     "assistant_app": "Assistant App",
-    "auto_select_ds": "Automatically select data source"
+    "auto_select_ds": "Automatically select data source",
+    "default_datasource": "Default data source",
+    "switch_datasource": "Switch data source",
+    "default_datasource_unavailable": "The default data source is unavailable. Please choose another data source."
   },
   "chat": {
     "type": "Chart Type",
