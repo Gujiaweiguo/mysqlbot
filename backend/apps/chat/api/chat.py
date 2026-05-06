@@ -50,6 +50,10 @@ from apps.chat.orchestration import (
 from apps.chat.orchestration.coordinator import empty_recommended_questions_response
 from apps.chat.streaming import iter_error_events
 from apps.swagger.i18n import PLACEHOLDER_PREFIX
+from apps.system.crud.assistant import (
+    get_assistant_config,
+    get_assistant_default_datasource_id,
+)
 from apps.system.schemas.permission import SqlbotPermission, require_permissions
 from common.audit.models.log_model import OperationModules, OperationType
 from common.audit.schemas.logger_decorator import LogConfig, system_log
@@ -57,6 +61,16 @@ from common.core.deps import CurrentAssistant, CurrentUser, SessionDep, Trans
 from common.utils.data_format import DataFormat
 
 router = APIRouter(tags=["Data Q&A"], prefix="/chat")
+
+
+def _is_enabled_flag(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value == 1
+    if isinstance(value, str):
+        return value.lower() == "true"
+    return False
 
 
 def _get_llm_service_class() -> type[Any]:
@@ -332,6 +346,12 @@ async def assistant_start_chat(
     create_chat_obj: CreateChat = CreateChat(origin=2),
 ) -> ChatInfo:
     try:
+        if create_chat_obj.datasource is None and current_assistant is not None:
+            config = get_assistant_config(current_assistant.configuration)
+            if _is_enabled_flag(config.get("auto_ds")):
+                default_datasource_id = get_assistant_default_datasource_id(config)
+                if default_datasource_id is not None:
+                    create_chat_obj.datasource = default_datasource_id
         return create_chat(
             session,
             current_user,

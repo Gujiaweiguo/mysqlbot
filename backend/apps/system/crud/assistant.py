@@ -87,6 +87,15 @@ def _get_int_list(mapping: dict[str, object], key: str) -> list[int]:
     return result
 
 
+def _get_optional_int_value(mapping: dict[str, object], key: str) -> int | None:
+    value = mapping.get(key)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return None
+
+
 def _dedupe_positive_ints(values: list[int]) -> list[int]:
     result: list[int] = []
     seen: set[int] = set()
@@ -119,6 +128,13 @@ def get_assistant_datasource_ids(config: dict[str, object]) -> list[int]:
     if datasource_ids:
         return datasource_ids
     return _dedupe_positive_ints(_get_int_list(config, "public_list"))
+
+
+def get_assistant_default_datasource_id(config: dict[str, object]) -> int | None:
+    datasource_id = _get_optional_int_value(config, "default_datasource_id")
+    if datasource_id is None or datasource_id <= 0:
+        return None
+    return datasource_id
 
 
 def get_assistant_primary_workspace_id(
@@ -171,7 +187,9 @@ def get_assistant_ds(
         legacy_public_list = _dedupe_positive_ints(_get_int_list(config, "public_list"))
         stmt = select(CoreDatasource).where(col(CoreDatasource.id) == -1)
         if workspace_ids:
-            stmt = select(CoreDatasource).where(col(CoreDatasource.oid).in_(workspace_ids))
+            stmt = select(CoreDatasource).where(
+                col(CoreDatasource.oid).in_(workspace_ids)
+            )
             if datasource_ids:
                 stmt = stmt.where(col(CoreDatasource.id).in_(datasource_ids))
             elif not assistant.online:

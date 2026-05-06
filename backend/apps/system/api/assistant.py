@@ -43,6 +43,7 @@ from common.core.config import settings
 from common.core.deps import CurrentAssistant, CurrentUser, SessionDep, Trans
 from common.core.security import create_access_token
 from common.core.sqlbot_cache import clear_cache
+from common.utils.utils import get_origin_from_referer, origin_match_domain
 from common.xpack_compat.file_utils import (
     check_file,
     delete_file,
@@ -50,7 +51,6 @@ from common.xpack_compat.file_utils import (
     split_filename_and_flag,
     upload,
 )
-from common.utils.utils import get_origin_from_referer, origin_match_domain
 
 router = APIRouter(tags=["system_assistant"], prefix="/system/assistant")
 
@@ -60,9 +60,22 @@ def _parse_json_object(raw_json: str) -> dict[str, object]:
     return cast(dict[str, object], parsed) if isinstance(parsed, dict) else {}
 
 
-def _get_int_value(mapping: dict[str, object], key: str, default: int) -> int:
+def _get_optional_int_value(mapping: dict[str, object], key: str) -> int | None:
     value = mapping.get(key)
-    return value if isinstance(value, int) else default
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return None
+
+
+def _get_bool_value(mapping: dict[str, object], key: str) -> bool:
+    value = mapping.get(key)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() == "true"
+    return False
 
 
 def _get_int_list(mapping: dict[str, object], key: str) -> list[int]:
@@ -103,6 +116,8 @@ def _normalize_and_validate_configuration(
     config_obj = _parse_json_object(configuration)
     workspace_ids = get_assistant_workspace_ids(config_obj)
     datasource_ids = _dedupe_positive_ints(_get_int_list(config_obj, "datasource_ids"))
+    auto_ds = _get_bool_value(config_obj, "auto_ds")
+    default_datasource_id = _get_optional_int_value(config_obj, "default_datasource_id")
 
     if datasource_ids and not workspace_ids:
         raise HTTPException(
@@ -149,8 +164,26 @@ def _normalize_and_validate_configuration(
                 ),
             )
 
+    if auto_ds:
+        if default_datasource_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Automatic datasource entry requires a default datasource",
+            )
+        if default_datasource_id not in datasource_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Default datasource {default_datasource_id} must be within the assistant datasource scope"
+                ),
+            )
+    else:
+        default_datasource_id = None
+
     config_obj["workspace_ids"] = workspace_ids
     config_obj["datasource_ids"] = datasource_ids
+    config_obj["auto_ds"] = auto_ds
+    config_obj["default_datasource_id"] = default_datasource_id
     if workspace_ids:
         config_obj["oid"] = workspace_ids[0]
     if assistant_type == 0:
