@@ -54,6 +54,15 @@ const datasource = {
   description: 'Deterministic test datasource',
 }
 
+const switchedDatasource = {
+  id: 202,
+  name: 'CRM Demo',
+  type: 'mysql',
+  type_name: 'MySQL',
+  num: '2 tables',
+  description: 'Secondary deterministic datasource',
+}
+
 const emptyChatInfo = {
   id: 9001,
   brief: 'New chat',
@@ -72,6 +81,26 @@ const emptyChatInfo = {
     },
   ],
   create_time: '2026-03-17 10:00:00',
+} satisfies ChatInfoPayload
+
+const switchedEmptyChatInfo = {
+  id: 9003,
+  brief: 'Switched chat',
+  datasource: switchedDatasource.id,
+  datasource_name: switchedDatasource.name,
+  ds_type: switchedDatasource.type,
+  records: [
+    {
+      id: 6003,
+      chat_id: 9003,
+      create_time: '2026-03-17 10:05:00',
+      question: '',
+      first_chat: true,
+      recommended_question: '["Show opportunity pipeline"]',
+      finish: true,
+    },
+  ],
+  create_time: '2026-03-17 10:05:00',
 } satisfies ChatInfoPayload
 
 const historyChatInfo = {
@@ -324,6 +353,84 @@ export async function installChatFlowMocks(page: Page): Promise<void> {
       },
       { type: 'finish' },
     ])
+  })
+}
+
+export async function installAssistantDirectEntryMocks(page: Page): Promise<void> {
+  await installBaseAppMocks(page)
+  await installSuccessChatRecordMocks(page)
+
+  await page.route('**/api/v1/chat/list', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([]),
+    })
+  })
+
+  await page.route('**/api/v1/system/assistant/validator**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ valid: true, id_match: true, domain_match: true, token: e2eToken }),
+    })
+  })
+
+  await page.route('**/api/v1/system/assistant/77', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 77,
+        name: 'Assistant Demo',
+        type: 0,
+        domain: 'http://example.com',
+        configuration: JSON.stringify({
+          auto_ds: true,
+          default_datasource_id: datasource.id,
+          datasource_ids: [datasource.id, switchedDatasource.id],
+          workspace_ids: [1],
+        }),
+      }),
+    })
+  })
+
+  await page.route('**/api/v1/system/assistant/ds', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([datasource, switchedDatasource]),
+    })
+  })
+
+  await page.route('**/api/v1/datasource/check/*', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+  })
+
+  await page.route('**/api/v1/chat/assistant/start', async (route) => {
+    const payload = route.request().postDataJSON() as { datasource?: number }
+    const selectedDatasourceId = payload?.datasource
+    const body = selectedDatasourceId === switchedDatasource.id ? switchedEmptyChatInfo : emptyChatInfo
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    })
+  })
+
+  await page.route('**/api/v1/recommended_problem/get_datasource_recommended_base/*', async (route) => {
+    const url = route.request().url()
+    const isSwitchedDatasource = url.endsWith(`/${switchedDatasource.id}`)
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        recommended_config: 2,
+        questions: isSwitchedDatasource
+          ? '["Show opportunity pipeline"]'
+          : '["Show revenue by month"]',
+      }),
+    })
   })
 }
 

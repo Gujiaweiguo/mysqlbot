@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import {
+  installAssistantDirectEntryMocks,
   installChatErrorFlowMocks,
   installChatFlowMocks,
   installChatReplayFlowMocks,
@@ -98,5 +99,29 @@ test.describe('chat recommended-question replay', () => {
     await expect(page.getByTestId('chat-scroll')).toContainText('Show monthly trends', {
       timeout: 15000,
     })
+  })
+})
+
+test.describe('assistant default datasource direct entry', () => {
+  test.beforeEach(async ({ page }) => {
+    await installAssistantDirectEntryMocks(page)
+  })
+
+  test('starts assistant chat with default datasource and switches to a new session', async ({ page }) => {
+    await page.goto('/#/assistant?id=77')
+
+    await page.locator('.header .new-chat').click()
+
+    await expect(page.getByText('Orders Demo')).toBeVisible()
+    await expect(page.getByTestId('switch-datasource-button')).toBeVisible()
+
+    await page.getByTestId('switch-datasource-button').click()
+    const datasourceDrawer = page.locator('[data-testid="datasource-drawer"]:visible')
+    await expect(datasourceDrawer).toBeVisible()
+
+    await datasourceDrawer.getByTestId('datasource-card-202').click()
+    await datasourceDrawer.getByTestId('confirm-datasource-button').click()
+
+    await expect(page.getByText('CRM Demo')).toBeVisible()
   })
 })
