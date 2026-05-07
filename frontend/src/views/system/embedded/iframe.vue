@@ -20,6 +20,7 @@ import { getList, updateAssistant, saveAssistant, delOne, dsApiMulti } from '@/a
 import { useI18n } from 'vue-i18n'
 import { cloneDeep } from 'lodash-es'
 import { useUserStore } from '@/stores/user.ts'
+import JSONBig from 'json-bigint'
 
 const userStore = useUserStore()
 defineProps({
@@ -159,13 +160,13 @@ const syncSelectedDatasourceIds = (target: 'basic' | 'advanced', options: any[])
   if (target === 'basic') {
     dsForm.datasource_ids = dsForm.datasource_ids.filter((id: string) => availableIds.has(id))
     dsForm.public_list = [...dsForm.datasource_ids]
-    if (!availableIds.has(dsForm.default_datasource_id)) {
+    if (options.length > 0 && !availableIds.has(dsForm.default_datasource_id)) {
       dsForm.default_datasource_id = ''
     }
     return
   }
   urlForm.datasource_ids = urlForm.datasource_ids.filter((id: string) => availableIds.has(id))
-  if (!availableIds.has(urlForm.default_datasource_id)) {
+  if (options.length > 0 && !availableIds.has(urlForm.default_datasource_id)) {
     urlForm.default_datasource_id = ''
   }
 }
@@ -254,7 +255,7 @@ const handleBaseEmbedded = async (row: any) => {
   advancedApplication.value = false
   await loadWorkspaces()
   if (row) {
-    Object.assign(dsForm, normalizeBaseConfig(JSON.parse(row.configuration)))
+    Object.assign(dsForm, normalizeBaseConfig(JSONBig.parse(row.configuration)))
   } else {
     Object.assign(dsForm, normalizeBaseConfig({ oid: userStore.getOid || '1' }))
   }
@@ -268,7 +269,7 @@ const handleAdvancedEmbedded = async (row: any) => {
   advancedApplication.value = true
   await loadWorkspaces()
   if (row) {
-    const tempData = normalizeAdvancedConfig(cloneDeep(JSON.parse(row.configuration)))
+    const tempData = normalizeAdvancedConfig(cloneDeep(JSONBig.parse(row.configuration)))
     if (tempData?.endpoint.startsWith('http')) {
       row.domain
         .trim()
@@ -842,7 +843,7 @@ const saveHandler = () => {
             :name="ele.name"
             :is-base="ele.type === 0"
             :description="ele.description"
-            :logo="JSON.parse(ele.configuration).logo"
+            :logo="JSONBig.parse(ele.configuration).logo"
             @embedded="handleEmbedded(ele)"
             @edit="handleEditRule(ele)"
             @del="deleteHandler(ele)"
